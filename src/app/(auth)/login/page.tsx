@@ -17,7 +17,8 @@ export default function LoginPage() {
     try {
       await authService.signInWithGoogle();
     } catch (error) {
-      toast.error("Error al iniciar sesión");
+      const errorMessage = error instanceof Error ? error.message : "Error al iniciar sesión";
+      toast.error(errorMessage);
       console.error("Login error:", error);
       setIsLoading(false);
     }

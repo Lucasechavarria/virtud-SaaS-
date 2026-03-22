@@ -47,6 +47,10 @@ export const authService = {
      * Sign in with Google
      */
     async signInWithGoogle() {
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            throw new Error('Supabase no está configurado: faltan variables de entorno');
+        }
+
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {

@@ -6,10 +6,20 @@ export const createClient = () => {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-        console.warn('⚠️ Missing Supabase environment variables - running in stub mode');
+        if (typeof window !== 'undefined') {
+            console.warn('⚠️ Missing Supabase environment variables:', {
+                url: !!supabaseUrl,
+                anonKey: !!supabaseAnonKey
+            });
+        }
         return new Proxy({} as any, {
             get: (_target, prop) => {
-                if (prop === 'auth') return { getUser: async () => ({ data: { user: null }, error: null }) };
+                if (prop === 'auth') return { 
+                    getUser: async () => ({ data: { user: null }, error: null }),
+                    signInWithOAuth: async () => {
+                        throw new Error('Supabase no está configurado: faltan variables de entorno (NEXT_PUBLIC_SUPABASE_URL / ANON_KEY)');
+                    }
+                };
                 throw new Error(
                     `Supabase client not initialized. Missing env vars. Checked property '${String(prop)}'.`
                 );
@@ -25,6 +35,9 @@ export const createClient = () => {
 
 // Singleton instance for client-side usage
 export const supabase = createClient();
+
+// Flag to check if Supabase is properly configured
+export const isSupabaseConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 // Helper to get the current user
 export const getCurrentUser = async () => {

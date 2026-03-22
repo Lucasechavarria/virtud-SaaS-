@@ -26,7 +26,8 @@ export default function SignupPage() {
         try {
             await authService.signInWithGoogle();
         } catch (error) {
-            toast.error("Error al registrarse con Google");
+            const errorMessage = error instanceof Error ? error.message : "Error al registrarse con Google";
+            toast.error(errorMessage);
             console.error("Google signup error:", error);
             setIsLoading(false);
         }
