@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type Booking = Database['public']['Tables']['reservas_de_clase']['Row'];
 type BookingInsert = Database['public']['Tables']['reservas_de_clase']['Insert'];

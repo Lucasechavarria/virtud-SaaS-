@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type UserGoalInsert = Database['public']['Tables']['objetivos_del_usuario']['Insert'];
 

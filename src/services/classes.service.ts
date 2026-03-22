@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type Class = Database['public']['Tables']['horarios_de_clase']['Row'];
 type ClassInsert = Database['public']['Tables']['horarios_de_clase']['Insert'];

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type UserGoal = Database['public']['Tables']['objetivos_del_usuario']['Row'];
 type UserGoalInsert = Database['public']['Tables']['objetivos_del_usuario']['Insert'];

@@ -21,10 +21,10 @@ export async function POST(
         const { id } = await params;
         const routineId = id;
 
-        // Actualizar status a rejected
+        // Actualizar estado a rejected
         const { error: updateError } = await supabase
-            .from('routines')
-            .update({ status: 'rejected' })
+            .from('rutinas')
+            .update({ estado: 'rejected' })
             .eq('id', routineId);
 
         if (updateError) throw updateError;

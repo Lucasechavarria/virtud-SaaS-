@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type Activity = Database['public']['Tables']['actividades']['Row'];
 type ActivityInsert = Database['public']['Tables']['actividades']['Insert'];

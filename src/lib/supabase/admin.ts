@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '@/types/supabase';
+import { Database } from '../../types/supabase';
 
 export function createAdminClient() {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

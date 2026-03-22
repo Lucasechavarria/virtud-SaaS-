@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type GymEquipment = Database['public']['Tables']['equipamiento']['Row'];
 type GymEquipmentInsert = Database['public']['Tables']['equipamiento']['Insert'];

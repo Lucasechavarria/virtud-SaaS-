@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type Profile = Database['public']['Tables']['perfiles']['Row'];
 

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import webpush from 'web-push';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 import { logger } from '@/lib/logger';
 
 interface NotificationPayload {

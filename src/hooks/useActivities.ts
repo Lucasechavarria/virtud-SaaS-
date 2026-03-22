@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { activitiesService } from '@/services/activities.service';
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type Activity = Database['public']['Tables']['actividades']['Row'];
 

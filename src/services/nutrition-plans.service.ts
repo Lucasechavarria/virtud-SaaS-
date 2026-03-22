@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 
-import { Database } from '@/types/supabase';
+import { Database } from '../types/supabase';
 
 type NutritionPlan = Database['public']['Tables']['planes_nutricionales']['Row'];
 type NutritionPlanInsert = Database['public']['Tables']['planes_nutricionales']['Insert'];
