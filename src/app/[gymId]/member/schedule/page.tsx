@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Clock, User, Calendar as CalendarIcon, X, Info, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { supabase } from '@/lib/supabase/client';
 
 interface ScheduleItem {
     id: string;
@@ -35,6 +36,17 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
 
     useEffect(() => {
         fetchData();
+
+        // WebSockets para actualizar disponibilidad al vuelo (Supabase Realtime)
+        const channel = supabase.channel('global_schedule_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'reservas_de_clase' },
+                () => { fetchData(); } // Silent background update
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, []);
 
     const fetchData = async () => {

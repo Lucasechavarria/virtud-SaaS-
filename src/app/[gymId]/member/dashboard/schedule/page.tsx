@@ -15,6 +15,17 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
 
     useEffect(() => {
         fetchSchedule();
+
+        // Subscripción WebSockets para cambios en vivo de cupos/reservas
+        const channel = supabase.channel('dashboard_schedule_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'reservas_de_clase' },
+                () => { fetchSchedule(); }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, [selectedDay]);
 
     const fetchSchedule = async () => {

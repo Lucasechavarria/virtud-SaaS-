@@ -1,0 +1,174 @@
+﻿node.exe : 
+Initialising login 
+role...
+En C:\Program 
+Files\nodejs\npx.ps1: 
+29 Carácter: 3
++   & $NODE_EXE 
+$NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Initialising    
+ login role...:Stri    
+ng) [], RemoteExce    
+ption
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+Connecting to remote 
+database...
+The remote database's 
+migration history does 
+not match local files 
+in supabase\migrations 
+directory.
+
+Make sure your local 
+git repo is 
+up-to-date. If the 
+error persists, try 
+repairing the 
+migration history 
+table:
+supabase migration 
+repair --status 
+applied 20240211
+supabase migration 
+repair --status 
+applied 20250101000000
+supabase migration 
+repair --status 
+applied 20250101000001
+supabase migration 
+repair --status 
+applied 20250101000002
+supabase migration 
+repair --status 
+applied 20250102000000
+supabase migration 
+repair --status 
+applied 20250102000001
+supabase migration 
+repair --status 
+applied 20250103
+supabase migration 
+repair --status 
+applied 20250115
+supabase migration 
+repair --status 
+applied 20251211
+supabase migration 
+repair --status 
+applied 20251213000000
+supabase migration 
+repair --status 
+applied 20251213000001
+supabase migration 
+repair --status 
+applied 20251218
+supabase migration 
+repair --status 
+applied 20251220140000
+supabase migration 
+repair --status 
+applied 20251230183600
+supabase migration 
+repair --status 
+applied 20251230230000
+supabase migration 
+repair --status 
+applied 20251230232500
+supabase migration 
+repair --status 
+applied 20251230234000
+supabase migration 
+repair --status 
+applied 20260111153500
+supabase migration 
+repair --status 
+applied 20260113163000
+supabase migration 
+repair --status 
+applied 20260113170000
+supabase migration 
+repair --status 
+applied 20260114131500
+supabase migration 
+repair --status 
+applied 20260114144500
+supabase migration 
+repair --status 
+applied 20260115160000
+supabase migration 
+repair --status 
+applied 20260116120000
+supabase migration 
+repair --status 
+applied 20260116210000
+supabase migration 
+repair --status 
+applied 20260120000000
+supabase migration 
+repair --status 
+applied 20260120000000
+supabase migration 
+repair --status 
+applied 20260120000001
+supabase migration 
+repair --status 
+applied 20260120000002
+supabase migration 
+repair --status 
+applied 20260120000003
+supabase migration 
+repair --status 
+applied 20260121000000
+supabase migration 
+repair --status 
+applied 20260122000000
+supabase migration 
+repair --status 
+applied 20260122000001
+supabase migration 
+repair --status 
+applied 20260122000002
+supabase migration 
+repair --status 
+applied 20260122000003
+supabase migration 
+repair --status 
+applied 20260122000004
+supabase migration 
+repair --status 
+applied 20260123000000
+supabase migration 
+repair --status 
+applied 20260210
+supabase migration 
+repair --status 
+applied 20260211
+supabase migration 
+repair --status 
+applied 20260211
+supabase migration 
+repair --status 
+applied 20260211
+supabase migration 
+repair --status 
+applied 20260212
+supabase migration 
+repair --status 
+applied 20260212
+supabase migration 
+repair --status 
+applied 20260224000000
+supabase migration 
+repair --status 
+applied 20260224100000
+supabase migration 
+repair --status 
+applied 20260301000000
+

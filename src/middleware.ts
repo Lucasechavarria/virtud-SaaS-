@@ -1,5 +1,33 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createMiddlewareClient } from '@/lib/supabase/middleware';
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+// ────────────────────────────────────────────────────
+// INICIALIZACIÓN DE RATE LIMITER (UPSTASH)
+// ────────────────────────────────────────────────────
+let ratelimit: Ratelimit | null = null;
+if (process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL) {
+    let url = process.env.UPSTASH_REDIS_REST_URL || '';
+    let token = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+    
+    // Fallback parser si solo proveen Connection String nativo de Redis (rediss://)
+    if (!url && process.env.REDIS_URL) {
+        const match = process.env.REDIS_URL.match(/rediss:\/\/(?:.+:)?([^@]+)@([^:]+)/);
+        if (match) {
+            token = match[1];
+            url = `https://${match[2]}`;
+        }
+    }
+
+    if (url && token) {
+        ratelimit = new Ratelimit({
+            redis: new Redis({ url, token }),
+            limiter: Ratelimit.slidingWindow(5, '1 m'), // Limite crudo: 5 peticiones por min
+            analytics: true,
+        });
+    }
+}
 
 // Mapeo de rutas que requieren módulos activos para poder accederse
 const MODULE_ROUTES: Record<string, string> = {
@@ -30,10 +58,31 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
+        const { pathname } = request.nextUrl;
+        
+        // ────────────────────────────────────────────────────
+        // RATE LIMITING (Protección de Fuerza Bruta)
+        // ────────────────────────────────────────────────────
+        if (ratelimit && (pathname === '/login' || pathname === '/signup' || pathname.startsWith('/api/'))) {
+            const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
+            const { success, limit, remaining, reset } = await ratelimit.limit(`ratelimit_${ip}_${pathname}`);
+            
+            if (!success) {
+                return new NextResponse('Too Many Requests - Has excedido el límite.', {
+                    status: 429,
+                    headers: {
+                        'X-RateLimit-Limit': limit.toString(),
+                        'X-RateLimit-Remaining': remaining.toString(),
+                        'X-RateLimit-Reset': reset.toString(),
+                        'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString(),
+                    },
+                });
+            }
+        }
+
         const response = NextResponse.next({ request: { headers: request.headers } });
         const supabase = createMiddlewareClient(request, response);
         const { data: { user }, error } = await supabase.auth.getUser();
-        const { pathname } = request.nextUrl;
 
         // Rutas públicas — no requieren auth
         const publicRoutes = ['/', '/login', '/signup', '/auth/callback'];
@@ -197,9 +246,22 @@ export async function middleware(request: NextRequest) {
         return response;
 
     } catch (_e) {
-        // En caso de error, dejar pasar para no bloquear la app
+        // En caso de error crítico (ej. caída de base de datos) NO SE DEBE permitir el acceso a rutas protegidas.
         console.error('[Middleware] Error crítico:', _e);
-        return NextResponse.next({ request: { headers: request.headers } });
+        
+        const { pathname } = request.nextUrl;
+        const publicRoutes = ['/', '/login', '/signup', '/auth/callback'];
+        
+        // Si el usuario intentaba llegar a una ruta pública, lo dejamos pasar
+        if (publicRoutes.includes(pathname)) {
+            return NextResponse.next({ request: { headers: request.headers } });
+        }
+
+        // Si intentaba llegar a una ruta protegida y los servicios fallaron, forzamos redirección a login (Fail-Closed)
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/login';
+        redirectUrl.searchParams.set('error', 'service_unavailable');
+        return NextResponse.redirect(redirectUrl);
     }
 }
 

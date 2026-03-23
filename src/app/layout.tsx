@@ -1,3 +1,4 @@
+import '@/env'; // Falla en el Root si las variables Críticas están ausentes
 import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
