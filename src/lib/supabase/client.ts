@@ -14,12 +14,25 @@ export const createClient = () => {
         }
         return new Proxy({} as any, {
             get: (_target, prop) => {
-                if (prop === 'auth') return { 
-                    getUser: async () => ({ data: { user: null }, error: null }),
-                    signInWithOAuth: async () => {
-                        throw new Error('Supabase no está configurado: faltan variables de entorno (NEXT_PUBLIC_SUPABASE_URL / ANON_KEY)');
-                    }
-                };
+                if (prop === 'auth') {
+                    // Devuelve otro Proxy para capturar todas las llamadas a métodos de auth (signUp, signIn, etc)
+                    return new Proxy({}, {
+                        get: (_authTarget, authProp) => {
+                            if (authProp === 'getUser') {
+                                return async () => ({ data: { user: null }, error: null });
+                            }
+                            if (authProp === 'getSession') {
+                                return async () => ({ data: { session: null }, error: null });
+                            }
+                            if (authProp === 'onAuthStateChange') {
+                                return () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null });
+                            }
+                            return async () => {
+                                throw new Error('Supabase no está configurado en Vercel: Faltan las variables de entorno (NEXT_PUBLIC_SUPABASE_URL y ANON_KEY)');
+                            };
+                        }
+                    });
+                }
                 throw new Error(
                     `Supabase client not initialized. Missing env vars. Checked property '${String(prop)}'.`
                 );
