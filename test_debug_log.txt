@@ -1,2 +1,0 @@
-Status: 200
-Body: {"success":true,"users":[{"id":"1","full_name":"User 1","role":"member"},{"id":"2","full_name":"User 2","role":"coach"}]}
