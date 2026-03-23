@@ -104,7 +104,13 @@ export function UniversalSidebar({
     useEffect(() => {
         if (gymId && gymId !== 'admin') { // Avoid fetching 'admin' as gymId if we are in superadmin
             supabase.from('gimnasios').select('nombre, logo_url, modulos_activos').eq('id', gymId).single().then(({ data }) => {
-                if (data) setGymInfo(data);
+                if (data) {
+                    setGymInfo({
+                        nombre: data.nombre || undefined,
+                        logo_url: data.logo_url || undefined,
+                        modulos_activos: (data.modulos_activos as string[]) || []
+                    });
+                }
             });
         }
     }, [gymId]);
