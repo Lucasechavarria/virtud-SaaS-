@@ -135,7 +135,7 @@ export default function VisionLab() {
                     ejercicio_id: selectedExerciseId,
                     url_video: publicUrl,
                     estado: 'analizado',
-                    correcciones_ia: analysis as unknown,
+                    correcciones_ia: analysis as any,
                     puntaje_confianza: analysis.puntaje_general
                 });
 

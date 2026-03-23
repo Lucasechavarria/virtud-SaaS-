@@ -55,11 +55,10 @@ export const GymProvider = ({ children }: { children: React.ReactNode }) => {
                     return;
                 }
 
-                // 2. Obtener datos del gimnasio usando las columnas reales de la DB
-                // Ahora seleccionamos también color_secundario y favicon_url
+                // 2. Obtener datos del gimnasio usando las columnas reales de la DB (Tabla gimnasios validada)
                 const { data: gymData } = await supabase
                     .from("gimnasios")
-                    .select("id, nombre, slug, logo_url, color_primario, color_secundario, favicon_url, config_visual, config_landing, modulos_activos, es_activo")
+                    .select("id, nombre, slug, logo_url, color_primario, color_secundario, modulos_activos, es_activo")
                     .eq("id", profile.gimnasio_id)
                     .single();
 
@@ -74,7 +73,7 @@ export const GymProvider = ({ children }: { children: React.ReactNode }) => {
                         color_primario: primaryColor,
                         color_secundario: secondaryColor,
                         logo_url: gymData.logo_url || null,
-                        favicon_url: gymData.favicon_url || null,
+                        favicon_url: null, // Removido temporalmente por inexistencia en DB
                         modulos: (gymData.modulos_activos as Record<string, boolean>) || {
                             rutinas_ia: true,
                             gamificacion: true,
@@ -82,8 +81,8 @@ export const GymProvider = ({ children }: { children: React.ReactNode }) => {
                             pagos_online: true,
                             clases_reserva: true,
                         },
-                        config_visual: (gymData.config_visual as Record<string, unknown>) || {},
-                        config_landing: (gymData.config_landing as Record<string, unknown>) || {},
+                        config_visual: {},
+                        config_landing: {},
                     });
 
                     // 3. Inyectar variables CSS para Tailwind y UI Premium
@@ -92,11 +91,11 @@ export const GymProvider = ({ children }: { children: React.ReactNode }) => {
                     root.style.setProperty("--primary-foreground", "#ffffff");
                     root.style.setProperty("--secondary", secondaryColor);
 
-                    // Favicon dinámico (Tarea de apoyo para PWA)
-                    if (gymData.favicon_url || gymData.logo_url) {
+                    // Favicon dinámico (Tarea de apoyo para PWA) usando logo
+                    if (gymData.logo_url) {
                         const favicon = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
                         if (favicon) {
-                            favicon.href = (gymData.favicon_url || gymData.logo_url)!;
+                            favicon.href = gymData.logo_url!;
                         }
                     }
 
