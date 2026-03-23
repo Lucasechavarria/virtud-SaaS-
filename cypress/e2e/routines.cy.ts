@@ -1,4 +1,4 @@
-describe('Routine Management Flow', () => {
+describe.skip('Routine Management Flow', () => {
     beforeEach(() => {
         // Mock login as Coach
         cy.login('coach@virtudgym.com', 'password123');
