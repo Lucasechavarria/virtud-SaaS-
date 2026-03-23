@@ -44,7 +44,7 @@ describe('Authentication Flow', () => {
     it.skip('should allow Student to login', () => {
         // [Requiere Seed de Base de Datos para CI/CD]
         const password = 'password123';
-
+        const email = 'student@test.com'; // Definimos email antes del llamado
         cy.login(email, password);
         cy.visit('/dashboard');
         cy.url().should('include', '/dashboard');
