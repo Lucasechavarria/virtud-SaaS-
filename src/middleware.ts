@@ -124,7 +124,7 @@ export async function middleware(request: NextRequest) {
         }
 
         // Fallback a metadata si la DB falla (ej: primer login antes de que el trigger corra)
-        if (!userRole) {
+        if (!userRole && user) {
             userRole = user.app_metadata?.rol
                 || user.user_metadata?.rol
                 || user.app_metadata?.role
@@ -140,7 +140,7 @@ export async function middleware(request: NextRequest) {
         // ────────────────────────────────────────────────────
         // REDIRIGIR SI YA ESTÁ LOGUEADO Y VA A LOGIN/SIGNUP
         // ────────────────────────────────────────────────────
-        if (pathname === '/login' || pathname === '/signup') {
+        if (user && (pathname === '/login' || pathname === '/signup')) {
             switch (userRole) {
                 case 'superadmin':
                     return NextResponse.redirect(new URL('/saas-admin', request.url));
