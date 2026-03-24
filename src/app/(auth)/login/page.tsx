@@ -147,7 +147,10 @@ export default function LoginPage() {
               
               // Forzar navegación de página completa para que el middleware (proxy) detecte la sesión
               const destination = redirectTo || '/';
-              window.location.href = destination;
+              // Dar un respiro al navegador para persistir las cookies antes de navegar
+              setTimeout(() => {
+                window.location.href = destination;
+              }, 100);
             } catch (_error) {
               toast.error("Credenciales inválidas");
               setIsLoading(false);
