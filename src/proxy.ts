@@ -75,20 +75,23 @@ export default async function proxy(request: NextRequest) {
             if (isAuthRoute || (isApiRoute && isMutation)) {
                 const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
                 
-                // Podemos crear identificadores separados si quisieramos límites distintos,
-                // Pero por ahora reutilizamos el límite configurado arriba.
-                const { success, limit, remaining, reset } = await ratelimit.limit(`ratelimit_${ip}_${pathname}`);
-                
-                if (!success) {
-                    return new NextResponse('Too Many Requests - Has excedido el límite. Intenta más tarde.', {
-                        status: 429,
-                        headers: {
-                            'X-RateLimit-Limit': limit.toString(),
-                            'X-RateLimit-Remaining': remaining.toString(),
-                            'X-RateLimit-Reset': reset.toString(),
-                            'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString(),
-                        },
-                    });
+                try {
+                    const { success, limit, remaining, reset } = await ratelimit.limit(`ratelimit_${ip}_${pathname}`);
+                    
+                    if (!success) {
+                        return new NextResponse('Too Many Requests - Has excedido el límite. Intenta más tarde.', {
+                            status: 429,
+                            headers: {
+                                'X-RateLimit-Limit': limit.toString(),
+                                'X-RateLimit-Remaining': remaining.toString(),
+                                'X-RateLimit-Reset': reset.toString(),
+                                'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString(),
+                            },
+                        });
+                    }
+                } catch (e) {
+                    // Fail-Open: Si falla el servicio de ratelimit (ej. Redis caído en CI), permitimos el paso.
+                    console.warn('[Proxy] Ratelimit service unavailable, bypassing check:', e instanceof Error ? e.message : String(e));
                 }
             }
         }
