@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    _LineChart, _Line, BarChart, Bar,
-    XAxis, YAxis, CartesianGrid, Tooltip, _Legend,
+    LineChart, Line, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend,
     ResponsiveContainer, Area, AreaChart
 } from 'recharts';
-import { TrendingUp, Activity, _Calendar, Zap, BarChart3 } from 'lucide-react';
+import { TrendingUp, Activity, Calendar, Zap, BarChart3 } from 'lucide-react';
 
 import { EvolutionChartData, AttendanceChartData, ItemVariants } from '@/types/student-components';
 import { EliteCard } from '@/components/ui/EliteCard';

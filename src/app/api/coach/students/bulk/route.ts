@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { NotificationService } from '@/services/notification.service';
+import { Database } from '@/types/supabase';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+type AssignmentRecord = { usuario_id: string };
 
 /**
  * POST /api/coach/students/bulk
@@ -23,14 +27,14 @@ export async function POST(req: NextRequest) {
         }
 
         // Validar que el coach tiene acceso a estos alumnos
-        const { data: assignments, error: coachError } = await supabase
-            .from('relacion_alumno_coach')
-            .select('user_id')
-            .eq('coach_id', user.id)
-            .in('user_id', studentIds)
-            .eq('is_active', true);
+        const assignmentsResponse = await (supabase.from('relacion_alumno_coach') as any)
+            .select('usuario_id')
+            .eq('entrenador_id', user.id)
+            .in('usuario_id', studentIds)
+            .eq('esta_activo', true) as { data: AssignmentRecord[] | null; error: any };
 
-        const validStudentIds = assignments?.map((r: any) => r.user_id) || [];
+        const { data: assignments, error: coachError } = assignmentsResponse;
+        const validStudentIds = assignments?.map((r: AssignmentRecord) => r.usuario_id) || [];
 
         if (validStudentIds.length === 0) {
             return NextResponse.json({ error: 'Sin permisos para estos alumnos' }, { status: 403 });
@@ -44,11 +48,11 @@ export async function POST(req: NextRequest) {
                 break;
 
             case 'export_data':
-                result = await exportStudentsData(supabase, validStudentIds);
+                result = await exportStudentsData(supabase as unknown as SupabaseClient<Database>, validStudentIds);
                 break;
 
             case 'assign_routine':
-                result = await assignRoutineToMultiple(supabase, validStudentIds, params.routineId);
+                result = await assignRoutineToMultiple(supabase as unknown as SupabaseClient<Database>, validStudentIds, params.routineId);
                 break;
 
             default:
@@ -91,7 +95,7 @@ async function sendBulkNotification(studentIds: string[], title: string, message
     };
 }
 
-async function exportStudentsData(supabase: any, studentIds: string[]) {
+async function exportStudentsData(supabase: SupabaseClient<Database>, studentIds: string[]) {
     const { data: students } = await supabase
         .from('perfiles')
         .select('id, nombre_completo, email, telefono, fecha_nacimiento')
@@ -104,7 +108,7 @@ async function exportStudentsData(supabase: any, studentIds: string[]) {
     };
 }
 
-async function assignRoutineToMultiple(supabase: any, studentIds: string[], routineId: string) {
+async function assignRoutineToMultiple(supabase: SupabaseClient<Database>, studentIds: string[], routineId: string) {
     if (!routineId) {
         throw new Error('ID de rutina es requerido');
     }
@@ -128,7 +132,7 @@ async function assignRoutineToMultiple(supabase: any, studentIds: string[], rout
         esta_activa: true,
     }));
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
         .from('rutinas_asignadas')
         .upsert(assignments);
 

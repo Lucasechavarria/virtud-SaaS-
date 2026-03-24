@@ -13,7 +13,7 @@ import {
     Award,
     Sword,
     Shield,
-    _ChevronRight,
+    ChevronRight,
     Users,
     Activity,
     Lock

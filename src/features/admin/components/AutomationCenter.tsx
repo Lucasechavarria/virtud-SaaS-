@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, _AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Zap,
-    _MessageCircle,
+    MessageCircle,
     CreditCard,
     UserX,
     Cake,
@@ -13,7 +13,7 @@ import {
     Settings2,
     History,
     CheckCircle2,
-    _AlertCircle,
+    AlertCircle,
     ArrowRight
 } from 'lucide-react';
 

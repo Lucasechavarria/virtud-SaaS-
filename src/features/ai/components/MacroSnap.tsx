@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Upload, Zap, Beef, Droplets, Target, ShieldCheck, _AlertCircle, RotateCcw, Loader2, Apple, ChevronRight } from 'lucide-react';
+import { Camera, Upload, Zap, Beef, Droplets, Target, ShieldCheck, AlertCircle, RotateCcw, Loader2, Apple, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase/client';

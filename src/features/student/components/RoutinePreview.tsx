@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Sword, Zap, _Target, Apple, ChevronRight, Activity, Loader2 } from 'lucide-react';
+import { Sword, Zap, Target, Apple, ChevronRight, Activity, Loader2 } from 'lucide-react';
 import WorkoutPlayer from './WorkoutPlayer';
 import { EliteCard } from '@/components/ui/EliteCard';
 import { EliteButton } from '@/components/ui/EliteButton';

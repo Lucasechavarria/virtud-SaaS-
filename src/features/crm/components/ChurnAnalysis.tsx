@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    _UserX,
+    UserX,
     Phone,
     MessageCircle,
     TrendingDown,

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShoppingCart,
     Search,
-    _User,
+    User,
     CreditCard,
     Banknote,
     Trash2,

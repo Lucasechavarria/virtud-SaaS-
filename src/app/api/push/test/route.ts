@@ -38,12 +38,12 @@ export async function POST() {
         }
 
         // Obtener la suscripción más reciente del usuario
-        const { data: subscriptions, error: subError } = await supabase
+        const { data: subscriptions, error: subError } = await (supabase
             .from('push_subscriptions')
-            .select('subscription')
+            .select('endpoint, auth, p256dh')
             .eq('usuario_id', user.id)
             .order('creado_en', { ascending: false })
-            .limit(1);
+            .limit(1) as any);
 
         if (subError || !subscriptions || subscriptions.length === 0) {
             return NextResponse.json({
@@ -51,7 +51,14 @@ export async function POST() {
             }, { status: 404 });
         }
 
-        const pushSubscription = subscriptions[0].subscription;
+        const sub = subscriptions[0];
+        const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: {
+                auth: sub.auth,
+                p256dh: sub.p256dh
+            }
+        };
 
         const payload = JSON.stringify({
             title: '🔱 Virtud Gym - Prueba',

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { ROLES } from '@/lib/constants/app';
+import { Database } from '@/types/supabase';
 
 // GET /api/equipment - List all equipment
 export async function GET(req: Request) {
@@ -11,7 +12,7 @@ export async function GET(req: Request) {
         const category = searchParams.get('category');
         const available = searchParams.get('available');
 
-        let query = supabase.from('equipamiento').select('*').order('nombre');
+        let query = (supabase.from('equipamiento') as any).select('*').order('nombre');
 
         if (category) query = query.eq('categoria', category);
         if (available) query = query.eq('disponible', available === 'true');
@@ -97,12 +98,11 @@ export async function PATCH(req: Request) {
         if (updates.is_available !== undefined) mappedUpdates.disponible = updates.is_available;
         if (updates.last_maintenance) mappedUpdates.ultimo_mantenimiento = updates.last_maintenance;
 
-        const { data, error } = await supabase
-            .from('equipamiento' as any)
+        const { data, error } = await (supabase.from('equipamiento') as any)
             .update(mappedUpdates)
             .eq('id', id)
             .select()
-            .single();
+            .single() as { data: Database['public']['Tables']['equipamiento']['Row'] | null; error: any };
 
         if (error) throw error;
         return NextResponse.json(data);

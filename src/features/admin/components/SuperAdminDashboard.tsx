@@ -12,7 +12,7 @@ import {
     Zap,
     ChevronRight,
     PlusCircle,
-    _LayoutDashboard,
+    LayoutDashboard,
     Gem,
     ArrowUpRight,
     Megaphone,
@@ -22,8 +22,8 @@ import {
     Brain,
     Mail,
     Check,
-    _MapPin,
-    _ChevronDown,
+    MapPin,
+    ChevronDown,
     DollarSign,
     BarChart3
 } from 'lucide-react';

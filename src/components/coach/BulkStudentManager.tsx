@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckSquare, Square, Send, Download, _UserPlus, Loader2 } from 'lucide-react';
+import { CheckSquare, Square, Send, Download, UserPlus, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface Student {

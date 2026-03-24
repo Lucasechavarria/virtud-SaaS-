@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { _motion } from 'framer-_motion';
+import { motion } from 'framer-motion';
 import {
     Key,
     Save,
