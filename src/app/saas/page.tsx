@@ -8,8 +8,8 @@ import {
     Smartphone,
     BarChart3,
     Users,
-    _Globe,
-    _ArrowRight,
+    Globe,
+    ArrowRight,
     Play,
     CheckCircle2,
     Palette

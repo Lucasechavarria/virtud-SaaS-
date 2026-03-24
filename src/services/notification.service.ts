@@ -97,7 +97,7 @@ export class NotificationService {
                 enviada,
                 enviada_en: enviada ? new Date().toISOString() : null,
                 error: enviada ? null : 'No se pudo enviar a ninguna suscripción',
-            });
+            } as any);
 
             logger.info(`[NotificationService] Notificación enviada a ${successCount}/${subscriptions.length} suscripciones`);
 
@@ -114,7 +114,7 @@ export class NotificationService {
                 datos: notification.datos,
                 enviada: false,
                 error: error instanceof Error ? error.message : 'Error desconocido',
-            });
+            } as any);
 
             throw error;
         }
@@ -141,10 +141,10 @@ export class NotificationService {
         for (const notif of pending) {
             try {
                 await this.sendToUser(notif.usuario_id, {
-                    tipo: notif.tipo,
+                    tipo: notif.tipo as NotificationPayload['tipo'],
                     titulo: notif.titulo,
                     cuerpo: notif.cuerpo,
-                    datos: notif.datos,
+                    datos: notif.datos as Record<string, unknown>,
                 });
 
                 // Marcar como enviada

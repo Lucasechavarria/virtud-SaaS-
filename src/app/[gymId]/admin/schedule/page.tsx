@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, _Edit2, Trash2, X, Save, Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface ScheduleItem {

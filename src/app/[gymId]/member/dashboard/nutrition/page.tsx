@@ -9,13 +9,13 @@ import {
     Beef,
     Clock,
     ChevronRight,
-    _Info,
-    _ChevronLeft,
-    _PieChart,
+    Info,
+    ChevronLeft,
+    PieChart,
     Apple,
     Camera,
     ClipboardList,
-    _LayoutDashboard
+    LayoutDashboard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import MacroSnap from '@/features/ai/components/MacroSnap';

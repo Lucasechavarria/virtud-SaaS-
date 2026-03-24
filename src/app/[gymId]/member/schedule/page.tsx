@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { _ChevronLeft, _ChevronRight, Clock, User, Calendar as _CalendarIcon, X, _Info, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, User, Calendar as CalendarIcon, X, Info, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase/client';
 
@@ -26,7 +26,7 @@ interface ScheduleItem {
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 07:00 to 21:00
 
-export default function SchedulePage({ _params }: { _params: { gymId: string } }) {
+export default function SchedulePage({ params }: { params: { gymId: string } }) {
     const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
     const [userBookings, setUserBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);

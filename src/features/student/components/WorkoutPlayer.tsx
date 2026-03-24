@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { _WorkoutSessionState, _ExerciseLog } from '@/types/workout';
+import { WorkoutSessionState, ExerciseLog } from '@/types/workout';
 
 interface Exercise {
     id: string;

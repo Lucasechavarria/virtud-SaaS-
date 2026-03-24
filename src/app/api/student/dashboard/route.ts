@@ -55,7 +55,7 @@ export async function GET() {
             { data: sessionLogs }
         ] = await Promise.all([
             // Progress
-            supabase
+            (supabase as any)
                 .from('mediciones')
                 .select('id, peso, grasa_corporal, musculo_esqueletico, registrado_en')
                 .eq('usuario_id', user.id)
@@ -75,7 +75,8 @@ export async function GET() {
                 .from('rutinas')
                 .select(`
                     *,
-                    ejercicios (*)
+                    gimnasios (id, nombre, url_logo),
+                    planes:plan_id (id, nombre, precio_mensual)
                 `)
                 .eq('usuario_id', user.id)
                 .eq('esta_activa', true)
@@ -84,7 +85,7 @@ export async function GET() {
             // Profile
             supabase
                 .from('perfiles')
-                .select('exencion_aceptada, nombre_completo, url_avatar, fecha_fin_membresia, genero, informacion_medica, gimnasios(nombre)')
+                .select('exencion_aceptada, nombre_completo, url_avatar, fecha_fin_membresia, gender, informacion_medica, gimnasios(nombre)')
                 .eq('id', user.id)
                 .single(),
 

@@ -42,9 +42,9 @@ export async function PATCH(req: Request) {
         if (authError) return authError;
 
         const body = await req.json();
-        const { id, status, admin_response } = body;
+        const { id, estado, admin_response } = body;
 
-        if (!id || !status) {
+        if (!id || !estado) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
@@ -53,7 +53,7 @@ export async function PATCH(req: Request) {
         const { data, error } = await supabase
             .from('reportes_de_alumnos')
             .update({
-                status,
+                estado,
                 admin_response,
                 actualizado_en: new Date().toISOString()
             })

@@ -8,7 +8,7 @@ import {
     Sword,
     Target,
     Zap,
-    _ChevronRight,
+    ChevronRight,
     Activity,
     Calendar,
     Dumbbell,
@@ -49,7 +49,7 @@ interface Routine {
     };
 }
 
-export default function MyRoutinePage({ _params }: { _params: { gymId: string } }) {
+export default function MyRoutinePage({ params }: { params: { gymId: string } }) {
     const router = useRouter();
     const [routine, setRoutine] = useState<Routine | null>(null);
     const [exercises, setExercises] = useState<Exercise[]>([]);

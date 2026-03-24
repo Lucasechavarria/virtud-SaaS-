@@ -29,7 +29,7 @@ export const routineAccessLogsService = {
             .single();
 
         if (error) throw error;
-        return data as RoutineAccessLog;
+        return data as unknown as RoutineAccessLog;
     },
 
     /**
@@ -126,7 +126,7 @@ export const routineAccessLogsService = {
         endDate?: Date;
     }) {
         const supabase = await createClient();
-        let query = supabase
+        let query: any = (supabase as any)
             .from('registros_acceso_rutina')
             .select(`
                 *,
@@ -166,7 +166,7 @@ export const routineAccessLogsService = {
         endDate?: Date;
     }) {
         const supabase = await createClient();
-        let query = supabase
+        let query: any = (supabase as any)
             .from('registros_acceso_rutina')
             .select(`
                 *,
@@ -203,7 +203,7 @@ export const routineAccessLogsService = {
         endDate?: Date;
     }) {
         const supabase = await createClient();
-        let query = supabase
+        let query: any = (supabase as any)
             .from('registros_acceso_rutina')
             .select(`
                 *,
@@ -240,7 +240,7 @@ export const routineAccessLogsService = {
      */
     async getRoutineStats(routineId: string) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('registros_acceso_rutina')
             .select('action, usuario_id')
             .eq('rutina_id', routineId);
@@ -249,9 +249,9 @@ export const routineAccessLogsService = {
 
         const stats = {
             totalAccesses: data.length,
-            uniqueUsers: new Set(data.map(log => log.usuario_id)).size,
-            views: data.filter(log => log.action === 'view').length,
-            securityAlerts: data.filter(log =>
+            uniqueUsers: new Set(data.map((log: any) => log.usuario_id)).size,
+            views: data.filter((log: any) => log.action === 'view').length,
+            securityAlerts: data.filter((log: any) =>
                 ['screenshot_attempt', 'download_attempt', 'share_attempt', 'devtools_detected'].includes(log.action)
             ).length,
             byAction: {} as Record<string, number>,

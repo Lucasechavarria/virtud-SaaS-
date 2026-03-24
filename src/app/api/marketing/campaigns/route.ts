@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
                 mensaje_cuerpo,
                 fecha_inicio: fecha_inicio || new Date().toISOString(),
                 fecha_fin,
-            })
+            } as any)
             .select()
             .single();
 

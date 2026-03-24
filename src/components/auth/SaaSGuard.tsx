@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, _AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-    _AlertTriangle,
+    AlertTriangle,
     CreditCard,
     Lock,
     MessageSquare,
-    _ExternalLink,
-    _Zap,
+    ExternalLink,
+    Zap,
     TrendingUp,
-    _ChevronRight
+    ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 

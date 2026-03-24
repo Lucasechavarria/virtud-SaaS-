@@ -27,7 +27,7 @@ export async function GET() {
             return {
                 ...challenge,
                 is_participant: !!myParticipation,
-                participant_status: myParticipation?.estado || null,
+                participant_status: myParticipation?.status || null, // Changed 'estado' to 'status'
                 participants_count: challenge.participantes?.length || 0
             };
         });
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
         if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 
         const body = await req.json();
-        const { title, description, type, points_prize, target_student_id, original_duration_days, endDate: manualEndDate } = body;
+        const { title, description, type, points_prize, original_duration_days, endDate: manualEndDate } = body;
 
         // Validaciones básicas
         if (!title || !description) {
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
             fechaFinFormatted = endDate.toISOString();
         }
 
-        const { data, error } = await supabase
+        const { data: newChallenge, error } = await supabase
             .from('desafios')
             .insert({
                 titulo: title,
@@ -84,15 +84,21 @@ export async function POST(req: Request) {
         if (error) throw error;
 
         // Auto-unir al creador al desafío
-        await supabase
-            .from('participantes_desafio')
+        const { data: challengeData, error: insertError } = await (supabase as any)
+            .from('desafio_participaciones')
             .insert({
-                desafio_id: data.id,
-                usuario_id: user.id,
-                estado: 'enrolled'
-            });
+                challenge_id: newChallenge.id,
+                user_id: user.id,
+                status: 'enrolled'
+            })
+            .select()
+            .single();
 
-        return NextResponse.json({ success: true, challenge: data });
+        if (insertError) {
+            console.error('Error auto-joining creator:', insertError);
+        }
+
+        return NextResponse.json({ success: true, challenge: newChallenge });
 
     } catch (_error) {
         const err = _error as Error;

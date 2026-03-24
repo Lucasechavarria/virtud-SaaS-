@@ -7,12 +7,12 @@ import {
     Calendar,
     Target,
     Weight,
-    _ChevronRight,
+    ChevronRight,
     Plus,
     Activity,
     Trophy,
     Ruler,
-    _ArrowUpRight,
+    ArrowUpRight,
     ArrowDownRight,
     Dumbbell
 } from 'lucide-react';

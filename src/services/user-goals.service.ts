@@ -164,11 +164,11 @@ export const userGoalsService = {
         // Agregación de promedios via SQL (Usamos casting para evitar el error de tipado de .avg())
         const { data: allGoals, error: err3 } = await supabase
             .from('objetivos_del_usuario')
-            .select('frecuencia_entrenamiento_por_semana');
+            .select('frecuencia_entrenamiento_por_semana' as any);
 
         if (err1 || err2 || err3) throw err1 || err2 || err3;
 
-        const goals = allGoals as { frecuencia_entrenamiento_por_semana: number | null }[];
+        const goals = allGoals as unknown as { frecuencia_entrenamiento_por_semana: number | null }[];
         const validFrequencies = goals.filter(g => g.frecuencia_entrenamiento_por_semana !== null);
         const avgFrequency = validFrequencies.length > 0
             ? validFrequencies.reduce((sum, g) => sum + (g.frecuencia_entrenamiento_por_semana || 0), 0) / validFrequencies.length
