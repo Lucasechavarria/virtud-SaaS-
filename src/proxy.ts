@@ -167,10 +167,10 @@ export default async function proxy(request: NextRequest) {
         }
 
         // ────────────────────────────────────────────────────
-        // REDIRIGIR SI YA ESTÁ LOGUEADO Y VA A LOGIN/SIGNUP
+        // REDIRIGIR SI YA ESTÁ LOGUEADO Y VA A LOGIN/SIGNUP/RAÍZ
         // ────────────────────────────────────────────────────
-        if (user && (pathname === '/login' || pathname === '/signup')) {
-            let redirectUrlStr = '/';
+        if (user && (pathname === '/login' || pathname === '/signup' || pathname === '/')) {
+            let redirectUrlStr = pathname; // Default to stay here
             switch (userRole) {
                 case 'superadmin':
                     redirectUrlStr = '/saas-admin';
@@ -189,11 +189,14 @@ export default async function proxy(request: NextRequest) {
                     break;
             }
             
-            const redirectResponse = NextResponse.redirect(new URL(redirectUrlStr, request.url));
-            response.cookies.getAll().forEach(cookie => {
-                redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
-            });
-            return redirectResponse;
+            // Solo redirigir si el destino es distinto al origen (evita bucles infinitos en '/')
+            if (redirectUrlStr !== pathname) {
+                const redirectResponse = NextResponse.redirect(new URL(redirectUrlStr, request.url));
+                response.cookies.getAll().forEach(cookie => {
+                    redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+                });
+                return redirectResponse;
+            }
         }
 
         // ────────────────────────────────────────────────────
