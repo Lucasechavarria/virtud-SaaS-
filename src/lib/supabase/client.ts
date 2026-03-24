@@ -23,16 +23,16 @@ export const getCurrentUser = async () => {
     return user;
 };
 
-// Helper to get user profile
-export const getUserProfile = async (userId: string): Promise<Database['public']['Tables']['perfiles']['Row'] | null> => {
+// Helper to get user profile (Optimizado: solo campos necesarios para Auth/RBAC)
+export const getUserProfile = async (userId: string): Promise<Pick<Database['public']['Tables']['perfiles']['Row'], 'rol' | 'gimnasio_id'> | null> => {
     const { data, error } = await supabase
         .from('perfiles')
-        .select('*')
+        .select('rol, gimnasio_id')
         .eq('id', userId)
         .single();
 
     if (error) throw error;
-    return data;
+    return data as Pick<Database['public']['Tables']['perfiles']['Row'], 'rol' | 'gimnasio_id'>;
 };
 
 // Helper to check user role

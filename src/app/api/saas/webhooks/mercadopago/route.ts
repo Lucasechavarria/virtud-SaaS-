@@ -42,6 +42,19 @@ export async function POST(request: Request) {
 
         // 2. Procesar según estado
         if (payment.status === 'approved') {
+            // [IDEMPOTENCY CHECK] Evitar duplicaciones de ingresos y métricas falsas
+             const { data: existingPayment } = await supabase
+                .from('saas_pagos_historial')
+                .select('id')
+                .eq('referencia_externa', paymentId.toString())
+                .eq('estado', 'approved')
+                .maybeSingle();
+
+            if (existingPayment) {
+                console.log(`[Idempotency] Webhook SaaS: Pago ${paymentId} procesado previamente. Omitiendo recuento.`);
+                return NextResponse.json({ success: true, message: 'Pago ya procesado (Idempotencia)' });
+            }
+
             // CALCULAR PRÓXIMA FECHA DE PAGO (30 días desde hoy o desde la fecha anterior si aún no venció)
             // Para simplicidad, 30 días desde hoy.
             const nextPaymentDate = new Date();

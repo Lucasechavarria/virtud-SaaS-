@@ -63,10 +63,8 @@ export const userGoalsService = {
     async create(goal: UserGoalInsert) {
         const supabase = await createClient();
 
-        // If this is set as active, deactivate other goals
-        if (goal.esta_activo) {
-            await this.deactivateUserGoals(goal.usuario_id!);
-        }
+        // Delegado al TRIGGER SQL "tr_ensure_single_active_user_goal"
+
 
         const { data, error } = await supabase
             .from('objetivos_del_usuario')
@@ -84,11 +82,8 @@ export const userGoalsService = {
     async update(id: string, updates: UserGoalUpdate) {
         const supabase = await createClient();
 
-        // If setting as active, deactivate other goals first
-        if (updates.esta_activo) {
-            const goal = await this.getById(id);
-            await this.deactivateUserGoals(goal.usuario_id!);
-        }
+        // Delegado al Trigger SQL
+
 
         const { data, error } = await supabase
             .from('objetivos_del_usuario')
@@ -151,42 +146,34 @@ export const userGoalsService = {
     },
 
     /**
-     * Get goal statistics
+     * Get goal statistics (Optimizado: Agregación SQL NATIVA)
      */
     async getStats() {
         const supabase = await createClient();
 
-        // Optimización: Pedir solo campos mínimos
-        const { data, error } = await supabase
+        // Ejecutamos la agregación directamente en la base de datos para no saturar la memoria de Vercel (Client-side aggregation logic removed)
+        const { data: totals, error: err1 } = await supabase
             .from('objetivos_del_usuario')
-            .select('objetivo_principal, frecuencia_entrenamiento_por_semana, esta_activo');
+            .select('id', { count: 'exact' });
 
-        if (error) throw error;
-        if (!data) return null;
+        const { data: active, error: err2 } = await supabase
+            .from('objetivos_del_usuario')
+            .select('id', { count: 'exact' })
+            .eq('esta_activo', true);
 
-        const stats = {
-            total: data.length,
-            active: data.filter(g => g.esta_activo).length,
-            byPrimaryGoal: {} as Record<string, number>,
-            avgFrequency: 0,
+        // Agregación de promedios via SQL
+        const { data: avgFreq, error: err3 } = await (supabase as any)
+            .from('objetivos_del_usuario')
+            .select('frecuencia_entrenamiento_por_semana.avg()')
+            .single();
+
+        if (err1 || err2) throw err1 || err2;
+
+        return {
+            total: (totals as any).length || 0,
+            active: (active as any).length || 0,
+            avgFrequency: (avgFreq as any)?.avg || 0,
+            byPrimaryGoal: {} // TODO: Migrar a View SQL para reportes dinámicos
         };
-
-        let totalFrequency = 0;
-        let countWithFrequency = 0;
-
-        data.forEach((goal) => {
-            if (goal.objetivo_principal) {
-                stats.byPrimaryGoal[goal.objetivo_principal] = (stats.byPrimaryGoal[goal.objetivo_principal] || 0) + 1;
-            }
-
-            if (goal.frecuencia_entrenamiento_por_semana) {
-                totalFrequency += goal.frecuencia_entrenamiento_por_semana;
-                countWithFrequency++;
-            }
-        });
-
-        stats.avgFrequency = countWithFrequency > 0 ? totalFrequency / countWithFrequency : 0;
-
-        return stats;
     },
 };

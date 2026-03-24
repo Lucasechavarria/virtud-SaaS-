@@ -12,6 +12,8 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.53",
+    "@ai-sdk/react": "^3.0.139",
     "@firebase/analytics": "^0.10.16",
     "@google/genai": "^1.35.0",
     "@google/generative-ai": "^0.24.1",
@@ -23,6 +25,7 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
+    "ai": "^6.0.137",
     "bullmq": "^5.67.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

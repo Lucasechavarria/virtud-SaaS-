@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getVideoAnalysisQueue } from '@/lib/queue';
+import { aiService } from '@/services/ai.service';
 
-export async function POST(req: Request) {
+export const maxDuration = 60;export async function POST(req: Request) {
     try {
         const supabase = await createClient();
 
@@ -72,19 +72,42 @@ export async function POST(req: Request) {
             throw dbError;
         }
 
-        // 3. Encolar trabajo de análisis
-        const queue = getVideoAnalysisQueue();
-        await queue.add('analyze_video', {
-            videoId: videoRecord.id,
-            url: publicUrl,
-            ejercicioId: ejercicioId || null,
-            exerciseName: exerciseName || null
-        });
+        // 3. Analizar video en tiempo real (Edge) sin requerir BullMQ local
+        try {
+            const { data: blob, error: downloadError } = await supabase.storage
+                .from('videos_ejercicio')
+                .download(filePath);
+            
+            if (!downloadError && blob) {
+                const buffer = Buffer.from(await blob.arrayBuffer());
+                const base64Video = buffer.toString('base64');
+
+                const analysisJson = await aiService.analyzeMovement(
+                    base64Video, 
+                    blob.type, 
+                    exerciseName || ejercicioId || 'Ejercicio desconocido'
+                );
+                
+                await supabase
+                    .from('videos_ejercicio')
+                    .update({
+                        estado: 'analizado',
+                        correcciones_ia: analysisJson as any,
+                        procesado_en: new Date().toISOString()
+                    })
+                    .eq('id', videoRecord.id);
+            } else {
+                 throw new Error('No se pudo decodificar el video.');
+            }
+        } catch (e) {
+            console.error('Error sincronizando video IA:', e);
+            await supabase.from('videos_ejercicio').update({ estado: 'error' }).eq('id', videoRecord.id);
+        }
 
         return NextResponse.json({
             success: true,
             videoId: videoRecord.id,
-            message: 'Video subido y encolado para análisis'
+            message: 'Video subido y analizado biomecánicamente por la IA'
         });
 
     } catch (error: any) {

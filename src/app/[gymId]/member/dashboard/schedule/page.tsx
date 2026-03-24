@@ -14,18 +14,35 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
     const [selectedDay, setSelectedDay] = useState(new Date().getDay()); // 0=Sunday, 1=Monday...
 
     useEffect(() => {
-        fetchSchedule();
+        let channel: any = null;
 
-        // Subscripción WebSockets para cambios en vivo de cupos/reservas
-        const channel = supabase.channel('dashboard_schedule_changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'reservas_de_clase' },
-                () => { fetchSchedule(); }
-            )
-            .subscribe();
+        const loadAndSubscribe = async () => {
+            const fetchedClasses = await fetchSchedule();
+            
+            // Si hay clases, nos suscribimos SOLO a los eventos de esas clases específicas.
+            // Esto Evita el DDoS / Thundering Herd global en Supabase.
+            if (fetchedClasses && fetchedClasses.length > 0) {
+                const classIds = fetchedClasses.map(c => c.id).join(',');
+                channel = supabase.channel(`schedule_changes_${selectedDay}`)
+                    .on(
+                        'postgres_changes',
+                        { 
+                            event: '*', 
+                            schema: 'public', 
+                            table: 'reservas_de_clase',
+                            filter: `horario_clase_id=in.(${classIds})`
+                        },
+                        () => { fetchSchedule(); }
+                    )
+                    .subscribe();
+            }
+        };
 
-        return () => { supabase.removeChannel(channel); };
+        loadAndSubscribe();
+
+        return () => { 
+            if (channel) supabase.removeChannel(channel); 
+        };
     }, [selectedDay]);
 
     const fetchSchedule = async () => {
@@ -41,6 +58,8 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
             // Fetch my upcoming bookings to check status
             const bookings = await bookingsService.getUpcomingBookings(user.id);
             setMyBookings(bookings || []);
+
+            return dayClasses;
 
         } catch (error) {
             console.error(error);

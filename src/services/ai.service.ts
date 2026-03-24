@@ -1,4 +1,4 @@
-import { aiClient, DEFAULT_MODEL, RoutineSchema, SAFETY_SETTINGS } from '@/lib/config/gemini';
+import { aiClient, DEFAULT_MODEL, MODEL_FLASH, MODEL_PRO, RoutineSchema, SAFETY_SETTINGS } from '@/lib/config/gemini';
 import { AI_PROMPT_TEMPLATES, AITemplateKey } from '@/lib/constants/ai-templates';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { CorreccionesIASchema } from '@/lib/validations/videos';
@@ -43,6 +43,7 @@ export interface RoutineGenerationContext {
   coachNotes?: string;
   templateKey?: AITemplateKey;
   includeNutrition?: boolean;
+  historicContext?: string;
 }
 
 export class AIService {
@@ -55,7 +56,7 @@ export class AIService {
 
     while (attempt < maxRetries) {
       try {
-        logger.info(`Generating routine with Gemini (Model: ${DEFAULT_MODEL}, Attempt: ${attempt + 1})...`);
+        logger.info(`Generating routine with Gemini (Model: ${MODEL_PRO}, Attempt: ${attempt + 1})...`);
 
         // @ts-ignore - Schema conversion
         const jsonSchema = zodToJsonSchema(RoutineSchema);
@@ -64,8 +65,8 @@ export class AIService {
         }
 
         const model = aiClient.getGenerativeModel({
-          model: DEFAULT_MODEL,
-          safetySettings: SAFETY_SETTINGS, // Aplicar configuración de seguridad permisiva para salud
+          model: MODEL_PRO, // Tarea Estratégica: Razonamiento Profundo
+          safetySettings: SAFETY_SETTINGS,
           generationConfig: {
             responseMimeType: "application/json",
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,73 +114,60 @@ export class AIService {
   }
 
   /**
+   * Middleware de Validación Médica (Gemini Flash)
+   * Realiza un chequeo de seguridad de 1 segundo sobre el plan generado.
+   */
+  async validatePlanSafety(plan: any, medicalData: any): Promise<{ safe: boolean; warning?: string }> {
+    try {
+      const prompt = `
+        Analiza este plan de entrenamiento y compáralo con la ficha médica del alumno:
+        FICHA MÉDICA: ${JSON.stringify(medicalData)}
+        PLAN: ${JSON.stringify(plan.rutina)}
+
+        ¿Hay algún ejercicio CONTRAINDICADO para las lesiones o condiciones del alumno? 
+        Responde exclusivamente en JSON: {"safe": boolean, "warning": "razón técnica si es inseguro"}.
+      `;
+
+      const model = aiClient.getGenerativeModel({ model: MODEL_FLASH });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return JSON.parse(response.text());
+    } catch (error) {
+      logger.error("Safety Validation Error (IA Blocked/Failed):", error);
+      return { 
+        safe: false, 
+        warning: "ERROR DE SISTEMA: No se pudo validar la seguridad biomecánica automáticamente. REQUIERE REVISIÓN MANUAL DEL PROFESOR antes de ejecutar." 
+      };
+    }
+  }
+
+
+  /**
    * Construye el prompt interactivo de VirtudCoach 2.0
    * Actúa como Entrenador Profesional y Arquitecto de UX.
    */
   buildPrompt(context: RoutineGenerationContext): string {
-    const { studentProfile, userGoal, gymEquipment, coachNotes, templateKey } = context;
-
-    const normalizedKey = templateKey?.toString().toUpperCase() as AITemplateKey;
-    const template = ((normalizedKey && AI_PROMPT_TEMPLATES[normalizedKey])
-      ? AI_PROMPT_TEMPLATES[normalizedKey]
-      : this.inferTemplate(userGoal?.primary_goal || userGoal?.objetivo_principal || '')) as any;
-
-    const safeTemplate = template || AI_PROMPT_TEMPLATES.BEGINNER;
+    const { studentProfile, userGoal, gymEquipment, coachNotes, templateKey, historicContext } = context;
+    
     const medicalData = studentProfile.informacion_medica || {};
-
+    
+    // Inyectamos el contexto de seguridad y reglas de negocio del Maestro
     return `
-Actúa como un entrenador personal profesional, planificador deportivo y arquitecto de experiencia de usuario para aplicaciones de entrenamiento.
-
-Tu tarea es generar una rutina de entrenamiento OPTIMIZADA, INTERACTIVA Y COMPARTIBLE entre profesor y alumno, basada EXCLUSIVAMENTE en los siguientes datos:
-
-1️⃣ INVENTARIO DEL GIMNASIO (equipamiento disponible):
-${gymEquipment.map(eq => `- ${eq.nombre || eq.name} (${eq.categoria || eq.category})`).join('\n')}
-
-2️⃣ PLANILLA MÉDICA DEL ALUMNO:
-- Alumno: ${studentProfile.nombre_completo}
-- Sexo: ${studentProfile.gender || 'No especificado'}
-- Medidas: ${medicalData.peso || '?'}kg, ${medicalData.altura || '?'}cm
-- Condiciones médicas: ${medicalData.enfermedades_cronicas || 'Ninguna'}
-- Lesiones/Restricciones: ${medicalData.lesiones || 'Ninguna'}
-
-3️⃣ INDICACIONES DEL PROFESOR:
-${coachNotes || 'Ninguna indicación previa.'}
-
-4️⃣ OBJETIVO DEL ALUMNO:
-- Objetivo principal: ${userGoal?.objetivo_principal || userGoal?.primary_goal || 'Fitness general'}
-- Frecuencia: ${userGoal?.frecuencia_entrenamiento_por_semana || userGoal?.training_frequency_per_week || 3} días/semana
-- Tiempo sesión: ${userGoal?.tiempo_por_sesion_minutos || userGoal?.time_per_session_minutes || 60} min
-
-5️⃣ TEMPLATE DE RUTINA SELECCIONADO:
-${safeTemplate.promptSuffix}
-
-6️⃣ PLAN PLANIFICACIÓN (Salud):
-  - Enfermedades Crónicas: ${medicalData.enfermedades_cronicas || 'Ninguna'}
-  - Alergias Alimentarias: ${medicalData.alergias || 'Ninguna'}
-  - Medicación actual: ${medicalData.medicacion || 'Ninguna'}
-  
-  REGLA DE ORO NUTRICIONAL:
-  Si el alumno tiene enfermedades como Diabetes, Hipertensión, Celiaquía o trastornos digestivos, 
-  el "plan_nutricional" DEBE adaptarse estrictamente a estas condiciones. 
-  "pautas_generales" debe explicar justificaciones médicas.
-  Calcula macros con Mifflin-St Jeor.
- 
-7️⃣ PROTOCOLO DE SEGURIDAD LEGAL:
-- Si detectas patologías como: ${medicalData.enfermedades_cronicas || 'Ninguna'}, debes redactar un "aviso_legal" NIVEL ALTO/MEDIO.
-- Si no hay patologías, usa NIVEL BAJO (standard).
-
----
-
-### REGLAS OBLIGATORIAS
-- ❌ No inventar equipamiento. Si el inventario es pobre, sugiere CALISTENIA.
-- ❌ No ignorar indicaciones del profesor.
-- ❌ Si el objetivo contradice la salud (ej: Powerlifting con Hernia), PRIORIZA SALUD.
-- ✅ Los tiempo de descanso deben ser precisos.
-- ✅ Incluir "aviso_legal" obligatorio.
-
----
-
-### FORMATO DE SALIDA (JSON VÁLIDO SEGÚN ESQUEMA PROVISTO)
+    🎯 MISION: Actúa como el VIRTUD COACH 2.0 (Especialista en Biomecánica y Medicina Deportiva).
+    
+    🛡️ REGLAS INFRANQUEABLES DE SEGURIDAD:
+    - Debes basar la rutina estrictamente en el INVENTARIO REAL disponible: ${gymEquipment.map(eq => `${eq.nombre || eq.name} (${eq.categoria || eq.category})`).join(', ')}.
+    - Debes RESPETAR la ficha médica (Lesiones, Alergias, Patologías): ${JSON.stringify(medicalData)}.
+    - Si el Alumno tiene una LESIÓN, prohíbe ejercicios que comprometan esa zona.
+    
+    📝 CONTEXTO DE GENERACIÓN:
+    - INSTRUCCIONES DEL PROFESOR: ${coachNotes || 'Ninguna'}
+    - HISTORIAL RAG (MEMORIA): ${historicContext || 'Sin historial'}
+    - OBJETIVO: ${userGoal?.objetivo_principal || 'Fitness General'}
+    
+    💎 REQUISITOS TÉCNICOS:
+    - Incluye TEMPO (ej: 3-0-1-0) y RPE para cada ejercicio.
+    - Genera la rutina siguiendo estrictamente el esquema JSON indicado.
     `;
   }
 
@@ -230,6 +218,11 @@ ${safeTemplate.promptSuffix}
    */
   async analyzeMovement(filePart: string, mimeType: string, exerciseName: string = "Ejercicio desconocido"): Promise<unknown> {
     try {
+      // Validar peso para evitar que Node.js o el payload Base64 exploten la memoria. Max ~10MB (video muy corto).
+      const fileMB = (filePart.length * 0.75) / (1024 * 1024);
+      if (fileMB > 10) {
+          throw new Error("El video es demasiado pesado (" + fileMB.toFixed(1) + "MB). La herramienta es evaluativa: debe ser corto y limitado (máx 10MB) para dar una solución saludable rápida.");
+      }
       // @ts-ignore - Schema conversion
       const jsonSchema = zodToJsonSchema(CorreccionesIASchema);
       if (jsonSchema && typeof jsonSchema === 'object' && '$schema' in jsonSchema) {
@@ -259,7 +252,7 @@ ${safeTemplate.promptSuffix}
     `;
 
       const model = aiClient.getGenerativeModel({
-        model: DEFAULT_MODEL,
+        model: MODEL_PRO, // Tarea Multimodal: Análisis Biomecánico
         safetySettings: SAFETY_SETTINGS,
         generationConfig: {
           responseMimeType: "application/json",
@@ -364,20 +357,20 @@ ${safeTemplate.promptSuffix}
         Actúa como un Sistema de Inteligencia de Alto Rendimiento y Analista de Datos Deportivos.
         Tu misión es analizar el comportamiento y progreso del alumno en los últimos 7 días.
         
-        DATOS DEL ALUMNO:
-        - Perfil: ${JSON.stringify(studentProfile)}
+        DATOS DEL ALUMNO (Con Ficha Médica Único Ancla de Verdad):
+        - Perfil: ${JSON.stringify(studentProfile)} // Contiene lesiones o fichas que prevalecen siempre.
         
-        HISTORIAL DE BIOMECÁNICA (Videos):
-        ${visionLogs.map(l => `- ${l.nombre_ejercicio}: Score ${l.puntaje_general}% en ${l.creado_en}`).join('\n')}
+        HISTORIAL DE BIOMECÁNICA (Videos Recientes):
+        ${visionLogs.slice(0, 5).map(l => `- ${l.nombre_ejercicio}: Score ${l.puntaje_general}% en ${l.creado_en}`).join('\n')}
         
-        HISTORIAL DE NUTRICIÓN (MacroSnap):
-        ${nutritionLogs.map(l => `- ${l.nombre_plato}: ${l.calorias}kcal, Score Salud ${l.puntaje_salud}/10 en ${l.creado_en}`).join('\n')}
+        HISTORIAL DE NUTRICIÓN (Últimos reportes tácticos):
+        ${nutritionLogs.slice(0, 7).map(l => `- ${l.nombre_plato}: ${l.calorias}kcal, Score Salud ${l.puntaje_salud}/10 en ${l.creado_en}`).join('\n')}
         
-        HISTORIAL DE MEDICIONES (Peso/Medidas - Últimos 90 días):
-        ${measurementLogs.map(l => `- Fecha: ${l.registrado_en}, Peso: ${l.peso}kg, Grasa: ${l.grasa_procentaje || 'N/A'}%`).join('\n')}
+        HISTORIAL DE MEDICIONES (Peso/Medidas - Últimas lecturas clave):
+        ${measurementLogs.slice(0, 5).map(l => `- Fecha: ${l.registrado_en}, Peso: ${l.peso}kg, Grasa: ${l.grasa_procentaje || 'N/A'}%`).join('\n')}
  
-        HISTORIAL DE RECUPERACIÓN (Bio-Recovery - Últimos 14 días):
-        ${recoveryLogs.map(l => `- Fecha: ${l.fecha}, Sueño: ${l.horas_sueno}h (Calidad: ${l.calidad_sueno}/10), Estrés: ${l.nivel_estres}/10, Fatiga: ${l.nivel_fatiga}/10`).join('\n')}
+        HISTORIAL DE RECUPERACIÓN (Pautas del Mes):
+        ${recoveryLogs.slice(0, 14).map(l => `- Fecha: ${l.fecha}, Sueño: ${l.horas_sueno}h (Calidad: ${l.calidad_sueno}/10), Estrés: ${l.nivel_estres}/10, Fatiga: ${l.nivel_fatiga}/10`).join('\n')}
  
         TAREAS:
         1. Evalúa la adherencia al plan (consistencia).
@@ -399,7 +392,7 @@ ${safeTemplate.promptSuffix}
       `;
 
       const model = aiClient.getGenerativeModel({
-        model: DEFAULT_MODEL,
+        model: MODEL_PRO, // Tarea Estratégica: Pronósticos y Big Data
         safetySettings: SAFETY_SETTINGS,
         generationConfig: {
           responseMimeType: "application/json",

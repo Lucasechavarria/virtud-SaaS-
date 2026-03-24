@@ -28,10 +28,10 @@ describe('Authentication Flow', () => {
         cy.url().should('include', '/login');
     });
 
-    it.skip('should allow Admin to login and redirect to dashboard', () => {
+    it('should allow Admin to login and redirect to dashboard', () => {
         // [Requiere Seed de Base de Datos para CI/CD]
         const email = 'admin@virtudgym.com'; // Credencial de prueba
-        const password = 'password123';
+        const password = 'Password123!';
 
         cy.login(email, password);
 
@@ -41,10 +41,10 @@ describe('Authentication Flow', () => {
         // cy.contains('Panel de Control').should('be.visible');
     });
 
-    it.skip('should allow Student to login', () => {
+    it('should allow Student to login', () => {
         // [Requiere Seed de Base de Datos para CI/CD]
-        const password = 'password123';
-        const email = 'student@test.com'; // Definimos email antes del llamado
+        const password = 'Password123!';
+        const email = 'student@virtudgym.com'; // Definimos email antes del llamado
         cy.login(email, password);
         cy.visit('/dashboard');
         cy.url().should('include', '/dashboard');

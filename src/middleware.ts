@@ -63,20 +63,31 @@ export async function middleware(request: NextRequest) {
         // ────────────────────────────────────────────────────
         // RATE LIMITING (Protección de Fuerza Bruta)
         // ────────────────────────────────────────────────────
-        if (ratelimit && (pathname === '/login' || pathname === '/signup' || pathname.startsWith('/api/'))) {
-            const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
-            const { success, limit, remaining, reset } = await ratelimit.limit(`ratelimit_${ip}_${pathname}`);
-            
-            if (!success) {
-                return new NextResponse('Too Many Requests - Has excedido el límite.', {
-                    status: 429,
-                    headers: {
-                        'X-RateLimit-Limit': limit.toString(),
-                        'X-RateLimit-Remaining': remaining.toString(),
-                        'X-RateLimit-Reset': reset.toString(),
-                        'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString(),
-                    },
-                });
+        if (ratelimit) {
+            const isAuthRoute = pathname === '/login' || pathname === '/signup';
+            const isApiRoute = pathname.startsWith('/api/');
+            const isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method);
+
+            // Aplicamos límite estricto SOLO a rutas de autenticación o a operaciones de mutación (escrituras) HTTP en la API.
+            // Las lecturas GET a la API están libres del límite asfixiante de 5 req/min.
+            if (isAuthRoute || (isApiRoute && isMutation)) {
+                const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
+                
+                // Podemos crear identificadores separados si quisieramos límites distintos,
+                // Pero por ahora reutilizamos el límite configurado arriba.
+                const { success, limit, remaining, reset } = await ratelimit.limit(`ratelimit_${ip}_${pathname}`);
+                
+                if (!success) {
+                    return new NextResponse('Too Many Requests - Has excedido el límite. Intenta más tarde.', {
+                        status: 429,
+                        headers: {
+                            'X-RateLimit-Limit': limit.toString(),
+                            'X-RateLimit-Remaining': remaining.toString(),
+                            'X-RateLimit-Reset': reset.toString(),
+                            'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString(),
+                        },
+                    });
+                }
             }
         }
 
@@ -97,44 +108,53 @@ export async function middleware(request: NextRequest) {
         }
 
         // ────────────────────────────────────────────────────
-        // OBTENER ROL, GIMNASIO Y SLUG DEL USUARIO
+        // OBTENER ROL, GIMNASIO Y SLUG DEL USUARIO (CON CACHÉ)
         // ────────────────────────────────────────────────────
-        let userRole: string | null = null;
-        let gymId: string | null = null;
-        let gymSlug: string | null = null;
-
-        if (user) {
-            const { data: profile } = await supabase
-                .from('perfiles')
-                .select('rol, gimnasio_id, gimnasios(slug)')
-                .eq('id', user.id)
-                .single();
-
-            if (profile) {
-                userRole = profile.rol;
-                gymId = profile.gimnasio_id;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                gymSlug = (profile as any).gimnasios?.slug;
+        const cacheCookie = request.cookies.get('vtd_user_meta')?.value;
+        let cachedMeta: { rol: string; gymId: string; gymSlug: string } | null = null;
+        
+        if (cacheCookie) {
+            try {
+                cachedMeta = JSON.parse(cacheCookie);
+            } catch {
+                cachedMeta = null;
             }
         }
 
-        // Inyectar el slug en los headers para que manifest.ts lo lea
-        if (gymSlug) {
-            request.headers.set('x-gym-slug', gymSlug);
-        }
+        let userRole = cachedMeta?.rol || null;
+        let gymId = cachedMeta?.gymId || null;
+        let gymSlug = cachedMeta?.gymSlug || null;
 
-        // Fallback a metadata si la DB falla (ej: primer login antes de que el trigger corra)
         if (!userRole && user) {
-            userRole = user.app_metadata?.rol
-                || user.user_metadata?.rol
-                || user.app_metadata?.role
-                || user.user_metadata?.role
-                || null;
-        }
+            // Intentar extraer de metadatos del JWT (Auth)
+            userRole = (user.app_metadata?.rol || user.user_metadata?.rol || user.app_metadata?.role || user.user_metadata?.role) as string;
+            
+            if (userRole) {
+                userRole = userRole.toLowerCase();
+            }
 
-        // Normalizar el rol para evitar problemas de case (ej: 'Superadmin' vs 'superadmin')
-        if (userRole) {
-            userRole = userRole.toLowerCase();
+            // Si no hay rol en metadatos o falta gymId, consultamos DB UNA VEZ y cacheamos
+            if (!userRole || !gymId) {
+                const { data: profile } = await supabase
+                    .from('perfiles')
+                    .select('rol, gimnasio_id, gimnasios(slug)')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profile) {
+                    userRole = profile.rol?.toLowerCase();
+                    gymId = profile.gimnasio_id;
+                    gymSlug = (profile as any).gimnasios?.slug;
+
+                    // Cachear por 10 minutos para evitar DB hits constantes
+                    response.cookies.set('vtd_user_meta', JSON.stringify({ rol: userRole, gymId, gymSlug }), {
+                        maxAge: 600,
+                        path: '/',
+                        httpOnly: true,
+                        sameSite: 'lax'
+                    });
+                }
+            }
         }
 
         // ────────────────────────────────────────────────────

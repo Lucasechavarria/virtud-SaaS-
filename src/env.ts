@@ -7,6 +7,8 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().optional(),
+  MERCADOPAGO_ACCESS_TOKEN: z.string().min(1, "Access Token de MercadoPago es obligatorio"),
+  MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(),
 });
 
 // Parseo estricto: Si faltan variables clave, la aplicación crashea en Build-Time o Boot-Time.
@@ -18,4 +20,6 @@ export const env = envSchema.parse({
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+  MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
+  MERCADOPAGO_WEBHOOK_SECRET: process.env.MERCADOPAGO_WEBHOOK_SECRET,
 });

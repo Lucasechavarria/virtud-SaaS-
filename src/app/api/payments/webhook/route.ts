@@ -119,6 +119,18 @@ async function handleApprovedPayment(payment: MercadoPagoPayment, userId: string
             throw new Error('User ID es requerido para procesar el pago');
         }
 
+        // 🔐 Idempotency Check: Ver si el pago ya fue procesado como 'aprobado'
+        const { data: existingPayment } = await supabase
+            .from('pagos')
+            .select('estado')
+            .eq('id', payment.id.toString())
+            .single();
+
+        if (existingPayment?.estado === 'aprobado') {
+            logger.info('♻️ Pago ya procesado previamente. Omitiendo duplicidad.', { paymentId: payment.id });
+            return;
+        }
+
         // Guardar pago en Supabase
         const { error: paymentError } = await supabase
             .from('pagos')

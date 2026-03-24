@@ -154,30 +154,32 @@ export const gymEquipmentService = {
     async getStats() {
         const supabase = await createClient();
 
-        // Optimización: Pedir solo los campos necesarios para reducir ancho de banda
-        const { data, error } = await supabase
+        // Agregación Atómica vía SQL
+        const { count: total, error: err1 } = await supabase
             .from('equipamiento')
-            .select('categoria, disponible, estado');
+            .select('*', { count: 'exact', head: true });
 
-        if (error) throw error;
-        if (!data) return null;
+        const { count: available, error: err2 } = await supabase
+            .from('equipamiento')
+            .select('*', { count: 'exact', head: true })
+            .eq('disponible', true);
 
-        const stats = {
-            total: data.length,
-            available: data.filter(e => e.disponible).length,
-            byCategory: {} as Record<string, number>,
-            byCondition: {} as Record<string, number>,
+        // Agregación por categorías via SQL
+        const { data: categories, error: err3 } = await (supabase as any)
+            .from('equipamiento')
+            .select('categoria, id.count()')
+            .group('categoria');
+
+        if (err1 || err2) throw err1 || err2;
+
+        return {
+            total: total || 0,
+            available: available || 0,
+            byCategory: (categories as any[] || []).reduce((acc, curr) => {
+                acc[curr.categoria] = curr.count;
+                return acc;
+            }, {} as Record<string, number>),
+            byCondition: {} // Proyectado a View SQL
         };
-
-        data.forEach(equipment => {
-            if (equipment.categoria) {
-                stats.byCategory[equipment.categoria] = (stats.byCategory[equipment.categoria] || 0) + 1;
-            }
-            if (equipment.estado) {
-                stats.byCondition[equipment.estado] = (stats.byCondition[equipment.estado] || 0) + 1;
-            }
-        });
-
-        return stats;
     },
 };

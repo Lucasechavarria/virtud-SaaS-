@@ -1,7 +1,7 @@
 import '@/env'; // Falla en el Root si las variables Críticas están ausentes
 import React from "react";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Rajdhani } from "next/font/google";
 import "./globals.css";
 import ClientProviders from "@/components/ClientProviders";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -23,6 +23,13 @@ export const viewport: Viewport = {
 const inter = Inter({
   subsets: ["latin"],
   variable: '--font-inter',
+  display: 'swap'
+});
+
+const rajdhani = Rajdhani({
+  weight: ['300', '400', '500', '600', '700'],
+  subsets: ["latin"],
+  variable: '--font-rajdhani',
   display: 'swap'
 });
 
@@ -76,7 +83,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" className={`${inter.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`${inter.variable} ${rajdhani.variable}`} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

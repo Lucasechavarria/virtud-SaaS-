@@ -35,18 +35,31 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
     const [filterActivity, setFilterActivity] = useState<string>('all');
 
     useEffect(() => {
-        fetchData();
+        let channel: any = null;
 
-        // WebSockets para actualizar disponibilidad al vuelo (Supabase Realtime)
-        const channel = supabase.channel('global_schedule_changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'reservas_de_clase' },
-                () => { fetchData(); } // Silent background update
-            )
-            .subscribe();
+        const loadAndSubscribe = async () => {
+            const schedData = await fetchData();
+            
+            if (schedData && schedData.length > 0) {
+                const classIds = schedData.map((s: any) => s.id).join(',');
+                channel = supabase.channel('global_schedule_changes')
+                    .on(
+                        'postgres_changes',
+                        { 
+                            event: '*', 
+                            schema: 'public', 
+                            table: 'reservas_de_clase',
+                            filter: `horario_clase_id=in.(${classIds})`
+                        },
+                        () => { fetchData(); } // Silent background update
+                    )
+                    .subscribe();
+            }
+        };
 
-        return () => { supabase.removeChannel(channel); };
+        loadAndSubscribe();
+
+        return () => { if (channel) supabase.removeChannel(channel); };
     }, []);
 
     const fetchData = async () => {
@@ -61,6 +74,8 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
 
             if (Array.isArray(schedData)) setSchedule(schedData);
             if (Array.isArray(bookData)) setUserBookings(bookData);
+
+            return schedData;
         } catch (error) {
             console.error('Error loading data:', error);
             toast.error('Error al cargar datos');
