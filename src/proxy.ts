@@ -50,12 +50,14 @@ const MODULE_ROUTES: Record<string, string> = {
     '/dashboard/classes': 'clases_reserva',
     '/member/dashboard/classes': 'clases_reserva',
 };
-
 export default async function proxy(request: NextRequest) {
     // Saltar si faltan variables de entorno
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         return NextResponse.next({ request: { headers: request.headers } });
     }
+
+    // Inicializar respuesta base para mutación de cookies
+    const response = NextResponse.next({ request: { headers: request.headers } });
 
     try {
         const { pathname } = request.nextUrl;
@@ -91,7 +93,6 @@ export default async function proxy(request: NextRequest) {
             }
         }
 
-        const response = NextResponse.next({ request: { headers: request.headers } });
         const supabase = createMiddlewareClient(request, response);
         const { data: { user }, error } = await supabase.auth.getUser();
 
@@ -103,8 +104,16 @@ export default async function proxy(request: NextRequest) {
         if ((!user || error) && !isPublicRoute) {
             const redirectUrl = request.nextUrl.clone();
             redirectUrl.pathname = '/login';
-            redirectUrl.searchParams.set('redirectTo', pathname);
-            return NextResponse.redirect(redirectUrl);
+            if (pathname !== '/') {
+                redirectUrl.searchParams.set('redirectTo', pathname);
+            }
+            
+            // Sincronizar cookies de Supabase en la redirección
+            const redirectResponse = NextResponse.redirect(redirectUrl);
+            response.cookies.getAll().forEach(cookie => {
+                redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+            });
+            return redirectResponse;
         }
 
         // ────────────────────────────────────────────────────
@@ -161,18 +170,30 @@ export default async function proxy(request: NextRequest) {
         // REDIRIGIR SI YA ESTÁ LOGUEADO Y VA A LOGIN/SIGNUP
         // ────────────────────────────────────────────────────
         if (user && (pathname === '/login' || pathname === '/signup')) {
+            let redirectUrlStr = '/';
             switch (userRole) {
                 case 'superadmin':
-                    return NextResponse.redirect(new URL('/saas-admin', request.url));
+                    redirectUrlStr = '/saas-admin';
+                    break;
                 case 'admin':
-                    return gymId ? NextResponse.redirect(new URL(`/${gymId}/admin`, request.url)) : NextResponse.redirect(new URL('/', request.url));
+                    redirectUrlStr = gymId ? `/${gymId}/admin` : '/';
+                    break;
                 case 'recepcion':
-                    return gymId ? NextResponse.redirect(new URL(`/${gymId}/admin/recepcion/pos`, request.url)) : NextResponse.redirect(new URL('/', request.url));
+                    redirectUrlStr = gymId ? `/${gymId}/admin/recepcion/pos` : '/';
+                    break;
                 case 'coach':
-                    return gymId ? NextResponse.redirect(new URL(`/${gymId}/coach`, request.url)) : NextResponse.redirect(new URL('/', request.url));
+                    redirectUrlStr = gymId ? `/${gymId}/coach` : '/';
+                    break;
                 default:
-                    return gymId ? NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url)) : NextResponse.redirect(new URL('/', request.url));
+                    redirectUrlStr = gymId ? `/${gymId}/member/dashboard` : '/';
+                    break;
             }
+            
+            const redirectResponse = NextResponse.redirect(new URL(redirectUrlStr, request.url));
+            response.cookies.getAll().forEach(cookie => {
+                redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+            });
+            return redirectResponse;
         }
 
         // ────────────────────────────────────────────────────
@@ -184,11 +205,10 @@ export default async function proxy(request: NextRequest) {
         // ────────────────────────────────────────────────────
         if (pathname.startsWith('/saas-admin')) {
             if (userRole !== 'superadmin') {
-                if (gymId) {
-                    return NextResponse.redirect(new URL(`/${gymId}/admin`, request.url));
-                } else {
-                    return NextResponse.redirect(new URL('/', request.url));
-                }
+                const redirectPath = gymId ? `/${gymId}/admin` : '/';
+                const redirectRes = NextResponse.redirect(new URL(redirectPath, request.url));
+                response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+                return redirectRes;
             }
         }
 
@@ -203,7 +223,9 @@ export default async function proxy(request: NextRequest) {
         if (currentGymIdParam && currentGymIdParam !== 'saas-admin' && currentGymIdParam !== 'g' && currentGymIdParam !== 'api' && currentGymIdParam !== 'auth' && currentGymIdParam !== 'saas' && currentGymIdParam !== 'debug' && currentGymIdParam !== 'inscripcion') {
             // Regla 1: Un usuario NO superadmin solo puede acceder a su propio gimnasio
             if (userRole !== 'superadmin' && gymId && currentGymIdParam !== gymId) {
-                return NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
+                const redirectRes = NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
+                response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+                return redirectRes;
             }
 
             // Regla 2: RBAC dentro del gimnasio
@@ -211,26 +233,26 @@ export default async function proxy(request: NextRequest) {
 
             if (tenantPath === 'admin') {
                 if (!['admin', 'superadmin', 'recepcion'].includes(userRole ?? '')) {
-                    if (gymId) {
-                        return NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
-                    }
-                    return NextResponse.redirect(new URL('/', request.url));
+                    const redirectPath = gymId ? `/${gymId}/member/dashboard` : '/';
+                    const redirectRes = NextResponse.redirect(new URL(redirectPath, request.url));
+                    response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+                    return redirectRes;
                 }
                 // Recepción solo puede ir a /admin/recepcion
                 if (userRole === 'recepcion' && pathSegments[2] !== 'recepcion') {
-                    if (gymId) {
-                        return NextResponse.redirect(new URL(`/${gymId}/admin/recepcion/pos`, request.url));
-                    }
-                    return NextResponse.redirect(new URL('/', request.url));
+                    const redirectPath = gymId ? `/${gymId}/admin/recepcion/pos` : '/';
+                    const redirectRes = NextResponse.redirect(new URL(redirectPath, request.url));
+                    response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+                    return redirectRes;
                 }
             }
 
             if (tenantPath === 'coach') {
                 if (!['coach', 'admin', 'superadmin'].includes(userRole ?? '')) {
-                    if (gymId) {
-                        return NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
-                    }
-                    return NextResponse.redirect(new URL('/', request.url));
+                    const redirectPath = gymId ? `/${gymId}/member/dashboard` : '/';
+                    const redirectRes = NextResponse.redirect(new URL(redirectPath, request.url));
+                    response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+                    return redirectRes;
                 }
             }
         }
@@ -258,7 +280,9 @@ export default async function proxy(request: NextRequest) {
 
                 if (!modulos[requiredModule] && !Array.isArray(gym?.modulos_activos) || (Array.isArray(gym?.modulos_activos) && !gym.modulos_activos.includes(requiredModule))) {
                     // Módulo no contratado → redirigir al dashboard del miembro (o el principal del gym)
-                    return NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
+                    const redirectRes = NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
+                    response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+                    return redirectRes;
                 }
             }
         }
@@ -267,7 +291,7 @@ export default async function proxy(request: NextRequest) {
 
     } catch (_e) {
         // En caso de error crítico (ej. caída de base de datos) NO SE DEBE permitir el acceso a rutas protegidas.
-        console.error('[Middleware] Error crítico:', _e);
+        console.error('[Proxy Error] Excepción capturada:', _e);
         
         const { pathname } = request.nextUrl;
         const publicRoutes = ['/', '/login', '/signup', '/auth/callback'];
@@ -281,7 +305,13 @@ export default async function proxy(request: NextRequest) {
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.pathname = '/login';
         redirectUrl.searchParams.set('error', 'service_unavailable');
-        return NextResponse.redirect(redirectUrl);
+        
+        const errorResponse = NextResponse.redirect(redirectUrl);
+        // Intentar pasar las cookies que tengamos por si acaso
+        response.cookies.getAll().forEach(cookie => {
+            errorResponse.cookies.set(cookie.name, cookie.value, cookie);
+        });
+        return errorResponse;
     }
 }
 
