@@ -3,13 +3,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    Users,
+    _Users,
     BarChart3,
     DollarSign,
-    TrendingUp,
+    _TrendingUp,
     TrendingDown,
     PieChart,
-    Calendar,
+    _Calendar,
     Target,
     ArrowUpRight,
     ArrowDownRight

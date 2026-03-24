@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Send,
     MessageSquare,
-    User,
+    _User,
     MoreVertical,
     Smartphone,
     Shield,

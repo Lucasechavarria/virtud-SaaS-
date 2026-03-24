@@ -12,7 +12,7 @@ const REPORT_TYPES = [
     { id: 'concern', label: 'Preocupación', icon: '⚠️', description: 'Algo general que me preocupa' },
 ];
 
-export default function ReportIssuePage({ params }: { params: { gymId: string } }) {
+export default function ReportIssuePage({ _params }: { _params: { gymId: string } }) {
     const router = useRouter();
     const [formData, setFormData] = useState({
         tipo: '',

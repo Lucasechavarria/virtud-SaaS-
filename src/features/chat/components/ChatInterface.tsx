@@ -41,7 +41,7 @@ export default function ChatInterface({ currentUser, initialRecipientId }: ChatI
                 if (!error && data) {
                     setConversations(data);
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Silently catch contact fetching errors in UI
             }
         };

@@ -26,7 +26,7 @@ export async function GET(
         }
 
         return NextResponse.json({ sessions });
-    } catch (err) {
+    } catch (_err) {
         return NextResponse.json({ error: 'Failed to fetch student sessions' }, { status: 500 });
     }
 }

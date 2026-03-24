@@ -12,8 +12,8 @@ export const bookingsService = {
      * Get user bookings with details
      */
     async getUserBookings(userId: string) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .from('user_bookings_detailed' as any)
             .select('*')
             .eq('usuario_id', userId)
@@ -29,8 +29,8 @@ export const bookingsService = {
     async getUpcomingBookings(userId: string) {
         const today = new Date().toISOString().split('T')[0];
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .from('user_bookings_detailed' as any)
             .select('*')
             .eq('usuario_id', userId)

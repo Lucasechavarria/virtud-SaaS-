@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Video, Activity, Target, ShieldCheck, AlertCircle, Play, Pause, RotateCcw, ChevronDown, Check, Loader2 } from 'lucide-react';
+import { Upload, Video, Activity, Target, ShieldCheck, AlertCircle, _Play, _Pause, RotateCcw, ChevronDown, Check, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase/client';
 

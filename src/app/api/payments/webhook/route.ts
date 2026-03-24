@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
-import crypto from 'crypto';
-import type { MercadoPagoPayment, MercadoPagoWebhookNotification } from '@/types/mercadopago';
+import _crypto from '_crypto';
+import type { MercadoPagoPayment, _MercadoPagoWebhookNotification } from '@/types/mercadopago';
 
 /**
  * POST /api/payments/webhook

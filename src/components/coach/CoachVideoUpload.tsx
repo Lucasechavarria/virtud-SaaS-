@@ -2,8 +2,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { motion, _AnimatePresence } from 'framer-motion';
+import { Upload, X, CheckCircle, _AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface CoachVideoUploadProps {

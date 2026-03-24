@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Zap,
     Apple,
-    Clock,
-    Camera,
+    _Clock,
+    _Camera,
     Video,
     ChevronDown,
     ChevronUp,

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
  * GET /api/notifications/preferences
  * Obtiene las preferencias de notificaciones del usuario actual
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
     try {
         const supabase = await createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();

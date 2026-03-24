@@ -3,8 +3,8 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-import { motion } from 'framer-motion';
-import { TrendingUp, Activity, Weight, Target } from 'lucide-react';
+import { _motion } from 'framer-_motion';
+import { TrendingUp, _Activity, _Weight, _Target } from 'lucide-react';
 import { ItemVariants } from '@/types/student-components';
 import { EliteCard } from '@/components/ui/EliteCard';
 

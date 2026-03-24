@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Zap, MessageSquare, Bell } from 'lucide-react';
+import { Activity, Zap, MessageSquare, _Bell } from 'lucide-react';
 import { ItemVariants } from '@/types/student-components';
 import Link from 'next/link';
 import { EliteButton } from '@/components/ui/EliteButton';

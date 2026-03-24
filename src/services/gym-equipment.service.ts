@@ -19,7 +19,7 @@ export const gymEquipmentService = {
         search?: string;
     }) {
         const supabase = await createClient();
-        let query = supabase
+        let query = (supabase as any)
             .from('equipamiento')
             .select('*')
             .order('nombre');
@@ -47,7 +47,7 @@ export const gymEquipmentService = {
      */
     async getById(id: string) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .select('*')
             .eq('id', id)
@@ -62,7 +62,7 @@ export const gymEquipmentService = {
      */
     async getByCategory(categoria: string) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .select('*')
             .eq('categoria', categoria)
@@ -78,7 +78,7 @@ export const gymEquipmentService = {
      */
     async getAvailable() {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .select('*')
             .eq('disponible', true)
@@ -94,7 +94,7 @@ export const gymEquipmentService = {
      */
     async create(equipment: GymEquipmentInsert) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .insert(equipment)
             .select()
@@ -109,7 +109,7 @@ export const gymEquipmentService = {
      */
     async update(id: string, updates: GymEquipmentUpdate) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .update(updates)
             .eq('id', id)
@@ -125,7 +125,7 @@ export const gymEquipmentService = {
      */
     async delete(id: string) {
         const supabase = await createClient();
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from('equipamiento')
             .delete()
             .eq('id', id);
@@ -155,16 +155,16 @@ export const gymEquipmentService = {
         const supabase = await createClient();
 
         // Agregación Atómica vía SQL
-        const { count: total, error: err1 } = await supabase
+        const { count: total, error: err1 } = await (supabase as any)
             .from('equipamiento')
             .select('*', { count: 'exact', head: true });
 
-        const { count: available, error: err2 } = await supabase
+        const { count: available, error: err2 } = await (supabase as any)
             .from('equipamiento')
             .select('*', { count: 'exact', head: true })
             .eq('disponible', true);
 
-        // Agregación por categorías via SQL (Usamos casting para evitar el error de tipado del RPC/Select avanzado)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: categories, error: err3 } = await (supabase as any)
             .from('equipamiento')
             .select('categoria');

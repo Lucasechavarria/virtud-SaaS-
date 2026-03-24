@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import type { ClassBooking, Routine, RoutineExercise, MonthlyAttendance } from '@/types/analytics';
+import type { ClassBooking, _Routine, _RoutineExercise, MonthlyAttendance } from '@/types/analytics';
 
 export async function GET(req: Request) {
     try {

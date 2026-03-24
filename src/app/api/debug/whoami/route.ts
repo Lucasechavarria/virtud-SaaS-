@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
  * Endpoint de diagnóstico — ver exactamente qué rol tiene el usuario actual.
  * ELIMINAR DESPUÉS DEL DEBUG.
  */
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
     try {
         const supabase = await createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();

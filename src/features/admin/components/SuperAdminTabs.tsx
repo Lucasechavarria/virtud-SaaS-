@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import SuperAdminDashboard from '@/features/admin/components/SuperAdminDashboard';
 import AutomationCenter from '@/features/admin/components/AutomationCenter';
 import BusinessIntelligence from '@/features/admin/components/BusinessIntelligence';
-import { LayoutDashboard, Zap, TrendingUp, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Zap, _TrendingUp, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SuperAdminTabs() {

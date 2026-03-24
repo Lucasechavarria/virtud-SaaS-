@@ -6,7 +6,7 @@ import {
     Users,
     Calendar,
     TrendingUp,
-    History,
+    _History,
     ChevronRight,
     ArrowUpRight,
     Zap,

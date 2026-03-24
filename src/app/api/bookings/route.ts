@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         if (error) throw error;
 
         return NextResponse.json(data);
-    } catch (error) {
+    } catch (_error) {
         return NextResponse.json({ error: 'Error fetching bookings' }, { status: 500 });
     }
 }
@@ -78,7 +78,7 @@ export async function DELETE(request: Request) {
         if (error) throw error;
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch (_error) {
         return NextResponse.json({ error: 'Error cancelling booking' }, { status: 500 });
     }
 }

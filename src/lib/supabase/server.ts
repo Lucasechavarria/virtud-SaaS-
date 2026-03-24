@@ -1,8 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { Database } from '../../types/supabase';
 
-export async function createClient() {
+export async function createClient(): Promise<SupabaseClient<Database>> {
     const cookieStore = await cookies();
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,7 +22,7 @@ export async function createClient() {
                     `Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.`
                 );
             }
-        });
+        }) as any;
     }
 
     return createServerClient<Database>(

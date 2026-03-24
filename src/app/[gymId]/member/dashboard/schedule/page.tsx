@@ -7,7 +7,7 @@ import { bookingsService } from '@/services/bookings.service';
 import { supabase } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 
-export default function SchedulePage({ params }: { params: { gymId: string } }) {
+export default function SchedulePage({ _params }: { _params: { gymId: string } }) {
     const [classes, setClasses] = useState<any[]>([]);
     const [myBookings, setMyBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);

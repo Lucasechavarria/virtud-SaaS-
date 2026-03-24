@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, _AnimatePresence } from 'framer-motion';
 import {
-    AlertTriangle,
+    _AlertTriangle,
     CreditCard,
     Lock,
     MessageSquare,
-    ExternalLink,
-    Zap,
+    _ExternalLink,
+    _Zap,
     TrendingUp,
-    ChevronRight
+    _ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -48,7 +48,7 @@ export default function SaaSGuard({ children }: SaaSGuardProps) {
                 } else {
                     setStatus('active'); // Fallback para no bloquear
                 }
-            } catch (error) {
+            } catch (_error) {
                 setStatus('active');
             }
         };

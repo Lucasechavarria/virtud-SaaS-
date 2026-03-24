@@ -103,7 +103,7 @@ export async function POST(request: Request) {
                     p_amount: payment.transaction_amount,
                     p_fecha: hoy
                 });
-            } catch (e) {
+            } catch (_e) {
                 console.warn('RPC update_saas_metrics_on_payment no disponible, usando fallback manual');
             }
 

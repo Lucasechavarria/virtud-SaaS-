@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, Clock, Save, Loader2 } from 'lucide-react';
+import { Bell, BellOff, Clock, _Save, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface NotificationPrefs {

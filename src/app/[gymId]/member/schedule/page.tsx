@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Clock, User, Calendar as CalendarIcon, X, Info, CheckCircle } from 'lucide-react';
+import { _ChevronLeft, _ChevronRight, Clock, User, Calendar as _CalendarIcon, X, _Info, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase/client';
 
@@ -26,7 +26,7 @@ interface ScheduleItem {
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 07:00 to 21:00
 
-export default function SchedulePage({ params }: { params: { gymId: string } }) {
+export default function SchedulePage({ _params }: { _params: { gymId: string } }) {
     const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
     const [userBookings, setUserBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -139,7 +139,7 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
             toast.success('Reserva cancelada');
             fetchData();
             setSelectedEvent(null);
-        } catch (error) {
+        } catch (_error) {
             toast.error('No se pudo cancelar');
         } finally {
             setBookingLoading(false);
@@ -212,7 +212,7 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
 
                     {/* Header Row (Days) */}
                     <div className="sticky top-0 z-20 bg-[#1c1c1e]/90 backdrop-blur border-b border-white/10 h-14 col-start-2 col-span-7 grid grid-cols-7">
-                        {DAYS.map((day, i) => (
+                        {DAYS.map((day, _i) => (
                             <div key={day} className="flex items-center justify-center font-bold text-gray-300 border-l border-white/5 uppercase text-sm tracking-wider">
                                 {day}
                             </div>

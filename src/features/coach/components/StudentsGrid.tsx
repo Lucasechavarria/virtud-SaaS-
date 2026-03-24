@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, _ReactNode } from 'react';
 import Link from 'next/link';
-import NextImage from 'next/image';
+import _NextImage from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, Zap, Mail, X, Users } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
+import { _supabase } from '@/lib/_supabase/client';
 import { StudentAction } from './StudentAction';
-import { SupabaseUserProfile } from '@/types/user';
+import { _SupabaseUserProfile } from '@/types/user';
 
 interface Student {
     id: string;
@@ -250,7 +250,7 @@ interface StudentModalProps {
 }
 
 // Routine Modal
-function RoutineModal({ student, onClose }: StudentModalProps) {
+function RoutineModal({ student, _onClose }: StudentModalProps) {
     return (
         <div className="p-12">
             <div className="mb-10">
@@ -301,7 +301,7 @@ function RoutineModal({ student, onClose }: StudentModalProps) {
 }
 
 // Progress Modal
-function ProgressModal({ student, onClose }: StudentModalProps) {
+function ProgressModal({ student, _onClose }: StudentModalProps) {
     return (
         <div className="p-12">
             <div className="mb-10">

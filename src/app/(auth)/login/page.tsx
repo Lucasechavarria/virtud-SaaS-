@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { _useRouter } from 'next/navigation';
 import { authService } from '@/services/auth.service';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -135,7 +135,7 @@ export default function LoginPage() {
                 formData.get('password') as string
               );
               // Router push handled by supabase state change or manually here if needed
-            } catch (error) {
+            } catch (_error) {
               toast.error("Credenciales inválidas");
               setIsLoading(false);
             }

@@ -88,7 +88,7 @@ export default function MembershipManagement() {
         }, 2000);
     };
 
-    const handleUpgrade = (planId: string) => {
+    const handleUpgrade = (_planId: string) => {
         toast.loading('Redirigiendo a pasarela de pago...');
         // Aquí se llamaría a la API de MercadoPago para el proporcional o nuevo plan
         setTimeout(() => {

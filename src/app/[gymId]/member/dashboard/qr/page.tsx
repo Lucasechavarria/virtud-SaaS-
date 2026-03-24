@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, RotateCcw, ShieldCheck, Clock, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-export default function StudentQRPage({ params }: { params: { gymId: string } }) {
+export default function StudentQRPage({ _params }: { _params: { gymId: string } }) {
     const [timeLeft, setTimeLeft] = useState(30);
     const [qrValue, setQrValue] = useState('generando...');
     const [loading, setLoading] = useState(true);

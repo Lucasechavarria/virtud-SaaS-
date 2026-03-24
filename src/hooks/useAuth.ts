@@ -59,7 +59,7 @@ export function useAuth() {
             } else {
                 setProfile(data);
             }
-        } catch (error) {
+        } catch (_error) {
             // unexpected load error
         } finally {
             setLoading(false);

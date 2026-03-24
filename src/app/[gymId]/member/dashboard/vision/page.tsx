@@ -4,25 +4,25 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase/client';
 import {
-    Zap,
+    _Zap,
     CheckCircle2,
     AlertCircle,
     ClipboardList,
-    Play,
+    _Play,
     Clock,
     Star,
     MessageSquare,
-    ChevronRight,
+    _ChevronRight,
     Loader2,
     FlaskConical,
     History,
     Search
 } from 'lucide-react';
-import { CorreccionesIA } from '@/lib/validations/videos';
+import { _CorreccionesIA } from '@/lib/validations/videos';
 import toast from 'react-hot-toast';
 import VisionLab from '@/features/ai/components/VisionLab';
 
-export default function VisionPage({ params }: { params: { gymId: string } }) {
+export default function VisionPage({ _params }: { _params: { gymId: string } }) {
     const [mode, setMode] = useState<'history' | 'lab'>('lab');
     const [videos, setVideos] = useState<any[]>([]);
     const [selectedVideo, setSelectedVideo] = useState<any>(null);
