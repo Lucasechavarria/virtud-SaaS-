@@ -2,9 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 
 import { Database } from '../types/supabase';
 
-type GymEquipment = Database['public']['Tables']['equipamiento']['Row'];
-type GymEquipmentInsert = Database['public']['Tables']['equipamiento']['Insert'];
-type GymEquipmentUpdate = Database['public']['Tables']['equipamiento']['Update'];
+export type GymEquipment = Database['public']['Tables']['equipamiento']['Row'];
+export type GymEquipmentInsert = Database['public']['Tables']['equipamiento']['Insert'];
+export type GymEquipmentUpdate = Database['public']['Tables']['equipamiento']['Update'];
 
 /**
  * Service for managing gym equipment inventory

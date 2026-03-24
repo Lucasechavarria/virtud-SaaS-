@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         const { schedule_id, date } = await request.json();
 
         // 🔐 Atomic Booking Pattern: Usar RPC para evitar Race Conditions (Capacidad/Duplicados)
-        const { data, error } = await supabase.rpc('book_class_atomic', {
+        const { data, error } = await (supabase as any).rpc('book_class_atomic', {
             p_horario_clase_id: schedule_id,
             p_usuario_id: user.id,
             p_fecha: date
@@ -49,8 +49,6 @@ export async function POST(request: Request) {
         // El RPC devuelve el objeto de la reserva si tuvo éxito, o lanza un error si falló (vía RAISE EXCEPTION o lógica interna)
         // Nota: El RPC book_class_atomic ya maneja la gamificación internamente en su definición SQL.
         
-        return NextResponse.json(data);
-
         return NextResponse.json(data);
     } catch (error) {
         console.error(error);

@@ -4,21 +4,21 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase/client';
 import {
-    _Zap,
+    Zap,
     CheckCircle2,
     AlertCircle,
     ClipboardList,
-    _Play,
+    Play,
     Clock,
     Star,
     MessageSquare,
-    _ChevronRight,
+    ChevronRight,
     Loader2,
     FlaskConical,
     History,
     Search
 } from 'lucide-react';
-import { _CorreccionesIA } from '@/lib/validations/videos';
+import { CorreccionesIA } from '@/lib/validations/videos';
 import toast from 'react-hot-toast';
 import VisionLab from '@/features/ai/components/VisionLab';
 
@@ -26,7 +26,7 @@ export default function VisionPage({ _params }: { _params: { gymId: string } }) 
     const [mode, setMode] = useState<'history' | 'lab'>('lab');
     const [videos, setVideos] = useState<any[]>([]);
     const [selectedVideo, setSelectedVideo] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const [_loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [submittingFeedback, setSubmittingFeedback] = useState(false);
     const [rating, setRating] = useState(0);
@@ -80,7 +80,7 @@ export default function VisionPage({ _params }: { _params: { gymId: string } }) 
         }
     };
 
-    const handleVideoSelect = (video: any) => {
+    const _handleVideoSelect = (video: any) => {
         setSelectedVideo(video);
         setRating(video.calificacion_alumno || 0);
         setComment(video.feedback_alumno || '');

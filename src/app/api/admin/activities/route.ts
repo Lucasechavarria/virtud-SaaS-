@@ -61,7 +61,7 @@ export async function PUT(request: Request) {
     const supabase = await createClient();
     try {
         const body = await request.json();
-        const { id, ...updateData } = body;
+        const { id, ..._updateData } = body;
 
         if (!id) throw new Error('ID is required');
 

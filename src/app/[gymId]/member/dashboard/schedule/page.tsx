@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 
 export default function SchedulePage({ _params }: { _params: { gymId: string } }) {
     const [classes, setClasses] = useState<any[]>([]);
-    const [myBookings, setMyBookings] = useState<any[]>([]);
+    const [_myBookings, setMyBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDay, setSelectedDay] = useState(new Date().getDay()); // 0=Sunday, 1=Monday...
 

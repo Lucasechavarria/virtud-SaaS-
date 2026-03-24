@@ -1,19 +1,19 @@
 'use server';
 
-import { gymEquipmentService } from '@/services/gym-equipment.service';
+import { gymEquipmentService, type GymEquipmentInsert, type GymEquipmentUpdate } from '@/services/gym-equipment.service';
 import { revalidatePath } from 'next/cache';
 
 export async function getEquipment() {
     return await gymEquipmentService.getAll();
 }
 
-export async function createEquipment(data: any) {
+export async function createEquipment(data: GymEquipmentInsert) {
     const result = await gymEquipmentService.create(data);
     revalidatePath('/admin/equipment');
     return result;
 }
 
-export async function updateEquipment(id: string, data: any) {
+export async function updateEquipment(id: string, data: GymEquipmentUpdate) {
     const result = await gymEquipmentService.update(id, data);
     revalidatePath('/admin/equipment');
     return result;

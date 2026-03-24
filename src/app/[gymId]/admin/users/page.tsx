@@ -32,7 +32,7 @@ interface GymLimits {
 }
 
 export default function UsersPage() {
-    const supabase = createClient();
+    const _supabase = createClient();
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<User[]>([]);
     const [coaches, setCoaches] = useState<Coach[]>([]);

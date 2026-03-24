@@ -36,7 +36,7 @@ export default function POSPage() {
     const [memberSearch, setMemberSearch] = useState('');
     const [selectedMember, setSelectedMember] = useState<typeof DUMMY_MEMBERS[0] | null>(null);
     const [cart, setCart] = useState<Array<{ producto: typeof DUMMY_PRODUCTS[0], cantidad: number }>>([]);
-    const [payMethod, setPayMethod] = useState<'efectivo' | 'tarjeta' | 'qr' | null>(null);
+    const [_payMethod, setPayMethod] = useState<'efectivo' | 'tarjeta' | 'qr' | null>(null);
     const [isSearchingMember, setIsSearchingMember] = useState(false);
 
     // Filter products

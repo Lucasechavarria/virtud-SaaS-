@@ -7,8 +7,8 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { CoachAttendanceWidget } from '@/features/coach/components/CoachAttendanceWidget';
 import { IntelligenceCardsGrid } from '@/components/coach/IntelligenceCards';
-import { _BulkStudentManager } from '@/components/coach/_BulkStudentManager';
-import { Zap, Users, Calendar, ClipboardCheck, Bell, Activity, ShieldCheck, Mail, _BarChart3 } from 'lucide-react';
+import { BulkStudentManager } from '@/components/coach/BulkStudentManager';
+import { Zap, Users, Calendar, ClipboardCheck, Bell, Activity, ShieldCheck, Mail, BarChart3 } from 'lucide-react';
 
 const container = {
     hidden: { opacity: 0 },
@@ -29,7 +29,7 @@ export default function CoachDashboard({ params }: { params: { gymId: string } }
     const [loading, setLoading] = useState(true);
     const [sendingPush, setSendingPush] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
-    const [students, setStudents] = useState<any[]>([]);
+    const [_students, setStudents] = useState<any[]>([]);
     const [data, setData] = useState<any>({
         stats: { activeStudents: 0 },
         upcomingClasses: [],
