@@ -24,11 +24,8 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await authService.signInWithGoogle();
-      // Forzar navegación para que el middleware (proxy) detecte la sesión
-      // Si no hay redirectTo, usamos '/' para que el proxy decida según el rol
       const destination = redirectTo || '/';
-      router.push(destination);
-      router.refresh();
+      window.location.href = destination;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Error al iniciar sesión";
       toast.error(errorMessage);
@@ -148,10 +145,9 @@ export default function LoginPage() {
                 formData.get('password') as string
               );
               
-              // Forzar navegación para que el middleware (proxy) detecte la sesión
+              // Forzar navegación de página completa para que el middleware (proxy) detecte la sesión
               const destination = redirectTo || '/';
-              router.push(destination);
-              router.refresh();
+              window.location.href = destination;
             } catch (_error) {
               toast.error("Credenciales inválidas");
               setIsLoading(false);

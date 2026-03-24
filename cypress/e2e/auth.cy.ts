@@ -34,9 +34,8 @@ describe('Authentication Flow', () => {
         const password = 'Password123!';
 
         cy.login(email, password);
-
-        cy.visit('/dashboard');
-        cy.url().should('include', '/dashboard');
+        // El Superadmin (definido en el seed para este correo) redirige a /saas-admin
+        cy.url().should('include', '/saas-admin');
         // Verificar que el sidebar muestra opciones de admin si es posible
         // cy.contains('Panel de Control').should('be.visible');
     });
@@ -46,7 +45,7 @@ describe('Authentication Flow', () => {
         const password = 'Password123!';
         const email = 'student@virtudgym.com'; // Definimos email antes del llamado
         cy.login(email, password);
-        cy.visit('/dashboard');
+        // El Alumno (definido en el seed para este correo) redirige a /[gymId]/member/dashboard
         cy.url().should('include', '/dashboard');
         cy.contains('Mis Pagos').should('exist'); // Elemento típico de estudiante
     });
