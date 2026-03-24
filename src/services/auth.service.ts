@@ -111,7 +111,7 @@ export const authService = {
     async updateProfile(userId: string, updates: Partial<Profile>) {
         const { data, error } = await supabase
             .from('perfiles')
-            .update(updates as any)
+            .update(updates)
             .eq('id', userId)
             .select()
             .single();
@@ -169,6 +169,8 @@ export const authService = {
      * Listen to auth state changes
      */
     onAuthStateChange(callback: (event: string, session: any) => void) {
+        // Mantenemos session as any ya que viene así de la librería de Supabase en versiones antiguas 
+        // o queremos evitar cascada de tipos por ahora, pero tipamos lo demás.
         return supabase.auth.onAuthStateChange(callback);
     },
 };

@@ -164,21 +164,23 @@ export const gymEquipmentService = {
             .select('*', { count: 'exact', head: true })
             .eq('disponible', true);
 
-        // Agregación por categorías via SQL
+        // Agregación por categorías via SQL (Usamos casting para evitar el error de tipado del RPC/Select avanzado)
         const { data: categories, error: err3 } = await (supabase as any)
             .from('equipamiento')
-            .select('categoria, id.count()')
-            .group('categoria');
+            .select('categoria');
 
-        if (err1 || err2) throw err1 || err2;
+        if (err1 || err2 || err3) throw err1 || err2 || err3;
+
+        // Procesamiento en cliente para evitar sintaxis compleja de PostgREST no soportada en tipos
+        const categoryCounts = (categories as { categoria: string }[] || []).reduce((acc, curr) => {
+            acc[curr.categoria] = (acc[curr.categoria] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
 
         return {
             total: total || 0,
             available: available || 0,
-            byCategory: (categories as any[] || []).reduce((acc, curr) => {
-                acc[curr.categoria] = curr.count;
-                return acc;
-            }, {} as Record<string, number>),
+            byCategory: categoryCounts,
             byCondition: {} // Proyectado a View SQL
         };
     },

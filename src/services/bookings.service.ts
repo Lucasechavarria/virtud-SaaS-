@@ -3,7 +3,6 @@ import { Database } from '../types/supabase';
 
 type Booking = Database['public']['Tables']['reservas_de_clase']['Row'];
 type BookingInsert = Database['public']['Tables']['reservas_de_clase']['Insert'];
-type BookingUpdate = Database['public']['Tables']['reservas_de_clase']['Update'];
 
 /**
  * Service for managing bookings
@@ -13,6 +12,7 @@ export const bookingsService = {
      * Get user bookings with details
      */
     async getUserBookings(userId: string) {
+        // Usamos 'as any' para evitar "Type instantiation is excessively deep" en vistas complejas
         const { data, error } = await supabase
             .from('user_bookings_detailed' as any)
             .select('*')
@@ -74,8 +74,11 @@ export const bookingsService = {
      * a la Base de Datos mediante el RPC "book_class_atomic" evitando el fraude de múltiples hilos en Vercel.
      */
     async create(booking: BookingInsert) {
-        // En lugar de leer primero y guardar después (condición de carrera TOCTOU),
-        // pedimos al servidor PostgreSQL que ejecute todo de forma atómica.
+        if (!booking.horario_clase_id || !booking.usuario_id || !booking.fecha) {
+            throw new Error('Faltan datos requeridos para la reserva');
+        }
+
+        // Usamos '(supabase as any).rpc' porque las funciones atómicas nuevas pueden no estar en los tipos generados aún
         const { data, error } = await (supabase as any)
             .rpc('book_class_atomic', {
                 p_horario_clase_id: booking.horario_clase_id,
@@ -94,7 +97,7 @@ export const bookingsService = {
     async cancel(bookingId: string) {
         const { data, error } = await supabase
             .from('reservas_de_clase')
-            .update({ estado: 'cancelada' } as any)
+            .update({ estado: 'cancelada' })
             .eq('id', bookingId)
             .select()
             .single();
@@ -122,8 +125,8 @@ export const bookingsService = {
             .update({
                 estado: 'asistida',
                 asistido_en: new Date().toISOString(),
-                marcado_por: checkedInBy, // Assuming marcado_por is correct or temporary
-            } as any)
+                marcado_por: checkedInBy,
+            })
             .eq('id', bookingId)
             .select()
             .single();

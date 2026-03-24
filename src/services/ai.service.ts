@@ -117,7 +117,7 @@ export class AIService {
    * Middleware de Validación Médica (Gemini Flash)
    * Realiza un chequeo de seguridad de 1 segundo sobre el plan generado.
    */
-  async validatePlanSafety(plan: any, medicalData: any): Promise<{ safe: boolean; warning?: string }> {
+  async validatePlanSafety(plan: { rutina: any }, medicalData: Record<string, any>): Promise<{ safe: boolean; warning?: string }> {
     try {
       const prompt = `
         Analiza este plan de entrenamiento y compáralo con la ficha médica del alumno:
@@ -150,10 +150,15 @@ export class AIService {
     const { studentProfile, userGoal, gymEquipment, coachNotes, templateKey, historicContext } = context;
     
     const medicalData = studentProfile.informacion_medica || {};
+    const goalStr = userGoal?.objetivo_principal || userGoal?.primary_goal || 'Fitness General';
+    
+    // Inferencia o uso de template específico
+    const template = templateKey ? AI_PROMPT_TEMPLATES[templateKey] : this.inferTemplate(goalStr);
     
     // Inyectamos el contexto de seguridad y reglas de negocio del Maestro
     return `
     🎯 MISION: Actúa como el VIRTUD COACH 2.0 (Especialista en Biomecánica y Medicina Deportiva).
+    👤 ALUMNO: ${studentProfile.nombre_completo || 'Usuario de Virtud'}
     
     🛡️ REGLAS INFRANQUEABLES DE SEGURIDAD:
     - Debes basar la rutina estrictamente en el INVENTARIO REAL disponible: ${gymEquipment.map(eq => `${eq.nombre || eq.name} (${eq.categoria || eq.category})`).join(', ')}.
@@ -163,7 +168,9 @@ export class AIService {
     📝 CONTEXTO DE GENERACIÓN:
     - INSTRUCCIONES DEL PROFESOR: ${coachNotes || 'Ninguna'}
     - HISTORIAL RAG (MEMORIA): ${historicContext || 'Sin historial'}
-    - OBJETIVO: ${userGoal?.objetivo_principal || 'Fitness General'}
+    - OBJETIVO: ${goalStr}
+    
+    ${template.promptSuffix}
     
     💎 REQUISITOS TÉCNICOS:
     - Incluye TEMPO (ej: 3-0-1-0) y RPE para cada ejercicio.

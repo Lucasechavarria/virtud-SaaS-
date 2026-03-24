@@ -63,18 +63,17 @@ describe('AIService', () => {
             expect(prompt).toContain('Hipertrofia');
             expect(prompt).toContain('Barra Olímpica');
             expect(prompt).toContain('Test notes');
-            expect(prompt).toContain('plan_nutricional');
-            expect(prompt).toContain('PROTOCOLO DE SEGURIDAD LEGAL');
+            expect(prompt).toContain('REGLAS INFRANQUEABLES DE SEGURIDAD');
         });
 
         it('should use the correct template based on goal', () => {
             const prompt = aiService.buildPrompt({
                 studentProfile: mockStudentProfile,
-                userGoal: { ...mockUserGoal, primary_goal: 'Rehabilitación' },
+                userGoal: { ...mockUserGoal, objetivo_principal: 'Rehabilitación' },
                 gymEquipment: mockGymEquipment
             });
 
-            expect(prompt).toContain('ENFOQUE: REHABILITACIÓN');
+            expect(prompt).toContain('ENFOQUE: REHABILITACIÓN Y SALUD');
         });
     });
 

@@ -151,28 +151,33 @@ export const userGoalsService = {
     async getStats() {
         const supabase = await createClient();
 
-        // Ejecutamos la agregación directamente en la base de datos para no saturar la memoria de Vercel (Client-side aggregation logic removed)
-        const { data: totals, error: err1 } = await supabase
+        // Ejecutamos la agregación directamente en la base de datos para no saturar la memoria
+        const { count: total, error: err1 } = await supabase
             .from('objetivos_del_usuario')
-            .select('id', { count: 'exact' });
+            .select('*', { count: 'exact', head: true });
 
-        const { data: active, error: err2 } = await supabase
+        const { count: active, error: err2 } = await supabase
             .from('objetivos_del_usuario')
-            .select('id', { count: 'exact' })
+            .select('*', { count: 'exact', head: true })
             .eq('esta_activo', true);
 
-        // Agregación de promedios via SQL
-        const { data: avgFreq, error: err3 } = await (supabase as any)
+        // Agregación de promedios via SQL (Usamos casting para evitar el error de tipado de .avg())
+        const { data: allGoals, error: err3 } = await supabase
             .from('objetivos_del_usuario')
-            .select('frecuencia_entrenamiento_por_semana.avg()')
-            .single();
+            .select('frecuencia_entrenamiento_por_semana');
 
-        if (err1 || err2) throw err1 || err2;
+        if (err1 || err2 || err3) throw err1 || err2 || err3;
+
+        const goals = allGoals as { frecuencia_entrenamiento_por_semana: number | null }[];
+        const validFrequencies = goals.filter(g => g.frecuencia_entrenamiento_por_semana !== null);
+        const avgFrequency = validFrequencies.length > 0
+            ? validFrequencies.reduce((sum, g) => sum + (g.frecuencia_entrenamiento_por_semana || 0), 0) / validFrequencies.length
+            : 0;
 
         return {
-            total: (totals as any).length || 0,
-            active: (active as any).length || 0,
-            avgFrequency: (avgFreq as any)?.avg || 0,
+            total: total || 0,
+            active: active || 0,
+            avgFrequency,
             byPrimaryGoal: {} // TODO: Migrar a View SQL para reportes dinámicos
         };
     },
