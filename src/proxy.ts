@@ -51,7 +51,7 @@ const MODULE_ROUTES: Record<string, string> = {
     '/member/dashboard/classes': 'clases_reserva',
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     // Saltar si faltan variables de entorno
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         return NextResponse.next({ request: { headers: request.headers } });
