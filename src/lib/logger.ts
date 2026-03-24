@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
 interface LogData {
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 class Logger {

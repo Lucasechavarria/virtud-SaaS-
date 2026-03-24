@@ -12,7 +12,7 @@ interface ExportOptions<T> {
 /**
  * Exportar datos a CSV (Implementation manual sin librerías externas)
  */
-export function exportToCSV<T extends Record<string, any>>(data: T[], fields?: string[]): string {
+export function exportToCSV<T extends Record<string, unknown>>(data: T[], fields?: string[]): string {
     try {
         if (!data || data.length === 0) return '';
 
@@ -43,7 +43,7 @@ export function exportToCSV<T extends Record<string, any>>(data: T[], fields?: s
 /**
  * Exportar datos a Excel (CSV compatible)
  */
-export function exportToExcel<T extends Record<string, any>>(data: T[], fields?: string[]): string {
+export function exportToExcel<T extends Record<string, unknown>>(data: T[], fields?: string[]): string {
     // Excel puede abrir archivos CSV con BOM UTF-8
     const csv = exportToCSV(data, fields);
     return '\uFEFF' + csv; // BOM para UTF-8
@@ -67,7 +67,7 @@ export function downloadFile(content: string, filename: string, mimeType: string
 /**
  * Exportar datos según formato
  */
-export async function exportData<T extends Record<string, any>>(options: ExportOptions<T>): Promise<void> {
+export async function exportData<T extends Record<string, unknown>>(options: ExportOptions<T>): Promise<void> {
     const { filename, format, data, fields } = options;
 
     switch (format) {
@@ -133,7 +133,7 @@ export const reports = {
     /**
      * Exportar reporte de usuarios
      */
-    users: async (users: Record<string, any>[], format: ExportFormat) => {
+    users: async (users: Record<string, unknown>[], format: ExportFormat) => {
         const fields = [
             'full_name',
             'email',
@@ -155,7 +155,7 @@ export const reports = {
     /**
      * Exportar reporte de pagos
      */
-    payments: async (payments: Record<string, any>[], format: ExportFormat) => {
+    payments: async (payments: Record<string, unknown>[], format: ExportFormat) => {
         const fields = [
             'user_name',
             'amount',
@@ -177,7 +177,7 @@ export const reports = {
     /**
      * Exportar reporte de accesos
      */
-    accessLogs: async (logs: Record<string, any>[], format: ExportFormat) => {
+    accessLogs: async (logs: Record<string, unknown>[], format: ExportFormat) => {
         const fields = [
             'user_name',
             'action',
@@ -198,7 +198,7 @@ export const reports = {
     /**
      * Exportar reporte de rutinas
      */
-    routines: async (routines: Record<string, any>[], format: ExportFormat) => {
+    routines: async (routines: Record<string, unknown>[], format: ExportFormat) => {
         const fields = [
             'student_name',
             'coach_name',

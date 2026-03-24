@@ -144,7 +144,7 @@ export async function middleware(request: NextRequest) {
                 if (profile) {
                     userRole = profile.rol?.toLowerCase();
                     gymId = profile.gimnasio_id;
-                    gymSlug = (profile as any).gimnasios?.slug;
+                    gymSlug = (profile.gimnasios as unknown as { slug: string })?.slug;
 
                     // Cachear por 10 minutos para evitar DB hits constantes
                     response.cookies.set('vtd_user_meta', JSON.stringify({ rol: userRole, gymId, gymSlug }), {

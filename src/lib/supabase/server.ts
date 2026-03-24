@@ -10,7 +10,7 @@ export async function createClient() {
 
     if (!supabaseUrl || !supabaseAnonKey) {
         // En tiempo de build o si faltan las vars, retornamos un proxy dummy para no romper
-        return new Proxy({} as any, {
+        return new Proxy({} as unknown as Record<string, unknown>, {
             get: (_target, prop) => {
                 // Métodos comunes que podrían llamarse durante el build estático
                 if (prop === 'auth') return { getUser: async () => ({ data: { user: null }, error: null }) };
@@ -35,14 +35,14 @@ export async function createClient() {
                 set(name: string, value: string, options: CookieOptions) {
                     try {
                         cookieStore.set({ name, value, ...options });
-                    } catch (error) {
+                    } catch (_error) {
                         // The `set` method was called from a Server Component.
                     }
                 },
                 remove(name: string, options: CookieOptions) {
                     try {
                         cookieStore.set({ name, value: '', ...options });
-                    } catch (error) {
+                    } catch (_error) {
                         // The `delete` method was called from a Server Component.
                     }
                 },

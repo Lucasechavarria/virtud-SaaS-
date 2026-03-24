@@ -1,5 +1,4 @@
 import { AIService } from '../ai.service';
-import { TRAINING_GOALS } from '@/lib/constants/gym';
 
 // Mock Gemini AI
 jest.mock('@/lib/config/gemini', () => ({
@@ -12,7 +11,6 @@ jest.mock('@/lib/config/gemini', () => ({
 }));
 
 import { aiClient } from '@/lib/config/gemini';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 
 jest.mock('zod-to-json-schema', () => ({
     zodToJsonSchema: jest.fn().mockReturnValue({ type: 'object' })

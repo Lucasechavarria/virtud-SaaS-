@@ -1,9 +1,9 @@
 import { aiClient, DEFAULT_MODEL, MODEL_FLASH, MODEL_PRO, RoutineSchema, SAFETY_SETTINGS } from '@/lib/config/gemini';
 import { AI_PROMPT_TEMPLATES, AITemplateKey } from '@/lib/constants/ai-templates';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { CorreccionesIASchema } from '@/lib/validations/videos';
-import { AdaptiveReportSchema, type AdaptiveReport } from '@/lib/validations/adaptive-engine';
 import { logger } from '@/lib/logger';
+import { AdaptiveReportSchema, type AdaptiveReport } from '@/lib/validations/adaptive-engine';
+import { CorreccionesIASchema } from '@/lib/validations/videos';
 
 /**
  * Parámetros para generar una rutina mejorada
@@ -58,19 +58,19 @@ export class AIService {
       try {
         logger.info(`Generating routine with Gemini (Model: ${MODEL_PRO}, Attempt: ${attempt + 1})...`);
 
-        // @ts-ignore - Schema conversion
-        const jsonSchema = zodToJsonSchema(RoutineSchema);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const jsonSchema = zodToJsonSchema(RoutineSchema as any);
         if (jsonSchema && typeof jsonSchema === 'object' && '$schema' in jsonSchema) {
-          delete (jsonSchema as { $schema?: string }).$schema;
+          delete (jsonSchema as Record<string, unknown>).$schema;
         }
 
         const model = aiClient.getGenerativeModel({
-          model: MODEL_PRO, // Tarea Estratégica: Razonamiento Profundo
+          model: MODEL_PRO, 
           safetySettings: SAFETY_SETTINGS,
           generationConfig: {
             responseMimeType: "application/json",
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            responseSchema: jsonSchema as any,
+            // @ts-ignore - Schema structural compatibility
+            responseSchema: jsonSchema as Record<string, unknown>,
             temperature: 0.1
           }
         });
@@ -117,7 +117,7 @@ export class AIService {
    * Middleware de Validación Médica (Gemini Flash)
    * Realiza un chequeo de seguridad de 1 segundo sobre el plan generado.
    */
-  async validatePlanSafety(plan: { rutina: any }, medicalData: Record<string, any>): Promise<{ safe: boolean; warning?: string }> {
+  async validatePlanSafety(plan: { rutina: unknown }, medicalData: Record<string, unknown>): Promise<{ safe: boolean; warning?: string }> {
     try {
       const prompt = `
         Analiza este plan de entrenamiento y compáralo con la ficha médica del alumno:
@@ -230,10 +230,11 @@ export class AIService {
       if (fileMB > 10) {
           throw new Error("El video es demasiado pesado (" + fileMB.toFixed(1) + "MB). La herramienta es evaluativa: debe ser corto y limitado (máx 10MB) para dar una solución saludable rápida.");
       }
-      // @ts-ignore - Schema conversion
-      const jsonSchema = zodToJsonSchema(CorreccionesIASchema);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jsonSchema = zodToJsonSchema(CorreccionesIASchema as any);
       if (jsonSchema && typeof jsonSchema === 'object' && '$schema' in jsonSchema) {
-        delete (jsonSchema as any).$schema;
+        delete (jsonSchema as Record<string, unknown>).$schema;
       }
 
       const prompt = `
@@ -263,7 +264,8 @@ export class AIService {
         safetySettings: SAFETY_SETTINGS,
         generationConfig: {
           responseMimeType: "application/json",
-          responseSchema: jsonSchema as any,
+          // @ts-ignore - Schema structural compatibility
+          responseSchema: jsonSchema as Record<string, unknown>,
           temperature: 0.1
         }
       });
@@ -293,9 +295,10 @@ export class AIService {
       const { NutritionAnalysisSchema } = await import('@/lib/validations/nutrition');
 
       // @ts-ignore
-      const jsonSchema = zodToJsonSchema(NutritionAnalysisSchema);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jsonSchema = zodToJsonSchema(NutritionAnalysisSchema as any);
       if (jsonSchema && typeof jsonSchema === 'object' && '$schema' in jsonSchema) {
-        delete (jsonSchema as any).$schema;
+        delete (jsonSchema as Record<string, unknown>).$schema;
       }
 
       const prompt = `
@@ -315,12 +318,13 @@ export class AIService {
       `;
 
       const model = aiClient.getGenerativeModel({
-        model: DEFAULT_MODEL,
+        model: MODEL_FLASH, // Tarea de Visión: Análisis Nutricional (Flash es suficiente)
         safetySettings: SAFETY_SETTINGS,
         generationConfig: {
           responseMimeType: "application/json",
-          responseSchema: jsonSchema as any,
-          temperature: 0.2
+          // @ts-ignore - Schema structural compatibility
+          responseSchema: jsonSchema as Record<string, unknown>,
+          temperature: 0.1
         }
       });
 
@@ -346,18 +350,18 @@ export class AIService {
    */
   async generateAdaptiveReport(
     studentProfile: StudentProfile,
-    visionLogs: any[],
-    nutritionLogs: any[],
-    measurementLogs: any[] = [],
-    recoveryLogs: any[] = []
+    visionLogs: Record<string, unknown>[],
+    nutritionLogs: Record<string, unknown>[],
+    measurementLogs: Record<string, unknown>[] = [],
+    recoveryLogs: Record<string, unknown>[] = []
   ): Promise<AdaptiveReport> {
     try {
       logger.info('Generating Adaptive Report with Gemini...');
 
-      // @ts-ignore
-      const jsonSchema = zodToJsonSchema(AdaptiveReportSchema);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jsonSchema = zodToJsonSchema(AdaptiveReportSchema as any);
       if (jsonSchema && typeof jsonSchema === 'object' && '$schema' in jsonSchema) {
-        delete (jsonSchema as any).$schema;
+        delete (jsonSchema as Record<string, unknown>).$schema;
       }
 
       const prompt = `
@@ -403,7 +407,8 @@ export class AIService {
         safetySettings: SAFETY_SETTINGS,
         generationConfig: {
           responseMimeType: "application/json",
-          responseSchema: jsonSchema as any,
+          // @ts-ignore - Schema structural compatibility
+          responseSchema: jsonSchema as Record<string, unknown>,
           temperature: 0.1
         }
       });

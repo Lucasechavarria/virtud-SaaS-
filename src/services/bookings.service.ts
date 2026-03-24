@@ -12,7 +12,7 @@ export const bookingsService = {
      * Get user bookings with details
      */
     async getUserBookings(userId: string) {
-        // Usamos 'as any' para evitar "Type instantiation is excessively deep" en vistas complejas
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await supabase
             .from('user_bookings_detailed' as any)
             .select('*')
@@ -29,6 +29,7 @@ export const bookingsService = {
     async getUpcomingBookings(userId: string) {
         const today = new Date().toISOString().split('T')[0];
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await supabase
             .from('user_bookings_detailed' as any)
             .select('*')
@@ -79,6 +80,7 @@ export const bookingsService = {
         }
 
         // Usamos '(supabase as any).rpc' porque las funciones atómicas nuevas pueden no estar en los tipos generados aún
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
             .rpc('book_class_atomic', {
                 p_horario_clase_id: booking.horario_clase_id,
@@ -107,6 +109,7 @@ export const bookingsService = {
 
         // Promote waitlist if applicable (delegado a SQL Atómico)
         if (data.estado === 'reservada') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (supabase as any).rpc('promote_waitlist_atomic', {
                 p_horario_id: data.horario_clase_id,
                 p_fecha: data.fecha
@@ -139,6 +142,7 @@ export const bookingsService = {
      * Promote first person from waitlist (LEGACY - Ahora se usa RPC promote_waitlist_atomic)
      */
     async promoteFromWaitlist(classId: string, date: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase as any).rpc('promote_waitlist_atomic', {
             p_horario_id: classId,
             p_fecha: date
