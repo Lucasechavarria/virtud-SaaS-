@@ -7,7 +7,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().optional(),
-  MERCADOPAGO_ACCESS_TOKEN: z.string().min(1, "Access Token de MercadoPago es obligatorio"),
+  MERCADOPAGO_ACCESS_TOKEN: z.string().optional(),
   MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(),
 });
 

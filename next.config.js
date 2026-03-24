@@ -10,6 +10,7 @@ const withPWA = require('next-pwa')({
 const nextConfig = {
   // Performance Optimizations
   reactStrictMode: true,
+  serverExternalPackages: ['ioredis', 'bullmq'],
 
   // Image Optimization
   images: {
@@ -85,7 +86,6 @@ const nextConfig = {
   // Experimental features
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'framer-motion'],
-    serverComponentsExternalPackages: ['ioredis', 'bullmq'],
   },
 
   // Bundle Analyzer
