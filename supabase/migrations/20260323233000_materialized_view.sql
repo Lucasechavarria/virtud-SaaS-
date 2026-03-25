@@ -15,12 +15,12 @@ SELECT
     h.dia_de_la_semana, 
     h.hora_inicio, 
     h.hora_fin, 
-    h.capacidad_maxima, 
+    a.capacidad_maxima, 
     h.esta_activa,
     a.nombre as nombre_actividad,
     e.nombre_completo as nombre_entrenador,
     COALESCE((SELECT count(*) FROM reservas_de_clase r WHERE r.horario_clase_id = h.id AND r.estado = 'reservada'), 0) as capacidad_actual,
-    (h.capacidad_maxima - COALESCE((SELECT count(*) FROM reservas_de_clase r WHERE r.horario_clase_id = h.id AND r.estado = 'reservada'), 0)) as cupos_disponibles
+    (a.capacidad_maxima - COALESCE((SELECT count(*) FROM reservas_de_clase r WHERE r.horario_clase_id = h.id AND r.estado = 'reservada'), 0)) as cupos_disponibles
 FROM horarios_de_clase h
 LEFT JOIN actividades a ON h.actividad_id = a.id
 LEFT JOIN perfiles e ON h.entrenador_id = e.id;

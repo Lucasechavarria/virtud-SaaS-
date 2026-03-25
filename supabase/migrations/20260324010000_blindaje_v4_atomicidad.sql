@@ -82,6 +82,7 @@ BEFORE INSERT OR UPDATE OF esta_activo ON objetivos_del_usuario
 FOR EACH ROW EXECUTE FUNCTION fn_ensure_single_active_user_goal();
 
 -- 3. Reserva Atómica (Anti-Overbooking)
+DROP FUNCTION IF EXISTS book_class_atomic(uuid, uuid, date) CASCADE;
 CREATE OR REPLACE FUNCTION book_class_atomic(
   p_horario_clase_id UUID,
   p_usuario_id UUID,
