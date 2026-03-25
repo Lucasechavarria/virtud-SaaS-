@@ -7,9 +7,8 @@ import { type CookieOptions } from '@supabase/ssr';
  * is crucial for reliable authentication in Next.js.
  */
 export const SUPABASE_COOKIE_OPTIONS = {
-    name: 'sb-virtud-auth',
     path: '/',
     sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // Forzado false para compatibilidad con localhost:3000 en CI/CD
     maxAge: 60 * 60 * 24 * 7, // 7 days
 };

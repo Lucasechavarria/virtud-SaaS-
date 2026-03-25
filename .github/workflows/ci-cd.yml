@@ -132,6 +132,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
   # Job 5: Deploy Preview (Pull Requests) - Gatekeeper
   deploy-preview:
