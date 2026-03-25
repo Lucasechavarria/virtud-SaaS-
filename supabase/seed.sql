@@ -12,54 +12,62 @@ DECLARE
   v_horario_id UUID := 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55';
 BEGIN
 
-    -- 1️⃣ Inserción en AUTH.USERS (CORREGIDO: Incluye raw_app_meta_data y aud para que GoTrue lo acepte)
+    -- 1️⃣ Limpieza profunda en Cascada Manual (Evita errores de integridad referencial)
+    DELETE FROM public.gamificacion_del_usuario WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.mediciones WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.registros_nutricion WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.horarios_de_clase WHERE entrenador_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.asistencias WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.accesos_qr WHERE alumno_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.perfiles WHERE id IN (v_admin_id, v_student_id);
+    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com');
+
+    -- 2️⃣ Inserción en AUTH.USERS (CORREGIDO: Hashing dinámico compatible con GoTrue)
     INSERT INTO auth.users (
         id, 
+        instance_id,
         email, 
         raw_user_meta_data, 
-        raw_app_meta_data, -- Crucial para que Supabase reconozca el proveedor 'email'
+        raw_app_meta_data, 
         role, 
         aud,
         encrypted_password, 
         email_confirmed_at, 
         is_sso_user,
-        instance_id,
         created_at, 
         updated_at
     )
     VALUES 
     (
         v_admin_id, 
+        '00000000-0000-0000-0000-000000000000',
         'admin@virtudgym.com', 
         '{"nombre_completo":"Super Admin"}', 
         '{"provider":"email", "providers":["email"]}',
         'authenticated', 
         'authenticated',
+        -- Usamos crypt() para asegurar que la sal coincida con el motor local de Postgres
         crypt('Password123!', gen_salt('bf')), 
         now(), 
         false, 
-        '00000000-0000-0000-0000-000000000000',
         now(), 
         now()
     ),
     (
         v_student_id, 
+        '00000000-0000-0000-0000-000000000000',
         'student@virtudgym.com', 
         '{"nombre_completo":"Alumno Pruebas"}', 
         '{"provider":"email", "providers":["email"]}',
         'authenticated', 
         'authenticated',
+        -- Usamos crypt() para asegurar que la sal coincida con el motor local de Postgres
         crypt('Password123!', gen_salt('bf')), 
         now(), 
         false, 
-        '00000000-0000-0000-0000-000000000000',
         now(), 
         now()
-    )
-    ON CONFLICT (id) DO UPDATE SET 
-        encrypted_password = EXCLUDED.encrypted_password,
-        raw_app_meta_data = EXCLUDED.raw_app_meta_data,
-        email_confirmed_at = EXCLUDED.email_confirmed_at;
+    );
 
     -- 2️⃣ Crear Gimnasio Principal
     INSERT INTO public.gimnasios (id, nombre, slug, es_activo, color_primario, color_secundario)
