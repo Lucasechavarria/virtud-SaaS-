@@ -150,7 +150,7 @@ export default function LoginPage() {
               // Dar un respiro al navegador para persistir las cookies antes de navegar
               setTimeout(() => {
                 window.location.href = destination;
-              }, 100);
+              }, 250);
             } catch (_error) {
               toast.error("Credenciales inválidas");
               setIsLoading(false);

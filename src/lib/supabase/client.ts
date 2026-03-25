@@ -1,12 +1,16 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '../../types/supabase';
 import { env } from '@/env';
+import { SUPABASE_COOKIE_OPTIONS } from './config';
 
 export const createClient = () => {
     // Al usar env.<VAR>, Zod garantiza que no son undefined al momento del boot.
     return createBrowserClient<Database>(
         env.NEXT_PUBLIC_SUPABASE_URL,
-        env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+            cookieOptions: SUPABASE_COOKIE_OPTIONS,
+        }
     );
 };
 

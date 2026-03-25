@@ -3,17 +3,22 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
 // Configuración de Rate Limiting (Upstash Redis)
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+// Se usa un enfoque perezoso y seguro para evitar errores si no hay credenciales
+const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    })
+  : null;
 
-const ratelimit = new Ratelimit({
-  redis: redis,
-  limiter: Ratelimit.slidingWindow(100, '1 m'),
-  analytics: true,
-  prefix: 'virtud_middleware',
-});
+const ratelimit = redis 
+  ? new Ratelimit({
+      redis: redis,
+      limiter: Ratelimit.slidingWindow(100, '1 m'),
+      analytics: true,
+      prefix: 'virtud_middleware',
+    })
+  : null;
 
 /**
  * Handles rate limiting with Fail-Open logic
@@ -27,6 +32,10 @@ export async function handleRateLimit(request: NextRequest, _response: NextRespo
     const isMutation = request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS';
 
     if (isAuthRoute || (isApiRoute && isMutation)) {
+        if (!ratelimit) {
+            return null; // Bypass si no hay configuración de Redis
+        }
+
         const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
         
         try {
