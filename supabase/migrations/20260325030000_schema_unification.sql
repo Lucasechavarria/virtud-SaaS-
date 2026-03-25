@@ -52,3 +52,18 @@ CREATE TRIGGER on_auth_user_created
 -- 5. Comentario de cierre
 COMMENT ON FUNCTION public.handle_new_user() IS 
   'Trigger de Supabase Auth robusto que unifica el esquema a perfiles en Español y maneja roles dinámicos.';
+
+-- 6. LIMPIEZA DE TRIGGERS FANTASMAS EN EL LOGIN (FIX 500 ERROR)
+-- Al hacer login, Supabase actualiza 'last_sign_in_at'. Si hay triggers viejos aquí, el login explota.
+DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
+DROP TRIGGER IF EXISTS on_auth_user_deleted ON auth.users;
+
+-- 7. LIMPIEZA DE FUNCIONES LEGACY
+-- Aseguramos que ninguna función vieja intente buscar la tabla 'profiles' en inglés
+DROP FUNCTION IF EXISTS public.handle_updated_user() CASCADE;
+DROP FUNCTION IF EXISTS public.handle_deleted_user() CASCADE;
+
+-- 8. PERMISOS DEL MOTOR DE AUTH
+-- Garantizamos que el rol interno de Supabase tenga acceso al esquema extensions (donde vive pgcrypto)
+GRANT USAGE ON SCHEMA extensions TO supabase_auth_admin;
+GRANT SELECT ON public.gimnasios TO supabase_auth_admin;
