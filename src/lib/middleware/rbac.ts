@@ -63,7 +63,10 @@ export async function handleRBAC(
     if (!user && !isPublic) {
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.pathname = '/login';
-        return NextResponse.redirect(redirectUrl);
+        const redirectRes = NextResponse.redirect(redirectUrl);
+        // Sincronizar cookies que Supabase haya podido intentar setear
+        response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+        return redirectRes;
     }
 
     // CASO B: Logueado tratando de ir a Landing/Login/Signup -> Dashboard
@@ -79,8 +82,11 @@ export async function handleRBAC(
 
         if (dest !== pathname) {
             const redirectResponse = NextResponse.redirect(new URL(dest, request.url));
-            // Sincronizar cookies
-            response.cookies.getAll().forEach(c => redirectResponse.cookies.set(c.name, c.value, c));
+            // Sincronizar cookies de forma robusta
+            response.cookies.getAll().forEach(c => {
+                const { name, value, ...options } = c;
+                redirectResponse.cookies.set(name, value, options as any);
+            });
             return redirectResponse;
         }
     }
@@ -91,7 +97,10 @@ export async function handleRBAC(
     if (pathname.startsWith('/saas-admin') && userRole !== 'superadmin') {
         const dest = gymId ? `/${gymId}/admin` : '/';
         const redirectRes = NextResponse.redirect(new URL(dest, request.url));
-        response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+        response.cookies.getAll().forEach(c => {
+            const { name, value, ...options } = c;
+            redirectRes.cookies.set(name, value, options as any);
+        });
         return redirectRes;
     }
 
@@ -103,7 +112,10 @@ export async function handleRBAC(
         // Un usuario normal no puede entrar a otro gimnasio
         if (userRole !== 'superadmin' && gymId && currentGymIdParam !== gymId) {
             const redirectRes = NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
-            response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+            response.cookies.getAll().forEach(c => {
+                const { name, value, ...options } = c;
+                redirectRes.cookies.set(name, value, options as any);
+            });
             return redirectRes;
         }
 
@@ -113,7 +125,10 @@ export async function handleRBAC(
             if (!['admin', 'superadmin', 'recepcion'].includes(userRole ?? '')) {
                 const dest = gymId ? `/${gymId}/member/dashboard` : '/';
                 const redirectRes = NextResponse.redirect(new URL(dest, request.url));
-                response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+                response.cookies.getAll().forEach(c => {
+                    const { name, value, ...options } = c;
+                    redirectRes.cookies.set(name, value, options as any);
+                });
                 return redirectRes;
             }
         }
@@ -129,7 +144,10 @@ export async function handleRBAC(
         if (!isEnabled) {
             const dest = `/${gymId}/member/dashboard`;
             const redirectRes = NextResponse.redirect(new URL(dest, request.url));
-            response.cookies.getAll().forEach(c => redirectRes.cookies.set(c.name, c.value, c));
+            response.cookies.getAll().forEach(c => {
+                const { name, value, ...options } = c;
+                redirectRes.cookies.set(name, value, options as any);
+            });
             return redirectRes;
         }
     }

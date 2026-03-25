@@ -9,7 +9,8 @@ export async function handleAuth(request: NextRequest, response: NextResponse) {
     
     // Debug: Ver exactamente qué cookies están llegando al servidor
     const cookieNames = request.cookies.getAll().map(c => c.name).join(', ');
-    console.warn(`[DEBUG_AUTH] Path: ${request.nextUrl.pathname} | Cookies: [${cookieNames}]`);
+    const rawCookie = request.headers.get('cookie') || 'REALLY_EMPTY';
+    console.warn(`[DEBUG_AUTH] Path: ${request.nextUrl.pathname} | Cookies: [${cookieNames}] | Raw: ${rawCookie}`);
 
     try {
         const { data: { user }, error } = await supabase.auth.getUser();

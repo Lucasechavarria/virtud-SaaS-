@@ -9,6 +9,5 @@ import { type CookieOptions } from '@supabase/ssr';
 export const SUPABASE_COOKIE_OPTIONS = {
     path: '/',
     sameSite: 'lax' as const,
-    secure: false, // Forzado false para compatibilidad con localhost:3000 en CI/CD
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    secure: false,
 };
