@@ -31,32 +31,18 @@ export function createMiddlewareClient(
         {
             cookieOptions: SUPABASE_COOKIE_OPTIONS,
             cookies: {
-                get(name: string) {
-                    return request.cookies.get(name)?.value;
+                getAll() {
+                    return request.cookies.getAll();
                 },
-                set(name: string, value: string, options: CookieOptions) {
-                    request.cookies.set({
-                        name,
-                        value,
-                        ...options,
-                    });
-                    response.cookies.set({
-                        name,
-                        value,
-                        ...options,
-                    });
-                },
-                remove(name: string, options: CookieOptions) {
-                    request.cookies.set({
-                        name,
-                        value: '',
-                        ...options,
-                    });
-                    response.cookies.set({
-                        name,
-                        value: '',
-                        ...options,
-                    });
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value }) =>
+                        request.cookies.set(name, value)
+                    );
+                    
+                    // Actualizar cookies en la respuesta
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        response.cookies.set(name, value, { ...SUPABASE_COOKIE_OPTIONS, ...options })
+                    );
                 },
             },
         }
