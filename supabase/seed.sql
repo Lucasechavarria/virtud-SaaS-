@@ -12,11 +12,47 @@ DECLARE
   v_horario_id UUID := 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55';
 BEGIN
 
-    -- 1️⃣ Inserción en AUTH.USERS
-    INSERT INTO auth.users (id, email, raw_user_meta_data, role, encrypted_password, email_confirmed_at, created_at, updated_at)
+    -- 1️⃣ Inserción en AUTH.USERS (CORREGIDO: Incluye aud, is_sso_user e instance_id para compatibilidad total)
+    INSERT INTO auth.users (
+        id, 
+        email, 
+        raw_user_meta_data, 
+        role, 
+        aud,
+        encrypted_password, 
+        email_confirmed_at, 
+        is_sso_user,
+        instance_id,
+        created_at, 
+        updated_at
+    )
     VALUES 
-    (v_admin_id, 'admin@virtudgym.com', '{"nombre_completo":"Super Admin"}', 'authenticated', crypt('Password123!', gen_salt('bf')), now(), now(), now()),
-    (v_student_id, 'student@virtudgym.com', '{"nombre_completo":"Alumno Pruebas"}', 'authenticated', crypt('Password123!', gen_salt('bf')), now(), now(), now())
+    (
+        v_admin_id, 
+        'admin@virtudgym.com', 
+        '{"nombre_completo":"Super Admin"}', 
+        'authenticated', 
+        'authenticated',
+        crypt('Password123!', gen_salt('bf')), 
+        now(), 
+        false, 
+        '00000000-0000-0000-0000-000000000000',
+        now(), 
+        now()
+    ),
+    (
+        v_student_id, 
+        'student@virtudgym.com', 
+        '{"nombre_completo":"Alumno Pruebas"}', 
+        'authenticated', 
+        'authenticated',
+        crypt('Password123!', gen_salt('bf')), 
+        now(), 
+        false, 
+        '00000000-0000-0000-0000-000000000000',
+        now(), 
+        now()
+    )
     ON CONFLICT (id) DO NOTHING;
 
     -- 2️⃣ Crear Gimnasio Principal
