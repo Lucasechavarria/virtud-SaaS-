@@ -8,29 +8,26 @@ DROP TABLE IF EXISTS public.profiles CASCADE;
 CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
 
--- 3. Redefinir handle_new_user con calificación total de tipos para el motor de Auth
--- GoTrue corre como un usuario diferente y necesita rutas absolutas (public.perfiles, public.user_role)
+-- 3. Redefinir handle_new_user con calificación total y SET search_path (Blindaje 500)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
     default_gym_id UUID;
 BEGIN
-    -- Intentar obtener el gimnasio por defecto (slug inmutable creado en el seed)
+    -- Forzar search_path dentro de la función por seguridad y visibilidad
+    -- Esto resuelve el error "Database error querying schema" al evitar ambigüedad
+    SET search_path TO public, extensions;
+
+    -- Intentar obtener el gimnasio por defecto
     SELECT id INTO default_gym_id FROM public.gimnasios WHERE slug = 'virtud-central' LIMIT 1;
     
-    -- Failsafe: Si no existe, tomar el primero (útil para otros entornos)
     IF default_gym_id IS NULL THEN
         SELECT id INTO default_gym_id FROM public.gimnasios LIMIT 1;
     END IF;
 
-    -- Inserción DEFENSIVA: Evitamos fallos por campos nulos o metadatos perdidos
+    -- Inserción con tipos calificados (public.user_role)
     INSERT INTO public.perfiles (
-        id, 
-        correo, 
-        nombre_completo, 
-        rol, 
-        gimnasio_id, 
-        estado_membresia
+        id, correo, nombre_completo, rol, gimnasio_id, estado_membresia
     )
     VALUES (
         NEW.id,
@@ -44,7 +41,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions;
 
 -- 4. Asegurar el trigger en auth.users
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

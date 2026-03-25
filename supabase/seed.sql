@@ -20,6 +20,8 @@ DECLARE
   v_activity_id UUID := 'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44';
   v_horario_id UUID := 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55';
 BEGIN
+    -- 🛡️ BLINDAJE PROCEDURAL: Asegurar visibilidad de tipos y funciones dentro del bloque
+    SET search_path TO public, extensions, auth;
 
     -- 1️⃣ LIMPIEZA TOTAL EN CASCADA MANUAL
     DELETE FROM public.gamificacion_del_usuario WHERE usuario_id IN (v_admin_id, v_student_id);
