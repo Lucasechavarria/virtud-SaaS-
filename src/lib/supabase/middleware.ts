@@ -39,9 +39,11 @@ export function createMiddlewareClient(
                         request.cookies.set(name, value)
                     );
                     
-                    // Actualizar cookies en la respuesta
                     cookiesToSet.forEach(({ name, value, options }) =>
-                        response.cookies.set(name, value, { ...SUPABASE_COOKIE_OPTIONS, ...options })
+                        response.cookies.set(name, value, { 
+                            ...SUPABASE_COOKIE_OPTIONS, // Forzar nuestras opciones de compatibilidad
+                            ...options 
+                        })
                     );
                 },
             },

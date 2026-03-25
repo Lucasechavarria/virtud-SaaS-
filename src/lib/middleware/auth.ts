@@ -7,8 +7,9 @@ import { createMiddlewareClient } from '@/lib/supabase/middleware';
 export async function handleAuth(request: NextRequest, response: NextResponse) {
     const supabase = createMiddlewareClient(request, response);
     
-    // Heartbeat simple para confirmar ejecución del archivo correcto
-    console.warn(`[DEBUG_AUTH] Ejecutando handleAuth para: ${request.nextUrl.pathname}`);
+    // Debug: Ver exactamente qué cookies están llegando al servidor
+    const cookieNames = request.cookies.getAll().map(c => c.name).join(', ');
+    console.warn(`[DEBUG_AUTH] Path: ${request.nextUrl.pathname} | Cookies: [${cookieNames}]`);
 
     try {
         const { data: { user }, error } = await supabase.auth.getUser();
