@@ -25,9 +25,15 @@ export async function middleware(request: NextRequest) {
 
         // 4. Autorización y Ruteo Dinámico (RBAC)
         const rbacRes = await handleRBAC(request, response, user, supabase);
-        if (rbacRes) return rbacRes;
+        
+        // --- BLINDAJE DE SESIÓN: Sincronizar cookies antes de cualquier retorno ---
+        if (rbacRes) {
+            response.cookies.getAll().forEach(c => {
+                rbacRes.cookies.set(c.name, c.value, c);
+            });
+            return rbacRes;
+        }
 
-        // 5. Devolver respuesta final si no hubo redirecciones
         return response;
 
     } catch (error) {
