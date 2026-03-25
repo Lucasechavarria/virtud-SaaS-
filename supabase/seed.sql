@@ -12,11 +12,12 @@ DECLARE
   v_horario_id UUID := 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55';
 BEGIN
 
-    -- 1️⃣ Inserción en AUTH.USERS (CORREGIDO: Incluye aud, is_sso_user e instance_id para compatibilidad total)
+    -- 1️⃣ Inserción en AUTH.USERS (CORREGIDO: Incluye raw_app_meta_data y aud para que GoTrue lo acepte)
     INSERT INTO auth.users (
         id, 
         email, 
         raw_user_meta_data, 
+        raw_app_meta_data, -- Crucial para que Supabase reconozca el proveedor 'email'
         role, 
         aud,
         encrypted_password, 
@@ -31,6 +32,7 @@ BEGIN
         v_admin_id, 
         'admin@virtudgym.com', 
         '{"nombre_completo":"Super Admin"}', 
+        '{"provider":"email", "providers":["email"]}',
         'authenticated', 
         'authenticated',
         crypt('Password123!', gen_salt('bf')), 
@@ -44,6 +46,7 @@ BEGIN
         v_student_id, 
         'student@virtudgym.com', 
         '{"nombre_completo":"Alumno Pruebas"}', 
+        '{"provider":"email", "providers":["email"]}',
         'authenticated', 
         'authenticated',
         crypt('Password123!', gen_salt('bf')), 
@@ -53,7 +56,10 @@ BEGIN
         now(), 
         now()
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET 
+        encrypted_password = EXCLUDED.encrypted_password,
+        raw_app_meta_data = EXCLUDED.raw_app_meta_data,
+        email_confirmed_at = EXCLUDED.email_confirmed_at;
 
     -- 2️⃣ Crear Gimnasio Principal
     INSERT INTO public.gimnasios (id, nombre, slug, es_activo, color_primario, color_secundario)
