@@ -9,8 +9,8 @@
 DO $$
 DECLARE
     default_gym_id UUID;
-    admin_user_id UUID := 'a0e0a0e0-0000-0000-0000-000000000001';
-    student_user_id UUID := 'a0e0a0e0-0000-0000-0000-000000000002';
+    admin_user_id UUID;
+    student_user_id UUID;
     encrypted_pass TEXT;
 BEGIN
     -- 1. Obtener o crear el Gimnasio por defecto
@@ -25,61 +25,56 @@ BEGIN
     END IF;
 
     -- Limpieza defensiva previa: eliminar cuentas de prueba antiguas e inconsistentes
-    -- Esto previene violaciones de llave foránea al asegurar que los usuarios se inserten
-    -- con los UUIDs fijos específicos esperados por las identidades y tests.
-    DELETE FROM public.perfiles WHERE correo IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
-    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
+    -- Esto previene violaciones de llave foránea al asegurar una recreación atómica y limpia.
+    DELETE FROM public.perfiles WHERE correo IN ('admin@virtudgym.com', 'student@virtudgym.com');
+    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com');
 
     -- Generar la contraseña bcrypt 'Password123!' usando pgcrypto del esquema extensions (donde está instalada)
     encrypted_pass := extensions.crypt('Password123!', extensions.gen_salt('bf', 10));
 
-    -- 2. Insertar SUPERADMIN en auth.users si no existe
-    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = admin_user_id OR email = 'admin@virtudgym.com') THEN
-        INSERT INTO auth.users (
-            id, instance_id, email, encrypted_password, email_confirmed_at,
-            raw_app_meta_data, raw_user_meta_data, aud, role, is_sso_user,
-            created_at, updated_at, confirmation_token, email_change_token_new,
-            email_change_token_current, phone_change_token, recovery_token
-        ) VALUES (
-            admin_user_id,
-            '00000000-0000-0000-0000-000000000000',
-            'admin@virtudgym.com',
-            encrypted_pass,
-            now(),
-            '{"provider": "email", "providers": ["email"]}'::jsonb,
-            '{"nombre_completo": "Administrador de Pruebas", "rol": "superadmin"}'::jsonb,
-            'authenticated',
-            'authenticated',
-            false,
-            now(),
-            now(),
-            '', '', '', '', ''
-        );
-    END IF;
+    -- 2. Insertar SUPERADMIN en auth.users y capturar el UUID real asignado por la base de datos
+    INSERT INTO auth.users (
+        instance_id, email, encrypted_password, email_confirmed_at,
+        raw_app_meta_data, raw_user_meta_data, aud, role, is_sso_user,
+        created_at, updated_at, confirmation_token, email_change_token_new,
+        email_change_token_current, phone_change_token, recovery_token
+    ) VALUES (
+        '00000000-0000-0000-0000-000000000000',
+        'admin@virtudgym.com',
+        encrypted_pass,
+        now(),
+        '{"provider": "email", "providers": ["email"]}'::jsonb,
+        '{"nombre_completo": "Administrador de Pruebas", "rol": "superadmin"}'::jsonb,
+        'authenticated',
+        'authenticated',
+        false,
+        now(),
+        now(),
+        '', '', '', '', ''
+    )
+    RETURNING id INTO admin_user_id;
 
-    -- 3. Insertar ALUMNO en auth.users si no existe
-    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = student_user_id OR email = 'student@virtudgym.com') THEN
-        INSERT INTO auth.users (
-            id, instance_id, email, encrypted_password, email_confirmed_at,
-            raw_app_meta_data, raw_user_meta_data, aud, role, is_sso_user,
-            created_at, updated_at, confirmation_token, email_change_token_new,
-            email_change_token_current, phone_change_token, recovery_token
-        ) VALUES (
-            student_user_id,
-            '00000000-0000-0000-0000-000000000000',
-            'student@virtudgym.com',
-            encrypted_pass,
-            now(),
-            '{"provider": "email", "providers": ["email"]}'::jsonb,
-            '{"nombre_completo": "Alumno de Pruebas", "rol": "member"}'::jsonb,
-            'authenticated',
-            'authenticated',
-            false,
-            now(),
-            now(),
-            '', '', '', '', ''
-        );
-    END IF;
+    -- 3. Insertar ALUMNO en auth.users y capturar el UUID real asignado por la base de datos
+    INSERT INTO auth.users (
+        instance_id, email, encrypted_password, email_confirmed_at,
+        raw_app_meta_data, raw_user_meta_data, aud, role, is_sso_user,
+        created_at, updated_at, confirmation_token, email_change_token_new,
+        email_change_token_current, phone_change_token, recovery_token
+    ) VALUES (
+        '00000000-0000-0000-0000-000000000000',
+        'student@virtudgym.com',
+        encrypted_pass,
+        now(),
+        '{"provider": "email", "providers": ["email"]}'::jsonb,
+        '{"nombre_completo": "Alumno de Pruebas", "rol": "member"}'::jsonb,
+        'authenticated',
+        'authenticated',
+        false,
+        now(),
+        now(),
+        '', '', '', '', ''
+    )
+    RETURNING id INTO student_user_id;
 
     -- 4. Insertar de forma idempotente las identidades vinculantes en auth.identities
     INSERT INTO auth.identities (
