@@ -29,9 +29,9 @@ WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com');
 
 -- 3. Insertar de forma idempotente las IDENTIDADES correspondientes en auth.identities si no existen
 -- (Gotrue requiere imperativamente una identidad para poder iniciar sesión con email)
--- Usamos WHERE NOT EXISTS para evitar errores de restricciones únicas de clave primaria (ON CONFLICT)
+-- En versiones recientes de Supabase, 'id' es un UUID autogenerado y el ID del proveedor se almacena en 'provider_id'
 INSERT INTO auth.identities (
-    id,
+    provider_id,
     user_id,
     identity_data,
     provider,
@@ -40,8 +40,8 @@ INSERT INTO auth.identities (
     updated_at
 )
 SELECT 
-    'a0e0a0e0-0000-0000-0000-000000000001',
-    'a0e0a0e0-0000-0000-0000-000000000001',
+    'a0e0a0e0-0000-0000-0000-000000000001', -- provider_id
+    'a0e0a0e0-0000-0000-0000-000000000001', -- user_id
     '{"sub": "a0e0a0e0-0000-0000-0000-000000000001", "email": "admin@virtudgym.com", "email_verified": true}'::jsonb,
     'email',
     now(),
@@ -52,7 +52,7 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO auth.identities (
-    id,
+    provider_id,
     user_id,
     identity_data,
     provider,
@@ -61,8 +61,8 @@ INSERT INTO auth.identities (
     updated_at
 )
 SELECT 
-    'a0e0a0e0-0000-0000-0000-000000000002',
-    'a0e0a0e0-0000-0000-0000-000000000002',
+    'a0e0a0e0-0000-0000-0000-000000000002', -- provider_id
+    'a0e0a0e0-0000-0000-0000-000000000002', -- user_id
     '{"sub": "a0e0a0e0-0000-0000-0000-000000000002", "email": "student@virtudgym.com", "email_verified": true}'::jsonb,
     'email',
     now(),
@@ -71,5 +71,6 @@ SELECT
 WHERE NOT EXISTS (
     SELECT 1 FROM auth.identities WHERE user_id = 'a0e0a0e0-0000-0000-0000-000000000002'
 );
+
 
 
