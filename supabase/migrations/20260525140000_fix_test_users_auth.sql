@@ -9,8 +9,8 @@
 DO $$
 DECLARE
     default_gym_id UUID;
-    admin_user_id UUID;
-    student_user_id UUID;
+    admin_user_id UUID := 'a0e0a0e0-0000-0000-0000-000000000001';
+    student_user_id UUID := 'a0e0a0e0-0000-0000-0000-000000000002';
     encrypted_pass TEXT;
 BEGIN
     -- 1. Obtener o crear el Gimnasio por defecto
@@ -26,19 +26,20 @@ BEGIN
 
     -- Limpieza defensiva previa: eliminar cuentas de prueba antiguas e inconsistentes
     -- Esto previene violaciones de llave foránea al asegurar una recreación atómica y limpia.
-    DELETE FROM public.perfiles WHERE correo IN ('admin@virtudgym.com', 'student@virtudgym.com');
-    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com');
+    DELETE FROM public.perfiles WHERE correo IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
+    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
 
     -- Generar la contraseña bcrypt 'Password123!' usando pgcrypto del esquema extensions (donde está instalada)
     encrypted_pass := extensions.crypt('Password123!', extensions.gen_salt('bf', 10));
 
-    -- 2. Insertar SUPERADMIN en auth.users y capturar el UUID real asignado por la base de datos
+    -- 2. Insertar SUPERADMIN en auth.users con ID fijo explícito (evita violación de NOT NULL)
     INSERT INTO auth.users (
-        instance_id, email, encrypted_password, email_confirmed_at,
+        id, instance_id, email, encrypted_password, email_confirmed_at,
         raw_app_meta_data, raw_user_meta_data, aud, role, is_sso_user,
         created_at, updated_at, confirmation_token, email_change_token_new,
         email_change_token_current, phone_change_token, recovery_token
     ) VALUES (
+        admin_user_id,
         '00000000-0000-0000-0000-000000000000',
         'admin@virtudgym.com',
         encrypted_pass,
@@ -51,16 +52,16 @@ BEGIN
         now(),
         now(),
         '', '', '', '', ''
-    )
-    RETURNING id INTO admin_user_id;
+    );
 
-    -- 3. Insertar ALUMNO en auth.users y capturar el UUID real asignado por la base de datos
+    -- 3. Insertar ALUMNO en auth.users con ID fijo explícito (evita violación de NOT NULL)
     INSERT INTO auth.users (
-        instance_id, email, encrypted_password, email_confirmed_at,
+        id, instance_id, email, encrypted_password, email_confirmed_at,
         raw_app_meta_data, raw_user_meta_data, aud, role, is_sso_user,
         created_at, updated_at, confirmation_token, email_change_token_new,
         email_change_token_current, phone_change_token, recovery_token
     ) VALUES (
+        student_user_id,
         '00000000-0000-0000-0000-000000000000',
         'student@virtudgym.com',
         encrypted_pass,
@@ -73,10 +74,10 @@ BEGIN
         now(),
         now(),
         '', '', '', '', ''
-    )
-    RETURNING id INTO student_user_id;
+    );
 
     -- 4. Insertar de forma idempotente las identidades vinculantes en auth.identities
+    -- (Gotrue requiere imperativamente una identidad para poder iniciar sesión con email)
     INSERT INTO auth.identities (
         provider_id,
         user_id,
@@ -86,16 +87,14 @@ BEGIN
         created_at,
         updated_at
     )
-    SELECT 
-        'a0e0a0e0-0000-0000-0000-000000000001',
+    VALUES (
+        admin_user_id::text,
         admin_user_id,
-        '{"sub": "a0e0a0e0-0000-0000-0000-000000000001", "email": "admin@virtudgym.com", "email_verified": true}'::jsonb,
+        jsonb_build_object('sub', admin_user_id::text, 'email', 'admin@virtudgym.com', 'email_verified', true),
         'email',
         now(),
         now(),
         now()
-    WHERE NOT EXISTS (
-        SELECT 1 FROM auth.identities WHERE user_id = admin_user_id
     );
 
     INSERT INTO auth.identities (
@@ -107,16 +106,14 @@ BEGIN
         created_at,
         updated_at
     )
-    SELECT 
-        'a0e0a0e0-0000-0000-0000-000000000002',
+    VALUES (
+        student_user_id::text,
         student_user_id,
-        '{"sub": "a0e0a0e0-0000-0000-0000-000000000002", "email": "student@virtudgym.com", "email_verified": true}'::jsonb,
+        jsonb_build_object('sub', student_user_id::text, 'email', 'student@virtudgym.com', 'email_verified', true),
         'email',
         now(),
         now(),
         now()
-    WHERE NOT EXISTS (
-        SELECT 1 FROM auth.identities WHERE user_id = student_user_id
     );
 
     -- 5. Sincronizar y forzar la consistencia en public.perfiles
@@ -130,7 +127,3 @@ BEGIN
         estado_membresia = 'active';
 
 END $$;
-
-
-
-
