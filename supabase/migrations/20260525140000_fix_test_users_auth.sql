@@ -27,8 +27,9 @@ SET
   last_sign_in_at = COALESCE(last_sign_in_at, now())
 WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com');
 
--- 3. Insertar de forma idempotente las IDENTIDADES correspondientes en auth.identities
+-- 3. Insertar de forma idempotente las IDENTIDADES correspondientes en auth.identities si no existen
 -- (Gotrue requiere imperativamente una identidad para poder iniciar sesión con email)
+-- Usamos WHERE NOT EXISTS para evitar errores de restricciones únicas de clave primaria (ON CONFLICT)
 INSERT INTO auth.identities (
     id,
     user_id,
@@ -38,24 +39,37 @@ INSERT INTO auth.identities (
     created_at,
     updated_at
 )
-VALUES 
-    (
-        'a0e0a0e0-0000-0000-0000-000000000001',
-        'a0e0a0e0-0000-0000-0000-000000000001',
-        '{"sub": "a0e0a0e0-0000-0000-0000-000000000001", "email": "admin@virtudgym.com", "email_verified": true}'::jsonb,
-        'email',
-        now(),
-        now(),
-        now()
-    ),
-    (
-        'a0e0a0e0-0000-0000-0000-000000000002',
-        'a0e0a0e0-0000-0000-0000-000000000002',
-        '{"sub": "a0e0a0e0-0000-0000-0000-000000000002", "email": "student@virtudgym.com", "email_verified": true}'::jsonb,
-        'email',
-        now(),
-        now(),
-        now()
-    )
-ON CONFLICT (provider, id) DO NOTHING;
+SELECT 
+    'a0e0a0e0-0000-0000-0000-000000000001',
+    'a0e0a0e0-0000-0000-0000-000000000001',
+    '{"sub": "a0e0a0e0-0000-0000-0000-000000000001", "email": "admin@virtudgym.com", "email_verified": true}'::jsonb,
+    'email',
+    now(),
+    now(),
+    now()
+WHERE NOT EXISTS (
+    SELECT 1 FROM auth.identities WHERE user_id = 'a0e0a0e0-0000-0000-0000-000000000001'
+);
+
+INSERT INTO auth.identities (
+    id,
+    user_id,
+    identity_data,
+    provider,
+    last_sign_in_at,
+    created_at,
+    updated_at
+)
+SELECT 
+    'a0e0a0e0-0000-0000-0000-000000000002',
+    'a0e0a0e0-0000-0000-0000-000000000002',
+    '{"sub": "a0e0a0e0-0000-0000-0000-000000000002", "email": "student@virtudgym.com", "email_verified": true}'::jsonb,
+    'email',
+    now(),
+    now(),
+    now()
+WHERE NOT EXISTS (
+    SELECT 1 FROM auth.identities WHERE user_id = 'a0e0a0e0-0000-0000-0000-000000000002'
+);
+
 
