@@ -1,4 +1,4 @@
-﻿-- ============================================
+-- ============================================
 -- MIGRACIÓN MULTI-TENANT (SaaS) - TABLAS EN ESPAÑOL
 -- ============================================
 
@@ -72,7 +72,12 @@ END $$;
 CREATE OR REPLACE FUNCTION public.get_user_gym_id() 
 RETURNS UUID AS $$
   SELECT gimnasio_id FROM public.perfiles WHERE id = auth.uid();
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.get_user_role() 
+RETURNS TEXT AS $$
+  SELECT rol FROM public.perfiles WHERE id = auth.uid();
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 
 -- 6. Eliminar políticas RLS viejas si existen (para mantener limpieza en supabase)
 DROP POLICY IF EXISTS "Anyone can view active activities" ON actividades;
@@ -120,8 +125,5 @@ FOR SELECT USING (gimnasio_id = public.get_user_gym_id());
 CREATE POLICY "Multi-tenant: Admins gestionan perfiles" ON public.perfiles
 FOR ALL USING (
   gimnasio_id = public.get_user_gym_id() AND 
-  EXISTS (
-    SELECT 1 FROM public.perfiles 
-    WHERE id = auth.uid() AND rol IN ('admin', 'superadmin')
-  )
+  public.get_user_role() IN ('admin', 'superadmin')
 );

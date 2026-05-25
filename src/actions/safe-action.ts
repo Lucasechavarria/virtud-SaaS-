@@ -1,5 +1,5 @@
 import { createSafeActionClient } from "next-safe-action";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/server";
 
 // Cliente público sin validación de sesión
 export const actionClient = createSafeActionClient({
@@ -13,7 +13,7 @@ export const actionClient = createSafeActionClient({
 
 // Cliente protegido (asegura que hay usuario autenticado)
 export const authActionClient = actionClient.use(async ({ next }) => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {

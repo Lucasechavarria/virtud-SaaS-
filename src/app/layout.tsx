@@ -77,17 +77,48 @@ export async function generateMetadata(): Promise<Metadata> {
 
 import { PushProvider } from "@/components/providers/PushManager";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const headersList = await headers();
+  const slug = headersList.get('x-gym-slug');
+
+  let primaryColor = '#3b82f6';
+  let secondaryColor = '#1e3a8a';
+  let logoUrl = '/logos/logo.webp';
+
+  if (slug) {
+    const supabase = createAdminClient();
+    const { data: gym } = await supabase
+      .from('gimnasios')
+      .select('color_primario, color_secundario, logo_url')
+      .eq('slug', slug)
+      .single();
+
+    if (gym) {
+      if (gym.color_primario) primaryColor = gym.color_primario;
+      if (gym.color_secundario) secondaryColor = gym.color_secundario;
+      if (gym.logo_url) logoUrl = gym.logo_url;
+    }
+  }
+
   return (
     <html lang="es" className={`${inter.variable} ${rajdhani.variable}`} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="icon" href="/logos/logo.webp" />
+        <link rel="icon" href={logoUrl} />
+
+        {/* Inyección de marca blanca desde el servidor para erradicar el parpadeo visual */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --primary: ${primaryColor};
+            --primary-foreground: #ffffff;
+            --secondary: ${secondaryColor};
+          }
+        `}} />
 
         {/* Google Analytics */}
         {GA_TRACKING_ID && (

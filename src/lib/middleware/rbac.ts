@@ -43,7 +43,10 @@ export async function handleRBAC(
             if (profile) {
                 userRole = profile.rol?.toLowerCase();
                 gymId = profile.gimnasio_id;
-                gymSlug = (profile.gimnasios as any)?.slug;
+                const gimnasiosData = profile.gimnasios as { slug: string }[] | { slug: string } | null;
+                gymSlug = Array.isArray(gimnasiosData) 
+                    ? (gimnasiosData.length > 0 ? gimnasiosData[0].slug : undefined)
+                    : gimnasiosData?.slug;
 
                 // Cachear en la respuesta para el próximo request
                 response.cookies.set('vtd_user_meta', JSON.stringify({ rol: userRole, gymId, gymSlug }), {
@@ -115,7 +118,8 @@ export async function handleRBAC(
     if (requiredModule && userRole !== 'superadmin' && gymId) {
         const { data: gym } = await supabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
         const modules = gym?.modulos_activos || {};
-        const isEnabled = Array.isArray(modules) ? modules.includes(requiredModule) : (modules as any)[requiredModule];
+        const modulesRecord = modules as Record<string, unknown>;
+        const isEnabled = Array.isArray(modules) ? modules.includes(requiredModule) : !!modulesRecord[requiredModule];
 
         if (!isEnabled) {
             const dest = `/${gymId}/member/dashboard`;
