@@ -71,7 +71,37 @@ export default function VisionPage({ _params }: { _params: { gymId: string } }) 
                 .order('creado_en', { ascending: false });
 
             if (error) throw error;
-            setVideos(data || []);
+
+            // Generar dinámicamente URLs firmadas para garantizar la privacidad (Bucket Privado)
+            const videosWithSignedUrls = await Promise.all((data || []).map(async (video) => {
+                if (video.url_video) {
+                    // Extraer el path relativo (usuario_id/fileName) del Storage
+                    // Manejar tanto el bucket 'videos_ejercicio' (coach) como 'videos-entrenamiento' (alumno en VisionLab)
+                    const bucketName = video.url_video.includes('videos-entrenamiento') 
+                        ? 'videos-entrenamiento' 
+                        : 'videos_ejercicio';
+                    
+                    const urlParts = video.url_video.split(`/${bucketName}/`);
+                    if (urlParts.length >= 2) {
+                        const filePath = urlParts[1];
+                        
+                        // Generar URL firmada válida por 1 hora (3600 segundos)
+                        const { data: signedData, error: signedError } = await supabase.storage
+                            .from(bucketName)
+                            .createSignedUrl(filePath, 3600);
+                        
+                        if (!signedError && signedData) {
+                            return {
+                                ...video,
+                                url_video: signedData.signedUrl
+                            };
+                        }
+                    }
+                }
+                return video;
+            }));
+
+            setVideos(videosWithSignedUrls);
         } catch (error) {
             console.error('Error fetching videos:', error);
             toast.error('No se pudieron cargar tus análisis');
