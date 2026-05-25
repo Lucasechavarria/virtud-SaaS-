@@ -24,7 +24,13 @@ BEGIN
         RETURNING id INTO default_gym_id;
     END IF;
 
-    -- Generar la contraseña bcrypt 'Password123!' usando pgcrypto del esquema extensions
+    -- Limpieza defensiva previa: eliminar cuentas de prueba antiguas e inconsistentes
+    -- Esto previene violaciones de llave foránea al asegurar que los usuarios se inserten
+    -- con los UUIDs fijos específicos esperados por las identidades y tests.
+    DELETE FROM public.perfiles WHERE correo IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
+    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
+
+    -- Generar la contraseña bcrypt 'Password123!' usando pgcrypto del esquema extensions (donde está instalada)
     encrypted_pass := extensions.crypt('Password123!', extensions.gen_salt('bf', 10));
 
     -- 2. Insertar SUPERADMIN en auth.users si no existe
