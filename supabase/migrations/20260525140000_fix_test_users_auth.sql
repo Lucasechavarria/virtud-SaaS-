@@ -24,8 +24,8 @@ BEGIN
         RETURNING id INTO default_gym_id;
     END IF;
 
-    -- Generar la contraseña bcrypt 'Password123!' usando pgcrypto del esquema public
-    encrypted_pass := public.crypt('Password123!', public.gen_salt('bf', 10));
+    -- Generar la contraseña bcrypt 'Password123!' usando pgcrypto del esquema extensions
+    encrypted_pass := extensions.crypt('Password123!', extensions.gen_salt('bf', 10));
 
     -- 2. Insertar SUPERADMIN en auth.users si no existe
     IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = admin_user_id OR email = 'admin@virtudgym.com') THEN
