@@ -12,16 +12,6 @@ export const maxDuration = 60;export async function POST(req: Request) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
-        const { data: profile } = await supabase
-            .from('perfiles')
-            .select('rol')
-            .eq('id', session.user.id)
-            .single();
-
-        if (profile?.rol !== 'coach' && profile?.rol !== 'admin') {
-            return NextResponse.json({ error: 'Solo entrenadores pueden subir videos' }, { status: 403 });
-        }
-
         const formData = await req.formData();
         const videoFile = formData.get('video') as File;
         const usuarioId = formData.get('usuarioId') as string;
@@ -31,6 +21,27 @@ export const maxDuration = 60;export async function POST(req: Request) {
         if (!videoFile || !usuarioId) {
             return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 });
         }
+
+        // Obtener en paralelo los perfiles del coach y del alumno para blindar contra BOLA (Multi-tenant check)
+        const [coachProfileRes, studentProfileRes] = await Promise.all([
+            supabase.from('perfiles').select('gimnasio_id, rol').eq('id', session.user.id).single(),
+            supabase.from('perfiles').select('gimnasio_id').eq('id', usuarioId).single()
+        ]);
+
+        const coachProfile = coachProfileRes.data;
+        const studentProfile = studentProfileRes.data;
+
+        if (!coachProfile || (coachProfile.rol !== 'coach' && coachProfile.rol !== 'admin')) {
+            return NextResponse.json({ error: 'Solo entrenadores pueden subir videos' }, { status: 403 });
+        }
+
+        if (!studentProfile || coachProfile.gimnasio_id !== studentProfile.gimnasio_id) {
+            return NextResponse.json({ 
+                error: 'No autorizado: El entrenador y el alumno deben pertenecer al mismo gimnasio.' 
+            }, { status: 403 });
+        }
+
+        const gymId = coachProfile.gimnasio_id;
 
         // Validar tipo de archivo (solo video)
         if (!videoFile.type.startsWith('video/')) {
@@ -60,6 +71,7 @@ export const maxDuration = 60;export async function POST(req: Request) {
             .insert({
                 usuario_id: usuarioId,
                 subido_por: session.user.id,
+                gimnasio_id: gymId, // Almacenar el gimnasio_id de forma explícita para aislamiento multi-tenant
                 ejercicio_id: ejercicioId || null,
                 nombre_ejercicio_custom: exerciseName || null,
                 url_video: publicUrl,
@@ -72,42 +84,14 @@ export const maxDuration = 60;export async function POST(req: Request) {
             throw dbError;
         }
 
-        // 3. Analizar video en tiempo real (Edge) sin requerir BullMQ local
-        try {
-            const { data: blob, error: downloadError } = await supabase.storage
-                .from('videos_ejercicio')
-                .download(filePath);
-            
-            if (!downloadError && blob) {
-                const buffer = Buffer.from(await blob.arrayBuffer());
-                const base64Video = buffer.toString('base64');
-
-                const analysisJson = await aiService.analyzeMovement(
-                    base64Video, 
-                    blob.type, 
-                    exerciseName || ejercicioId || 'Ejercicio desconocido'
-                );
-                
-                await supabase
-                    .from('videos_ejercicio')
-                    .update({
-                        estado: 'analizado',
-                        correcciones_ia: analysisJson as any,
-                        procesado_en: new Date().toISOString()
-                    })
-                    .eq('id', videoRecord.id);
-            } else {
-                 throw new Error('No se pudo decodificar el video.');
-            }
-        } catch (e) {
-            console.error('Error sincronizando video IA:', e);
-            await supabase.from('videos_ejercicio').update({ estado: 'error' }).eq('id', videoRecord.id);
-        }
-
+        // Retornar de inmediato para evitar timeouts serverless y reducir costos de computación.
+        // El Database Webhook de Supabase disparará la Edge Function 'analyze-video' 
+        // de forma puramente asíncrona en segundo plano.
         return NextResponse.json({
             success: true,
             videoId: videoRecord.id,
-            message: 'Video subido y analizado biomecánicamente por la IA'
+            estado: 'subido',
+            message: 'Video subido con éxito. El análisis biomecánico se procesará en segundo plano.'
         });
 
     } catch (error: any) {

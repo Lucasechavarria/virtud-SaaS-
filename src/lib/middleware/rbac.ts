@@ -17,6 +17,7 @@ export async function handleRBAC(
     let userRole: string | undefined;
     let gymId: string | undefined;
     let gymSlug: string | undefined;
+    let activeModules: unknown | undefined;
 
     if (user) {
         // Intentar leer de la cookie de caché para evitar DB hits
@@ -27,6 +28,7 @@ export async function handleRBAC(
                 userRole = meta.rol;
                 gymId = meta.gymId;
                 gymSlug = meta.gymSlug;
+                activeModules = meta.modules;
             } catch (e) {
                 console.warn('[RBAC] Error parsing vtd_user_meta cookie:', e);
             }
@@ -36,20 +38,33 @@ export async function handleRBAC(
         if (!userRole) {
             const { data: profile } = await supabase
                 .from('perfiles')
-                .select('rol, gimnasio_id, gimnasios(slug)')
+                .select('rol, gimnasio_id, gimnasios(slug, modulos_activos)')
                 .eq('id', user.id)
                 .single();
 
             if (profile) {
                 userRole = profile.rol?.toLowerCase();
                 gymId = profile.gimnasio_id;
-                const gimnasiosData = profile.gimnasios as { slug: string }[] | { slug: string } | null;
-                gymSlug = Array.isArray(gimnasiosData) 
-                    ? (gimnasiosData.length > 0 ? gimnasiosData[0].slug : undefined)
-                    : gimnasiosData?.slug;
+                
+                const gimnasiosData = profile.gimnasios as 
+                    | { slug: string; modulos_activos: unknown } 
+                    | { slug: string; modulos_activos: unknown }[] 
+                    | null;
+                
+                const gymInfo = Array.isArray(gimnasiosData) 
+                    ? (gimnasiosData.length > 0 ? gimnasiosData[0] : null)
+                    : gimnasiosData;
+
+                gymSlug = gymInfo?.slug;
+                activeModules = gymInfo?.modulos_activos;
 
                 // Cachear en la respuesta para el próximo request
-                response.cookies.set('vtd_user_meta', JSON.stringify({ rol: userRole, gymId, gymSlug }), {
+                response.cookies.set('vtd_user_meta', JSON.stringify({ 
+                    rol: userRole, 
+                    gymId, 
+                    gymSlug,
+                    modules: activeModules
+                }), {
                     maxAge: 600,
                     path: '/',
                     httpOnly: true,
@@ -116,10 +131,18 @@ export async function handleRBAC(
     // 4. Module Gating
     const requiredModule = Object.entries(MODULE_ROUTES).find(([route]) => pathname.includes(route))?.[1];
     if (requiredModule && userRole !== 'superadmin' && gymId) {
-        const { data: gym } = await supabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
-        const modules = gym?.modulos_activos || {};
+        let modules = activeModules;
+        
+        // Fallback: Si no está en caché en la cookie, consultar DB
+        if (!modules) {
+            const { data: gym } = await supabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
+            modules = gym?.modulos_activos || {};
+        }
+
         const modulesRecord = modules as Record<string, unknown>;
-        const isEnabled = Array.isArray(modules) ? modules.includes(requiredModule) : !!modulesRecord[requiredModule];
+        const isEnabled = Array.isArray(modules) 
+            ? modules.includes(requiredModule) 
+            : !!modulesRecord[requiredModule];
 
         if (!isEnabled) {
             const dest = `/${gymId}/member/dashboard`;

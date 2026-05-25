@@ -113,6 +113,19 @@ export default function VisionLab() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('No autenticado');
 
+            // Obtener el perfil para inyectar gimnasio_id (Evita errores por RLS / columna obligatoria)
+            const { data: profile, error: profileError } = await supabase
+                .from('perfiles')
+                .select('gimnasio_id')
+                .eq('id', user.id)
+                .single();
+
+            if (profileError || !profile) {
+                throw new Error('No se pudo determinar la afiliación de gimnasio del usuario');
+            }
+
+            const gymId = profile.gimnasio_id;
+
             // 1. Upload video to Storage
             const fileExt = videoFile.name.split('.').pop();
             const fileName = `${user.id}/${Date.now()}.${fileExt}`;
@@ -132,6 +145,7 @@ export default function VisionLab() {
                 .insert({
                     usuario_id: user.id,
                     subido_por: user.id,
+                    gimnasio_id: gymId, // Almacenar el gimnasio_id de forma explícita para aislamiento multi-tenant
                     ejercicio_id: selectedExerciseId,
                     url_video: publicUrl,
                     estado: 'analizado',
@@ -146,7 +160,7 @@ export default function VisionLab() {
         } catch (_error) {
             const err = _error as Error;
             console.error('Error saving analysis:', err);
-            toast.error('Error al guardar el análisis');
+            toast.error('Error al guardar el análisis: ' + err.message);
         } finally {
             setIsSaving(false);
         }

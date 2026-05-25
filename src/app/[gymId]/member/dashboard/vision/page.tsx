@@ -189,20 +189,38 @@ export default function VisionPage({ _params }: { _params: { gymId: string } }) 
                                                 className={`w-full group p-4 rounded-2xl border transition-all text-left ${selectedVideo?.id === video.id ? 'bg-orange-500/10 border-orange-500/50 shadow-lg shadow-orange-500/5' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
                                             >
                                                 <div className="flex items-center gap-4">
-                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${video.estado === 'analizado' ? 'bg-orange-500/20' : 'bg-zinc-800'}`}>
-                                                        {video.estado === 'analizado' ? '🎯' : '⏳'}
+                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${
+                                                        video.estado === 'analizado' ? 'bg-orange-500/20' : 
+                                                        video.estado === 'procesando' ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-zinc-800'
+                                                    }`}>
+                                                        {video.estado === 'analizado' ? '🎯' : 
+                                                         video.estado === 'procesando' ? <Loader2 className="animate-spin text-orange-500 w-5 h-5" /> : '⏳'}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-bold text-xs text-white truncate group-hover:text-orange-500 transition-colors uppercase tracking-widest">
-                                                            {video.ejercicios?.nombre || 'Ejercicio Tactico'}
+                                                            {video.ejercicios?.nombre || video.nombre_ejercicio_custom || 'Ejercicio Táctico'}
                                                         </p>
-                                                        <p className="text-[9px] font-black text-gray-500 mt-1 uppercase tracking-tighter">
-                                                            {new Date(video.creado_en).toLocaleString()}
-                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-tighter">
+                                                                {new Date(video.creado_en).toLocaleDateString()}
+                                                            </span>
+                                                            <span className="w-1 h-1 bg-gray-800 rounded-full" />
+                                                            <span className={`text-[8px] font-black uppercase tracking-widest ${
+                                                                video.estado === 'analizado' ? 'text-emerald-500' :
+                                                                video.estado === 'procesando' ? 'text-orange-500 animate-pulse' :
+                                                                video.estado === 'error' ? 'text-red-500' : 'text-gray-500'
+                                                            }`}>
+                                                                {video.estado === 'analizado' ? 'Listo' :
+                                                                 video.estado === 'procesando' ? 'Analizando...' :
+                                                                 video.estado === 'error' ? 'Fallo' : 'En cola'}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                     {video.estado === 'analizado' && (
                                                         <div className="text-right">
-                                                            <p className="text-white font-black text-sm italic">{(video.correcciones_ia as any)?.puntaje_general}%</p>
+                                                            <p className="text-white font-black text-sm italic">
+                                                                {(video.correcciones_ia as any)?.puntaje_general || (video.correcciones_ia as any)?.analisis?.puntaje_tecnico || 0}%
+                                                            </p>
                                                         </div>
                                                     )}
                                                 </div>
