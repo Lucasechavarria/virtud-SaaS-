@@ -78,7 +78,10 @@ BEGIN
 
     -- 4. Insertar de forma idempotente las identidades vinculantes en auth.identities
     -- (Gotrue requiere imperativamente una identidad para poder iniciar sesión con email)
+    -- Asignamos tanto 'id' como 'provider_id' explícitamente para garantizar compatibilidad universal
+    -- y evitar nulos que causen el error de escaneo "Database error querying schema" en Go.
     INSERT INTO auth.identities (
+        id,
         provider_id,
         user_id,
         identity_data,
@@ -89,6 +92,7 @@ BEGIN
     )
     VALUES (
         admin_user_id::text,
+        admin_user_id::text,
         admin_user_id,
         jsonb_build_object('sub', admin_user_id::text, 'email', 'admin@virtudgym.com', 'email_verified', true),
         'email',
@@ -98,6 +102,7 @@ BEGIN
     );
 
     INSERT INTO auth.identities (
+        id,
         provider_id,
         user_id,
         identity_data,
@@ -108,6 +113,7 @@ BEGIN
     )
     VALUES (
         student_user_id::text,
+        student_user_id::text,
         student_user_id,
         jsonb_build_object('sub', student_user_id::text, 'email', 'student@virtudgym.com', 'email_verified', true),
         'email',
@@ -115,6 +121,7 @@ BEGIN
         now(),
         now()
     );
+
 
     -- 5. Sincronizar y forzar la consistencia en public.perfiles
     INSERT INTO public.perfiles (id, correo, nombre_completo, gimnasio_id, rol, estado_membresia, creado_en, actualizado_en)
