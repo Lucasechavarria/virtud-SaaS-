@@ -24,10 +24,15 @@ BEGIN
         RETURNING id INTO default_gym_id;
     END IF;
 
-    -- Limpieza defensiva previa: eliminar cuentas de prueba antiguas e inconsistentes
-    -- Esto previene violaciones de llave foránea al asegurar una recreación atómica y limpia.
-    DELETE FROM public.perfiles WHERE correo IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
-    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com') OR id IN (admin_user_id, student_user_id);
+    -- 2. Limpieza defensiva y profunda de sesiones, refresh tokens y perfiles antiguos
+    -- Elimina cualquier registro huérfano en cascada en las tablas de sistema de auth que pueda
+    -- causar el error de consistencia "Database error querying schema" en Gotrue al iniciar sesión.
+    DELETE FROM auth.refresh_tokens WHERE session_id IN (SELECT id FROM auth.sessions WHERE user_id IN (admin_user_id, student_user_id));
+    DELETE FROM auth.sessions WHERE user_id IN (admin_user_id, student_user_id);
+    DELETE FROM auth.mfa_factors WHERE user_id IN (admin_user_id, student_user_id);
+    DELETE FROM auth.identities WHERE user_id IN (admin_user_id, student_user_id);
+    DELETE FROM public.perfiles WHERE id IN (admin_user_id, student_user_id) OR correo IN ('admin@virtudgym.com', 'student@virtudgym.com');
+    DELETE FROM auth.users WHERE id IN (admin_user_id, student_user_id) OR email IN ('admin@virtudgym.com', 'student@virtudgym.com');
 
     -- Generar la contraseña bcrypt 'Password123!' usando pgcrypto del esquema extensions (donde está instalada)
     encrypted_pass := extensions.crypt('Password123!', extensions.gen_salt('bf', 10));
