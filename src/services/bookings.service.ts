@@ -3,7 +3,6 @@ import { Database } from '../types/supabase';
 
 type Booking = Database['public']['Tables']['reservas_de_clase']['Row'];
 type BookingInsert = Database['public']['Tables']['reservas_de_clase']['Insert'];
-type BookingUpdate = Database['public']['Tables']['reservas_de_clase']['Update'];
 
 /**
  * Service for managing bookings
@@ -14,6 +13,7 @@ export const bookingsService = {
      */
     async getUserBookings(userId: string) {
         const { data, error } = await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .from('user_bookings_detailed' as any)
             .select('*')
             .eq('usuario_id', userId)
@@ -30,6 +30,7 @@ export const bookingsService = {
         const today = new Date().toISOString().split('T')[0];
 
         const { data, error } = await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .from('user_bookings_detailed' as any)
             .select('*')
             .eq('usuario_id', userId)
@@ -70,49 +71,25 @@ export const bookingsService = {
 
     /**
      * Create a new booking
+     * SAFE CONCURRENCY: Esta función ahora delega el candado de concurrencia completa (Anti-Overbooking)
+     * a la Base de Datos mediante el RPC "book_class_atomic" evitando el fraude de múltiples hilos en Vercel.
      */
     async create(booking: BookingInsert) {
-        // Check if class has available spots
-        const { data: classData, error: classError } = await supabase
-            .from('clases_con_disponibilidad') // Use view for accurate capacity
-            .select('capacidad_maxima, capacidad_actual, lista_espera_habilitada' as any) // lista_espera_habilitada might need check
-            .eq('id', booking.horario_clase_id)
-            .single() as { data: any; error: any };
-
-
-        if (classError) throw classError;
-        if (!classData) throw new Error('Class not found');
-
-        // Determine if booking should be waitlisted
-        const isWaitlist = classData.capacidad_actual >= classData.capacidad_maxima;
-
-        if (isWaitlist && !classData.lista_espera_habilitada) { // Assuming lista_espera_habilitada exists on view or joined
-            throw new Error('Class is full and waitlist is not enabled');
+        if (!booking.horario_clase_id || !booking.usuario_id || !booking.fecha) {
+            throw new Error('Faltan datos requeridos para la reserva');
         }
 
-        // Get waitlist position if needed
-        let waitlistPosition = null;
-        if (isWaitlist) {
-            const { count } = await supabase
-                .from('reservas_de_clase')
-                .select('*', { count: 'exact', head: true } as any)
-                .eq('horario_clase_id', booking.horario_clase_id)
-                .eq('fecha', booking.fecha)
-                .eq('en_lista_espera' as any, true);
+        // Usamos '(supabase as any).rpc' porque las funciones atómicas nuevas pueden no estar en los tipos generados aún
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .rpc('book_class_atomic', {
+                p_horario_clase_id: booking.horario_clase_id,
+                p_usuario_id: booking.usuario_id,
+                p_fecha: booking.fecha
+            });
 
-            waitlistPosition = (count || 0) + 1;
-        }
-
-        const { data, error } = await supabase
-            .from('reservas_de_clase')
-            .insert({
-                ...booking,
-                estado: isWaitlist ? 'en_lista_espera' : 'reservada',
-            } as any)
-            .select()
-            .single();
-
-        if (error) throw error;
+        if (error) throw new Error(error.message);
+        
         return data as Booking;
     },
 
@@ -122,7 +99,7 @@ export const bookingsService = {
     async cancel(bookingId: string) {
         const { data, error } = await supabase
             .from('reservas_de_clase')
-            .update({ estado: 'cancelada' } as any)
+            .update({ estado: 'cancelada' })
             .eq('id', bookingId)
             .select()
             .single();
@@ -130,9 +107,13 @@ export const bookingsService = {
         if (error) throw error;
         if (!data) throw new Error('Booking not found');
 
-        // Promote waitlist if applicable
+        // Promote waitlist if applicable (delegado a SQL Atómico)
         if (data.estado === 'reservada') {
-            await this.promoteFromWaitlist(data.horario_clase_id, data.fecha);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any).rpc('promote_waitlist_atomic', {
+                p_horario_id: data.horario_clase_id,
+                p_fecha: data.fecha
+            });
         }
 
         return data as Booking;
@@ -147,8 +128,8 @@ export const bookingsService = {
             .update({
                 estado: 'asistida',
                 asistido_en: new Date().toISOString(),
-                marcado_por: checkedInBy, // Assuming marcado_por is correct or temporary
-            } as any)
+                marcado_por: checkedInBy,
+            })
             .eq('id', bookingId)
             .select()
             .single();
@@ -158,50 +139,14 @@ export const bookingsService = {
     },
 
     /**
-     * Promote first person from waitlist
+     * Promote first person from waitlist (LEGACY - Ahora se usa RPC promote_waitlist_atomic)
      */
     async promoteFromWaitlist(classId: string, date: string) {
-        const { data: waitlistBookings, error } = await supabase
-            .from('reservas_de_clase')
-            .select('*')
-            .eq('horario_clase_id', classId)
-            .eq('fecha', date)
-            .eq('en_lista_espera' as any, true)
-            .order('posicion_lista_espera' as any)
-            .limit(1);
-
-
-        if (error) throw error;
-        if (!waitlistBookings || waitlistBookings.length === 0) return;
-
-        const firstWaitlist = waitlistBookings[0];
-
-        await supabase
-            .from('reservas_de_clase')
-            .update({
-                estado: 'reservada',
-                en_lista_espera: false,
-                posicion_lista_espera: null,
-            } as any)
-            .eq('id', firstWaitlist.id);
-
-        // Update positions for remaining waitlist
-        const { data: remaining } = await supabase
-            .from('reservas_de_clase')
-            .select('*')
-            .eq('horario_clase_id', classId)
-            .eq('fecha', date)
-            .eq('en_lista_espera' as any, true)
-            .order('posicion_lista_espera' as any);
-
-        if (remaining) {
-            for (let i = 0; i < remaining.length; i++) {
-                await supabase
-                    .from('reservas_de_clase')
-                    .update({ posicion_lista_espera: i + 1 } as any)
-                    .eq('id', remaining[i].id);
-            }
-        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).rpc('promote_waitlist_atomic', {
+            p_horario_id: classId,
+            p_fecha: date
+        });
     },
 
     /**

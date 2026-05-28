@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ChevronLeft, Activity } from 'lucide-react';
 
-export default function StudentMessagesPage({ params }: { params: { gymId: string } }) {
+export default function StudentMessagesPage({ _params }: { _params: { gymId: string } }) {
     const [user, setUser] = useState<any>(null);
 
     useEffect(() => {

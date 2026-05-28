@@ -26,8 +26,8 @@ export async function createUserGoal(goalData: Omit<UserGoalInsert, 'usuario_id'
     };
 
     // If active, deactivate others (logic from service)
-    const dataAny = dataToInsert as any;
-    if (dataAny.esta_activo || dataAny.is_active) {
+    const dataTyped = dataToInsert as UserGoalInsert;
+    if (dataTyped.esta_activo) {
         await (supabase
             .from('objetivos_del_usuario') as any)
             .update({ esta_activo: false })

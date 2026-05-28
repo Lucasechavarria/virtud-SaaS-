@@ -77,7 +77,7 @@ export default function GymSwitcher({ profileRole }: { profileRole?: string }) {
             } else {
                 toast.error('Error al cambiar contexto');
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Error de conexión');
         }
     };

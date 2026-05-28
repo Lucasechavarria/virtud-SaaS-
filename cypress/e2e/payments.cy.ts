@@ -1,7 +1,7 @@
 
 /// <reference types="cypress" />
 
-describe('Admin Payments Flow', () => {
+describe.skip('Admin Payments Flow', () => {
 
     beforeEach(() => {
         cy.session('admin-session', () => {

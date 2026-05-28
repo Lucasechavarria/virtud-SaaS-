@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
-export default function StudentClassesPage({ params }: { params: { gymId: string } }) {
+export default function StudentClassesPage({ _params }: { _params: { gymId: string } }) {
     const [bookings, setBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -38,7 +38,7 @@ export default function StudentClassesPage({ params }: { params: { gymId: string
             await bookingsService.cancel(bookingId);
             toast.success('Reserva cancelada');
             fetchMyBookings();
-        } catch (error) {
+        } catch (_error) {
             toast.error('Error al cancelar');
         }
     };

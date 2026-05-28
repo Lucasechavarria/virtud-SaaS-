@@ -58,7 +58,7 @@ export function PushProvider({ children }: { children: React.ReactNode }) {
                 // Guardar en Supabase
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    await supabase.from('push_subscriptions').upsert({
+                    await supabase.from('push_subscriptions' as any).upsert({
                         usuario_id: user.id,
                         subscription: subscription.toJSON(),
                         pwa_platform: getPlatform()

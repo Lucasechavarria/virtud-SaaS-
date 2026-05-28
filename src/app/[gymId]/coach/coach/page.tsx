@@ -29,7 +29,7 @@ export default function CoachDashboard({ params }: { params: { gymId: string } }
     const [loading, setLoading] = useState(true);
     const [sendingPush, setSendingPush] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
-    const [students, setStudents] = useState<any[]>([]);
+    const [_students, setStudents] = useState<any[]>([]);
     const [data, setData] = useState<any>({
         stats: { activeStudents: 0 },
         upcomingClasses: [],

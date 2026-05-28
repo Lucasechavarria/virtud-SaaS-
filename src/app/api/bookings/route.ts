@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         if (error) throw error;
 
         return NextResponse.json(data);
-    } catch (error) {
+    } catch (_error) {
         return NextResponse.json({ error: 'Error fetching bookings' }, { status: 500 });
     }
 }
@@ -34,55 +34,21 @@ export async function POST(request: Request) {
 
         const { schedule_id, date } = await request.json();
 
-        // Check if already booked
-        const { data: existing } = await supabase
-            .from('reservas_de_clase')
-            .select('*')
-            .eq('usuario_id', user.id)
-            .eq('horario_clase_id', schedule_id)
-            .eq('fecha', date)
-            .single();
-
-        if (existing) {
-            return NextResponse.json({ error: 'Already booked' }, { status: 400 });
-        }
-
-        const { data, error } = await supabase
-            .from('reservas_de_clase')
-            .insert({
-                usuario_id: user.id,
-                horario_clase_id: schedule_id,
-                fecha: date,
-                estado: 'confirmed'
-            })
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        // Award points for booking (Gamification)
-        const { error: gamificationError } = await supabase.rpc('incrementar_puntos', {
-            usuario_id_param: user.id,
-            puntos_param: 10
+        // 🔐 Atomic Booking Pattern: Usar RPC para evitar Race Conditions (Capacidad/Duplicados)
+        const { data, error } = await (supabase as any).rpc('book_class_atomic', {
+            p_horario_clase_id: schedule_id,
+            p_usuario_id: user.id,
+            p_fecha: date
         });
 
-        // Fallback if RPC doesn't exist (safety, though we should prefer RPC or direct update)
-        if (gamificationError) {
-            // Try direct update if RPC missing
-            const { data: currentStats } = await supabase
-                .from('gamificacion_del_usuario')
-                .select('puntos')
-                .eq('usuario_id', user.id)
-                .single();
-
-            if (currentStats) {
-                await supabase
-                    .from('gamificacion_del_usuario')
-                    .update({ puntos: (currentStats.puntos || 0) + 10 })
-                    .eq('usuario_id', user.id);
-            }
+        if (error) {
+            console.error('RPC Error (book_class_atomic):', error);
+            return NextResponse.json({ error: error.message || 'Error en la reserva atómica' }, { status: 500 });
         }
 
+        // El RPC devuelve el objeto de la reserva si tuvo éxito, o lanza un error si falló (vía RAISE EXCEPTION o lógica interna)
+        // Nota: El RPC book_class_atomic ya maneja la gamificación internamente en su definición SQL.
+        
         return NextResponse.json(data);
     } catch (error) {
         console.error(error);
@@ -110,7 +76,7 @@ export async function DELETE(request: Request) {
         if (error) throw error;
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch (_error) {
         return NextResponse.json({ error: 'Error cancelling booking' }, { status: 500 });
     }
 }

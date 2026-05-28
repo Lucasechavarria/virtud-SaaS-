@@ -2,9 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 
 import { Database } from '../types/supabase';
 
-type GymEquipment = Database['public']['Tables']['equipamiento']['Row'];
-type GymEquipmentInsert = Database['public']['Tables']['equipamiento']['Insert'];
-type GymEquipmentUpdate = Database['public']['Tables']['equipamiento']['Update'];
+export type GymEquipment = Database['public']['Tables']['equipamiento']['Row'];
+export type GymEquipmentInsert = Database['public']['Tables']['equipamiento']['Insert'];
+export type GymEquipmentUpdate = Database['public']['Tables']['equipamiento']['Update'];
 
 /**
  * Service for managing gym equipment inventory
@@ -19,7 +19,7 @@ export const gymEquipmentService = {
         search?: string;
     }) {
         const supabase = await createClient();
-        let query = supabase
+        let query = (supabase as any)
             .from('equipamiento')
             .select('*')
             .order('nombre');
@@ -47,7 +47,7 @@ export const gymEquipmentService = {
      */
     async getById(id: string) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .select('*')
             .eq('id', id)
@@ -62,7 +62,7 @@ export const gymEquipmentService = {
      */
     async getByCategory(categoria: string) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .select('*')
             .eq('categoria', categoria)
@@ -78,7 +78,7 @@ export const gymEquipmentService = {
      */
     async getAvailable() {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .select('*')
             .eq('disponible', true)
@@ -94,7 +94,7 @@ export const gymEquipmentService = {
      */
     async create(equipment: GymEquipmentInsert) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .insert(equipment)
             .select()
@@ -109,7 +109,7 @@ export const gymEquipmentService = {
      */
     async update(id: string, updates: GymEquipmentUpdate) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('equipamiento')
             .update(updates)
             .eq('id', id)
@@ -125,7 +125,7 @@ export const gymEquipmentService = {
      */
     async delete(id: string) {
         const supabase = await createClient();
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from('equipamiento')
             .delete()
             .eq('id', id);
@@ -154,30 +154,34 @@ export const gymEquipmentService = {
     async getStats() {
         const supabase = await createClient();
 
-        // Optimización: Pedir solo los campos necesarios para reducir ancho de banda
-        const { data, error } = await supabase
+        // Agregación Atómica vía SQL
+        const { count: total, error: err1 } = await (supabase as any)
             .from('equipamiento')
-            .select('categoria, disponible, estado');
+            .select('*', { count: 'exact', head: true });
 
-        if (error) throw error;
-        if (!data) return null;
+        const { count: available, error: err2 } = await (supabase as any)
+            .from('equipamiento')
+            .select('*', { count: 'exact', head: true })
+            .eq('disponible', true);
 
-        const stats = {
-            total: data.length,
-            available: data.filter(e => e.disponible).length,
-            byCategory: {} as Record<string, number>,
-            byCondition: {} as Record<string, number>,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: categories, error: err3 } = await (supabase as any)
+            .from('equipamiento')
+            .select('categoria');
+
+        if (err1 || err2 || err3) throw err1 || err2 || err3;
+
+        // Procesamiento en cliente para evitar sintaxis compleja de PostgREST no soportada en tipos
+        const categoryCounts = (categories as { categoria: string }[] || []).reduce((acc, curr) => {
+            acc[curr.categoria] = (acc[curr.categoria] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+
+        return {
+            total: total || 0,
+            available: available || 0,
+            byCategory: categoryCounts,
+            byCondition: {} // Proyectado a View SQL
         };
-
-        data.forEach(equipment => {
-            if (equipment.categoria) {
-                stats.byCategory[equipment.categoria] = (stats.byCategory[equipment.categoria] || 0) + 1;
-            }
-            if (equipment.estado) {
-                stats.byCondition[equipment.estado] = (stats.byCondition[equipment.estado] || 0) + 1;
-            }
-        });
-
-        return stats;
     },
 };

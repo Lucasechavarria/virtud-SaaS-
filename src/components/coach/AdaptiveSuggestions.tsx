@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, Sparkles, TrendingUp, AlertTriangle, CheckCircle2, ChevronRight, Zap, Calendar, FastForward, Trophy, Heart } from 'lucide-react';
+import { Brain, Sparkles, TrendingUp, AlertTriangle, CheckCircle2, ChevronRight, Zap, Calendar, FastForward, Trophy, Heart, Lightbulb, Target } from 'lucide-react';
 
 interface Suggestion {
     tipo: 'nutricion' | 'entrenamiento' | 'biomedico' | 'general';

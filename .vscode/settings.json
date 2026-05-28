@@ -18,5 +18,11 @@
     "editor.suggest.preview": true,
     "files.autoSaveWhenNoErrors": true,
     "files.autoSaveWorkspaceFilesOnly": true,
-    "accessibility.openChatEditedFiles": true
+    "accessibility.openChatEditedFiles": true,
+    "deno.enable": true,
+    "deno.enablePaths": [
+        "supabase/functions"
+    ],
+    "deno.lint": true,
+    "deno.unstable": true
 }

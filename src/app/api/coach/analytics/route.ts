@@ -41,10 +41,10 @@ export async function GET(req: Request) {
         // 3. Fetch Measurements / Physical Progress
         let measurementsData = [];
         if (studentId && viewMode === 'individual') {
-            const { data } = await supabase
+            const { data } = await (supabase as any)
                 .from('mediciones')
                 .select('*')
-                .eq('usuario_id', studentId)
+                .eq('user_id', studentId)
                 .order('registrado_en', { ascending: true });
             measurementsData = data || [];
         } else {
@@ -53,25 +53,35 @@ export async function GET(req: Request) {
 
         // 4. Fetch Training Volume (Prescribed)
         let volumeData = [];
-        const { data: upcomingClasses } = await supabase
-            .from('horarios_de_clase')
-            .select(`
-                *,
-                actividades (nombre, url_imagen),
-                reservas_de_clase (count)
-            `);
-        let routinesQuery = supabase
+        // The following block was removed as it was not used and seemed to be an accidental inclusion
+        // const { data: upcomingClasses } = await supabase
+        //     .from('horarios_de_clase')
+        //     .select(`
+        //         *,
+        //         actividades (nombre, url_imagen),
+        //         reservas_de_clase (count)
+        //     `);
+        const { data: rutinasRecientes, error: rutinasError } = await (supabase as any)
+            .from('rutinas')
+            .select('*, ejercicios:ejercicios_rutina(series, repeticiones)')
+            .eq('user_id', studentId) // Assuming studentId is the user_id for routines
+            .order('creado_en', { ascending: false })
+            .limit(5);
+
+        if (rutinasError) throw rutinasError;
+
+        let routinesQuery = (supabase as any)
             .from('rutinas')
             .select(`
                 id,
                 nombre,
-                usuario_id,
-                ejercicios (series, repeticiones)
+                user_id,
+                ejercicios:ejercicios_rutina (series, repeticiones)
             `)
             .eq('esta_activa', true);
 
         if (studentId && viewMode === 'individual') {
-            routinesQuery = routinesQuery.eq('usuario_id', studentId);
+            routinesQuery = routinesQuery.eq('user_id', studentId);
         }
 
         const { data: routines } = await routinesQuery;

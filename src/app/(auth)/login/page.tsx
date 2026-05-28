@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/services/auth.service';
 import { toast } from 'react-hot-toast';
@@ -9,13 +9,23 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  // const router = useRouter(); // Eliminado ya que no se utiliza en esta página
+
+  // Intentar obtener redirectTo de la URL
+  const [redirectTo, setRedirectTo] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setRedirectTo(params.get('redirectTo'));
+  }, []);
 
   const handleLogin = async () => {
     setIsLoading(true);
     try {
       await authService.signInWithGoogle();
+      const destination = redirectTo || '/';
+      window.location.href = destination;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Error al iniciar sesión";
       toast.error(errorMessage);
@@ -134,8 +144,14 @@ export default function LoginPage() {
                 formData.get('email') as string,
                 formData.get('password') as string
               );
-              // Router push handled by supabase state change or manually here if needed
-            } catch (error) {
+              
+              // Forzar navegación de página completa para que el middleware (proxy) detecte la sesión
+              const destination = redirectTo || '/';
+              // Dar un respiro al navegador para persistir las cookies antes de navegar
+              setTimeout(() => {
+                window.location.href = destination;
+              }, 250);
+            } catch (_error) {
               toast.error("Credenciales inválidas");
               setIsLoading(false);
             }

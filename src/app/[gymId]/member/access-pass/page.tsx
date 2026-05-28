@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import QRCode from 'react-qr-code';
 
-export default function AccessPassPage({ params }: { params: { gymId: string } }) {
+export default function AccessPassPage({ _params }: { _params: { gymId: string } }) {
     const mockUserId = "user_123456789";
     const timestamp = Date.now();
     const qrValue = JSON.stringify({ uid: mockUserId, ts: timestamp, type: 'access' });

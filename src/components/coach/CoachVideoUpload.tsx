@@ -3,7 +3,17 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import {
+    Upload,
+    Video,
+    X,
+    CheckCircle2,
+    AlertCircle,
+    Play,
+    Trash2,
+    Plus,
+    Loader2
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface CoachVideoUploadProps {
@@ -107,7 +117,7 @@ export const CoachVideoUpload: React.FC<CoachVideoUploadProps> = ({
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3 truncate">
                             <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg">
-                                <CheckCircle size={20} />
+                                <CheckCircle2 size={20} />
                             </div>
                             <div className="truncate">
                                 <p className="text-sm font-medium text-white truncate">{file.name}</p>

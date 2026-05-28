@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, RotateCcw, ShieldCheck, Clock, User } from 'lucide-react';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
-export default function StudentQRPage({ params }: { params: { gymId: string } }) {
+export default function StudentQRPage({ _params }: { _params: { gymId: string } }) {
     const [timeLeft, setTimeLeft] = useState(30);
     const [qrValue, setQrValue] = useState('generando...');
     const [loading, setLoading] = useState(true);
@@ -83,9 +84,9 @@ export default function StudentQRPage({ params }: { params: { gymId: string } })
 
                     {/* Header: User Info */}
                     <div className="flex items-center gap-4 mb-8">
-                        <div className="w-16 h-16 rounded-full bg-white/5 border-2 border-white/20 overflow-hidden flex items-center justify-center shrink-0">
+                        <div className="w-16 h-16 rounded-full bg-white/5 border-2 border-white/20 overflow-hidden flex items-center justify-center shrink-0 relative">
                             {profile?.url_avatar ? (
-                                <img src={profile.url_avatar} alt="Avatar" className="w-full h-full object-cover" />
+                                <Image src={profile.url_avatar} alt="Avatar" fill className="object-cover" />
                             ) : (
                                 <User className="text-white/40" size={32} />
                             )}

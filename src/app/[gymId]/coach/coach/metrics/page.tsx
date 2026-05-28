@@ -196,7 +196,7 @@ export default function CoachMetricsPage() {
                     <h3 className="text-xl font-bold text-white mb-4">📉 Evolución Corporal</h3>
                     {metrics?.measurements?.length > 0 ? (
                         <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={metrics.measurements.map((m: any, i: number) => ({
+                            <LineChart data={metrics.measurements.map((m: any, _i: number) => ({
                                 date: new Date(m.recorded_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }),
                                 peso: m.weight,
                                 grasa: m.body_fat

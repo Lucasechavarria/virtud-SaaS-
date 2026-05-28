@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Heart, MessageCircle, Send, Bookmark } from "lucide-react";
-import Image from "next/image";
+import _Image from "next/image";
 
 export function InstagramCarousel() {
     // Mock Data Simulado (Idealmente vendría de una API o CMS)

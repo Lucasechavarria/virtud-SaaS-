@@ -1,0 +1,214 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { SupabaseClient, User } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { MODULE_ROUTES, PUBLIC_ROUTES } from './constants';
+
+/**
+ * Handles Role-Based Access Control and Redirections
+ */
+export async function handleRBAC(
+    request: NextRequest, 
+    response: NextResponse, 
+    user: User | null, 
+    supabase: SupabaseClient
+) {
+    const { pathname } = request.nextUrl;
+    
+    // 1. Obtener Metadatos del Usuario (Rol y Gym)
+    let userRole: string | undefined;
+    let gymId: string | undefined;
+    let gymSlug: string | undefined;
+    let activeModules: unknown | undefined;
+
+    if (user) {
+        // Intentar leer de la cookie de caché para evitar DB hits
+        const userMetaCookie = request.cookies.get('vtd_user_meta')?.value;
+        if (userMetaCookie) {
+            try {
+                const meta = JSON.parse(userMetaCookie);
+                userRole = meta.rol;
+                gymId = meta.gymId;
+                gymSlug = meta.gymSlug;
+                activeModules = meta.modules;
+            } catch (e) {
+                console.warn('[RBAC] Error parsing vtd_user_meta cookie:', e);
+            }
+        }
+
+        // Si no hay caché, consultar DB
+        if (!userRole) {
+            let profile = null;
+            let dbError = null;
+
+            const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+            if (serviceRoleKey && supabaseUrl) {
+                try {
+                    // Usar service_role client para evitar políticas RLS recursivas o rotas en perfiles/gimnasios
+                    const adminSupabase = createServerClient(supabaseUrl, serviceRoleKey, {
+                        cookies: {
+                            getAll() { return []; },
+                            setAll() {}
+                        }
+                    });
+                    const { data, error } = await adminSupabase
+                        .from('perfiles')
+                        .select('rol, gimnasio_id, gimnasios(slug, modulos_activos)')
+                        .eq('id', user.id)
+                        .single();
+                    profile = data;
+                    dbError = error;
+                } catch (err) {
+                    console.error('[RBAC adminSupabase] Exception:', err);
+                }
+            }
+
+            // Fallback en caso de que no esté serviceRoleKey o haya fallado la consulta
+            if (!profile) {
+                const { data, error } = await supabase
+                    .from('perfiles')
+                    .select('rol, gimnasio_id, gimnasios(slug, modulos_activos)')
+                    .eq('id', user.id)
+                    .single();
+                profile = data;
+                dbError = error;
+            }
+
+            console.warn(`[DEBUG_RBAC_DB] User: ${user.email} | ID: ${user.id} | Profile: ${JSON.stringify(profile)} | Error: ${JSON.stringify(dbError)}`);
+
+            if (profile) {
+                userRole = profile.rol?.toLowerCase();
+                gymId = profile.gimnasio_id;
+                
+                const gimnasiosData = profile.gimnasios as 
+                    | { slug: string; modulos_activos: unknown } 
+                    | { slug: string; modulos_activos: unknown }[] 
+                    | null;
+                
+                const gymInfo = Array.isArray(gimnasiosData) 
+                    ? (gimnasiosData.length > 0 ? gimnasiosData[0] : null)
+                    : gimnasiosData;
+
+                gymSlug = gymInfo?.slug;
+                activeModules = gymInfo?.modulos_activos;
+
+                // Cachear en la respuesta para el próximo request
+                response.cookies.set('vtd_user_meta', JSON.stringify({ 
+                    rol: userRole, 
+                    gymId, 
+                    gymSlug,
+                    modules: activeModules
+                }), {
+                    maxAge: 600,
+                    path: '/',
+                    httpOnly: true,
+                    sameSite: 'lax'
+                });
+            }
+        }
+    }
+
+    // 2. Protecciones de Acceso (Redirects forzados)
+    
+    // CASO A: No logueado tratando de ir a ruta privada
+    const isPublic = PUBLIC_ROUTES.includes(pathname);
+    if (!user && !isPublic) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/login';
+        return NextResponse.redirect(redirectUrl);
+    }
+
+    // CASO B: Logueado tratando de ir a Landing/Login/Signup -> Dashboard
+    if (user && isPublic) {
+        let dest = '/';
+        switch (userRole) {
+            case 'superadmin': dest = '/saas-admin'; break;
+            case 'admin': dest = gymId ? `/${gymId}/admin` : '/'; break;
+            case 'recepcion': dest = gymId ? `/${gymId}/admin/recepcion/pos` : '/'; break;
+            case 'coach': dest = gymId ? `/${gymId}/coach` : '/'; break;
+            default: dest = gymId ? `/${gymId}/member/dashboard` : '/'; break;
+        }
+
+        console.warn(`[DEBUG_RBAC_REDIRECT] User: ${user.email} | Role: ${userRole} | GymId: ${gymId} | Pathname: ${pathname} -> Redirecting to: ${dest}`);
+
+        if (dest !== pathname) {
+            return NextResponse.redirect(new URL(dest, request.url));
+        }
+    }
+
+    // 3. Guards de Ruta (RBAC Profundo)
+    
+    // Proteccion SaaS Admin
+    if (pathname.startsWith('/saas-admin') && userRole !== 'superadmin') {
+        const dest = gymId ? `/${gymId}/admin` : '/';
+        return NextResponse.redirect(new URL(dest, request.url));
+    }
+
+    // Proteccion de Tenancy [gymId]
+    const pathSegments = pathname.split('/').filter(Boolean);
+    const currentGymIdParam = pathSegments[0];
+
+    if (currentGymIdParam && !['saas-admin', 'api', 'auth', 'g', 'inscripcion'].includes(currentGymIdParam)) {
+        // Un usuario normal no puede entrar a otro gimnasio
+        if (userRole !== 'superadmin' && gymId && currentGymIdParam !== gymId) {
+            return NextResponse.redirect(new URL(`/${gymId}/member/dashboard`, request.url));
+        }
+
+        // RBAC dentro del gimnasio (admin, coach, member)
+        const tenantPath = pathSegments[1];
+        if (tenantPath === 'admin') {
+            if (!['admin', 'superadmin', 'recepcion'].includes(userRole ?? '')) {
+                const dest = gymId ? `/${gymId}/member/dashboard` : '/';
+                return NextResponse.redirect(new URL(dest, request.url));
+            }
+        }
+    }
+
+    // 4. Module Gating
+    const requiredModule = Object.entries(MODULE_ROUTES).find(([route]) => pathname.includes(route))?.[1];
+    if (requiredModule && userRole !== 'superadmin' && gymId) {
+        let modules = activeModules;
+        
+        // Fallback: Si no está en caché en la cookie, consultar DB
+        if (!modules) {
+            let gym = null;
+            const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+            if (serviceRoleKey && supabaseUrl) {
+                try {
+                    const adminSupabase = createServerClient(supabaseUrl, serviceRoleKey, {
+                        cookies: {
+                            getAll() { return []; },
+                            setAll() {}
+                        }
+                    });
+                    const { data } = await adminSupabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
+                    gym = data;
+                } catch (err) {
+                    console.error('[RBAC adminSupabase Gym] Exception:', err);
+                }
+            }
+
+            if (!gym) {
+                const { data } = await supabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
+                gym = data;
+            }
+            
+            modules = gym?.modulos_activos || {};
+        }
+
+        const modulesRecord = modules as Record<string, unknown>;
+        const isEnabled = Array.isArray(modules) 
+            ? modules.includes(requiredModule) 
+            : !!modulesRecord[requiredModule];
+
+        if (!isEnabled) {
+            const dest = `/${gymId}/member/dashboard`;
+            return NextResponse.redirect(new URL(dest, request.url));
+        }
+    }
+
+    return null; // Continuar
+}

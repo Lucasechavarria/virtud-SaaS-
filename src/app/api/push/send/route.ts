@@ -46,19 +46,26 @@ export async function POST(req: Request) {
         if (!sender) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
         // 2. Obtener la suscripción push del RECEPTOR
-        const { data: subscriptions, error: subError } = await supabase
+        const { data: subscriptions, error: subError } = await (supabase
             .from('push_subscriptions')
-            .select('subscription')
+            .select('endpoint, auth, p256dh')
             .eq('usuario_id', recipientId)
             .order('creado_en', { ascending: false })
-            .limit(1);
+            .limit(1) as any);
 
         if (subError || !subscriptions || subscriptions.length === 0) {
             // No es un error crítico si no hay suscripción, simplemente no enviamos
             return NextResponse.json({ success: false, message: 'Receptor no tiene suscripción push activa' });
         }
 
-        const pushSubscription = subscriptions[0].subscription;
+        const sub = subscriptions[0];
+        const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: {
+                auth: sub.auth,
+                p256dh: sub.p256dh
+            }
+        };
 
         const payload = JSON.stringify({
             title: title || '🔱 Virtud Gym',

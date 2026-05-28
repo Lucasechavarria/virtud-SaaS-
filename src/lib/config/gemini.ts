@@ -18,8 +18,11 @@ export const getGemini = () => {
 // Exportar el cliente para uso general (aunque se recomienda usar getGemini)
 export const aiClient = getGemini();
 
-// Modelo principal para interacciones rápidas (Gemini 3 Flash Preview)
-export const DEFAULT_MODEL = "gemini-3-flash-preview";
+// Modelos Gemini (Estrategia Híbrida LDE System 2026)
+export const MODEL_FLASH = "gemini-1.5-flash";
+export const MODEL_PRO = "gemini-1.5-pro";
+export const DEFAULT_MODEL = MODEL_FLASH; // El 80% de las tareas se resuelven con Flash
+
 
 // Configuración de Seguridad para permitir temas de salud y fitness
 export const SAFETY_SETTINGS = [

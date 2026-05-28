@@ -13,7 +13,7 @@ const mockClasses = [
     { id: 4, name: 'Boxing', time: '19:30', coach: 'Ana', spots: 5, total: 10 },
 ];
 
-export default function BookingPage({ params }: { params: { gymId: string } }) {
+export default function BookingPage({ _params }: { _params: { gymId: string } }) {
     const [profile, setProfile] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 

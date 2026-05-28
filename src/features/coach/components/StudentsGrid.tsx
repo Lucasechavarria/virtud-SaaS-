@@ -2,10 +2,14 @@
 
 import React, { useState, useEffect, ReactNode } from 'react';
 import Link from 'next/link';
-import NextImage from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Zap, Mail, X, Users } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
+import {
+    Search, Filter, UserPlus, MoreVertical,
+    ChevronRight, Activity, Calendar, Target,
+    Mail, Phone, MapPin, Loader2, X, Zap, Users
+} from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { toast } from 'react-hot-toast';
 import { StudentAction } from './StudentAction';
 import { SupabaseUserProfile } from '@/types/user';
 

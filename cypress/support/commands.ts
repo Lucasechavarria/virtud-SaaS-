@@ -6,18 +6,26 @@ declare namespace Cypress {
     }
 }
 
-Cypress.Commands.add('login', (email = 'admin@test.com', password = 'password123') => {
+Cypress.Commands.add('login', (email = 'admin@virtudgym.com', password = 'Password123!') => {
     cy.session([email, password], () => {
-        // Opción 1: Login vía UI (más lento pero más realista)
+        cy.intercept('POST', '**/auth/v1/token*').as('loginRequest');
+
         cy.visit('/login');
         cy.get('input[name="email"]').type(email);
         cy.get('input[name="password"]').type(password);
         cy.get('button[type="submit"]').click();
-        cy.url().should('include', '/dashboard');
 
-        // Opción 2 (Optimización futura): Login programático vía Supabase API
-        // const { createClient } = require('@supabase/supabase-js');
-        // const supabase = createClient(Cypress.env('SUPABASE_URL'), Cypress.env('SUPABASE_KEY'));
-        // cy.wrap(supabase.auth.signInWithPassword({ email, password })).then(...)
+        cy.wait('@loginRequest', { timeout: 15000 }).then((interception) => {
+            const status = interception.response?.statusCode;
+            const body = interception.response?.body;
+            
+            if (status !== 200 && status !== 201) {
+                const errorMsg = body?.error_description || body?.error || 'Unknown error';
+                console.error('[CYPRESS_AUTH_ERROR]', JSON.stringify(body, null, 2));
+                throw new Error(`Supabase Auth Failed (${status}): ${errorMsg} | Body: ${JSON.stringify(body)}`);
+            }
+        });
+
+        cy.url({ timeout: 15000 }).should('not.include', '/login');
     });
 });

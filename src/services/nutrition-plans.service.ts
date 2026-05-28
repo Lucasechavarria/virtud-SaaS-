@@ -86,10 +86,9 @@ export const nutritionPlansService = {
     async create(plan: NutritionPlanInsert) {
         const supabase = await createClient();
 
-        // If this is set as active, deactivate other plans for the user
-        if (plan.esta_activo) {
-            await this.deactivateUserPlans(plan.usuario_id!);
-        }
+        // La desactivación de planes previos ahora la maneja el TRIGGER SQL "tr_ensure_single_active_nutrition_plan"
+        // garantizando atomicidad incluso si hay múltiples peticiones paralelas.
+
 
         const { data, error } = await supabase
             .from('planes_nutricionales')
@@ -107,11 +106,8 @@ export const nutritionPlansService = {
     async update(id: string, updates: NutritionPlanUpdate) {
         const supabase = await createClient();
 
-        // If setting as active, deactivate other plans first
-        if (updates.esta_activo) {
-            const plan = await this.getById(id);
-            await this.deactivateUserPlans(plan.usuario_id);
-        }
+        // Delegado al Trigger SQL
+
 
         const { data, error } = await supabase
             .from('planes_nutricionales')

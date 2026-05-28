@@ -120,15 +120,46 @@ export async function POST(req: Request) {
             orden_en_dia: index + 1
         }));
 
-        // 4. Insert Exercises
-        const { error: exercisesError } = await supabase
+        // 4. Insert Exercises (Con select para obtener los IDs autogenerados)
+        const { data: insertedExercises, error: exercisesError } = await supabase
             .from('ejercicios')
-            .insert(exercisesToInsert);
+            .insert(exercisesToInsert)
+            .select();
 
         if (exercisesError) {
             console.error('Error inserting exercises:', exercisesError);
-            // Optional: Rollback routine creation if crucial
             throw exercisesError;
+        }
+
+        // 5. Normalización Gradual (Dual-Write en tabla intermedia ejercicios_equipamiento)
+        if (insertedExercises && insertedExercises.length > 0) {
+            try {
+                for (const ex of insertedExercises) {
+                    if (ex.equipamiento && ex.equipamiento.length > 0) {
+                        for (const eqNombre of ex.equipamiento) {
+                            const { data: eqItem } = await supabase
+                                .from('equipamiento')
+                                .select('id')
+                                .ilike('nombre', `%${eqNombre}%`)
+                                .limit(1)
+                                .maybeSingle();
+
+                            if (eqItem) {
+                                await supabase
+                                    .from('ejercicios_equipamiento')
+                                    .insert({
+                                        ejercicio_id: ex.id,
+                                        equipamiento_id: eqItem.id,
+                                        es_opcional: false
+                                    });
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                // Fail-Safe: Si la inserción en la tabla intermedia falla, no bloqueamos la creación de la rutina
+                console.error('[Routine API - Normalization Fallback] Error populating ejercicios_equipamiento:', err);
+            }
         }
 
         return NextResponse.json({ success: true, routineId: routine.id });

@@ -172,7 +172,7 @@ export default function StudentNutritionPage() {
                                             { label: 'Proteínas', value: nutritionPlan.gramos_proteina, pct: proteinPercentage, color: 'from-indigo-500 to-blue-600', icon: Beef, sub: 'Recuperación Muscular' },
                                             { label: 'Carbohidratos', value: nutritionPlan.gramos_carbohidratos, pct: carbsPercentage, color: 'from-emerald-500 to-teal-600', icon: Zap, sub: 'Energía de Alto Rendimiento' },
                                             { label: 'Grasas', value: nutritionPlan.gramos_grasas, pct: fatsPercentage, color: 'from-amber-500 to-orange-600', icon: Droplets, sub: 'Optimización Hormonal' },
-                                        ].map((macro, idx) => (
+                                        ].map((macro, _idx) => (
                                             <motion.div
                                                 key={macro.label}
                                                 whileHover={{ y: -5 }}

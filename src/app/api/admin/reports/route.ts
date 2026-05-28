@@ -20,7 +20,7 @@ export async function GET() {
             .from('perfiles')
             .select('*', { count: 'exact', head: true })
             .eq('rol', 'member')
-            .gte('creado_en', startOfMonth.toISOString());
+            .gte('creado_en' as any, startOfMonth.toISOString());
 
         const { count: attendanceCount } = await supabase
             .from('reservas_de_clase')
@@ -75,7 +75,7 @@ export async function GET() {
     }
 }
 
-function processGrowthData(data: { created_at: string }[]) {
+function processGrowthData(data: { creado_en: string }[]) {
     const months: Record<string, number> = {};
     const today = new Date();
 

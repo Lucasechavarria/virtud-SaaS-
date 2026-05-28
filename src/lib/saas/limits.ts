@@ -35,13 +35,13 @@ export async function checkGymLimits(gymId: string) {
     }
 
     // 2. Contar usuarios actuales (excluyendo admins/superadmins si se desea, pero usualmente son todos los miembros)
-    const { count: userCount, error: userCountError } = await supabase
+    const { count: userCount } = await supabase
         .from('perfiles')
         .select('*', { count: 'exact', head: true })
         .eq('gimnasio_id', gymId);
 
     // 3. Contar sucursales actuales
-    const { count: branchCount, error: branchCountError } = await supabase
+    const { count: branchCount } = await supabase
         .from('sucursales')
         .select('*', { count: 'exact', head: true })
         .eq('gimnasio_id', gymId);

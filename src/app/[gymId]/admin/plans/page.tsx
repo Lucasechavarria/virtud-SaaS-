@@ -55,7 +55,7 @@ export default function PlansManagementPage() {
             } else {
                 toast.error(data.error);
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Error al cargar planes');
         } finally {
             setLoading(false);
@@ -99,7 +99,7 @@ export default function PlansManagementPage() {
                 const data = await res.json();
                 toast.error(data.error);
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Error al procesar la solicitud');
         }
     };
@@ -116,7 +116,7 @@ export default function PlansManagementPage() {
                 const data = await res.json();
                 toast.error(data.error);
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Error al eliminar');
         }
     };

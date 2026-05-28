@@ -1,10 +1,30 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { Redis } from '@upstash/redis';
+
+// Inicialización condicional: Fallback a Base de Datos directa si no hay keys de Redis.
+let redis: Redis | null = null;
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+}
 
 export async function GET() {
-    const supabase = await createClient();
-
     try {
+        const cacheKey = 'virtud:schedule:all';
+
+        // 1. Intentar servir del Caché L1 (Redis Ultra-rápido ~10ms)
+        if (redis) {
+            const cachedSchedule = await redis.get(cacheKey);
+            if (cachedSchedule) {
+                return NextResponse.json(cachedSchedule);
+            }
+        }
+
+        // 2. Fallback a L2 (Supabase Materialized View ~20ms-50ms)
+        const supabase = await createClient();
         const { data: schedule, error } = await supabase
             .from('horarios_de_clase')
             .select(`
@@ -34,6 +54,12 @@ export async function GET() {
         if (error) {
             console.error('Error fetching schedule:', error);
             return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        // 3. Guardar en Caché con Time-To-Live (Ej. 1 hora, la VM ya es asíncrona pero esto evita reads globales)
+        if (redis && schedule) {
+            // Expira a los 10 minutos (600s). Refresco pasivo.
+            await redis.setex(cacheKey, 600, schedule);
         }
 
         return NextResponse.json(schedule);

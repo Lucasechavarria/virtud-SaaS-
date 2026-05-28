@@ -48,7 +48,7 @@ export default function SaaSGuard({ children }: SaaSGuardProps) {
                 } else {
                     setStatus('active'); // Fallback para no bloquear
                 }
-            } catch (error) {
+            } catch (_error) {
                 setStatus('active');
             }
         };

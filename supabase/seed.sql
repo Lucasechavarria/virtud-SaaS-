@@ -1,53 +1,103 @@
--- Semilla (Seed) para Virtud Gym SaaS
--- Este archivo inserta datos iniciales para desarrollo y pruebas
+-- ===============================================
+-- VIRTUD SAAS - MASTER SEED SCRIPT (PORTABLE v45)
+-- CORREGIDO: Resolución de esquema para pgcrypto (Search Path)
+-- ===============================================
 
--- Asegurar que las columnas industriales existan (Idempotente)
-DO $$ 
-BEGIN 
-    -- Columna para Salud del Gimnasio
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='gimnasios' AND column_name='scoring_salud') THEN
-        ALTER TABLE public.gimnasios ADD COLUMN scoring_salud double precision DEFAULT 0;
-    END IF;
+-- 0️⃣ Asegurar extensiones de forma global
+-- Intentar habilitar las extensiones necesarias en el esquema por defecto de Supabase
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-    -- Columna para Módulos Activos (IA, Pagos, etc)
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='gimnasios' AND column_name='modulos_activos') THEN
-        ALTER TABLE public.gimnasios ADD COLUMN modulos_activos jsonb DEFAULT '{"rutinas_ia": true}'::jsonb;
-    END IF;
+-- 🛡️ BLINDAJE DE BÚSQUEDA: Asegurar que Postgres encuentre los tipos y funciones
+-- Esto resuelve el error 42883 (function gen_salt does not exist)
+SET search_path TO public, extensions, auth;
 
-    -- Columna para Fase de Onboarding
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='gimnasios' AND column_name='fase_onboarding') THEN
-        ALTER TABLE public.gimnasios ADD COLUMN fase_onboarding text DEFAULT 'completado';
-    END IF;
+DO $$
+DECLARE
+  v_admin_id UUID := 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+  v_student_id UUID := 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+  v_gym_id UUID := 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33';
+  v_activity_id UUID := 'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44';
+  v_horario_id UUID := 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55';
+BEGIN
+    -- 🛡️ BLINDAJE PROCEDURAL: Asegurar visibilidad de tipos y funciones dentro del bloque
+    SET search_path TO public, extensions, auth;
+
+    -- 1️⃣ LIMPIEZA TOTAL EN CASCADA MANUAL
+    DELETE FROM public.gamificacion_del_usuario WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.mediciones WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.registros_nutricion WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.horarios_de_clase WHERE entrenador_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.asistencias WHERE usuario_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.accesos_qr WHERE alumno_id IN (v_admin_id, v_student_id);
+    DELETE FROM public.audit_logs WHERE usuario_id IN (v_admin_id, v_student_id);
+    
+    DELETE FROM public.perfiles WHERE id IN (v_admin_id, v_student_id);
+    DELETE FROM auth.users WHERE email IN ('admin@virtudgym.com', 'student@virtudgym.com');
+
+    -- 2️⃣ INFRAESTRUCTURA: Crear Gimnasio (ORDEN CRITICO: Antes que Auth Trigger)
+    INSERT INTO public.gimnasios (id, nombre, slug, es_activo, color_primario, color_secundario)
+    VALUES (v_gym_id, 'Virtud Central', 'virtud-central', true, '#3B82F6', '#1E3A8A')
+    ON CONFLICT (id) DO NOTHING;
+
+    -- 3️⃣ AUTENTICACIÓN: Crear Usuarios en Auth.Users (CON METADATA DE ROL)
+    INSERT INTO auth.users (
+        id, instance_id, email, 
+        raw_user_meta_data, 
+        raw_app_meta_data, 
+        role, aud,
+        encrypted_password, email_confirmed_at, 
+        is_sso_user, created_at, updated_at
+    )
+    VALUES 
+    (
+        v_admin_id, 
+        '00000000-0000-0000-0000-000000000000',
+        'admin@virtudgym.com', 
+        '{"nombre_completo":"Super Admin", "rol":"superadmin"}', 
+        '{"provider":"email", "providers":["email"]}',
+        'authenticated', 'authenticated',
+        -- El motor buscará crypt() en el search_path (public/extensions)
+        crypt('Password123!', gen_salt('bf')), 
+        now(), false, now(), now()
+    ),
+    (
+        v_student_id, 
+        '00000000-0000-0000-0000-000000000000',
+        'student@virtudgym.com', 
+        '{"nombre_completo":"Alumno Pruebas", "rol":"member"}', 
+        '{"provider":"email", "providers":["email"]}',
+        'authenticated', 'authenticated',
+        -- El motor buscará crypt() en el search_path (public/extensions)
+        crypt('Password123!', gen_salt('bf')), 
+        now(), false, now(), now()
+    );
+
+    -- 4️⃣ PERFILES PÚBLICOS: Aseguramiento y Sincronización
+    INSERT INTO public.perfiles (id, correo, nombre_completo, rol, gimnasio_id, estado_membresia)
+    VALUES 
+    (v_admin_id, 'admin@virtudgym.com', 'Super Admin Virtud', 'superadmin', v_gym_id, 'active'),
+    (v_student_id, 'student@virtudgym.com', 'Alumno Pruebas', 'member', v_gym_id, 'active')
+    ON CONFLICT (id) DO UPDATE SET 
+        rol = EXCLUDED.rol,
+        gimnasio_id = EXCLUDED.gimnasio_id,
+        estado_membresia = EXCLUDED.estado_membresia;
+
+    -- 5️⃣ Datos Médicos
+    UPDATE public.perfiles 
+    SET informacion_medica = '{
+        "peso": 75, "altura": 180, "lesiones": "Ninguna", 
+        "enfermedades_cronicas": "Ninguna", "grupo_sanguineo": "O+", "presion_arterial": "120/80"
+    }'::jsonb
+    WHERE id = v_student_id;
+
+    -- 6️⃣ Actividades
+    INSERT INTO public.actividades (id, nombre, descripcion, tipo, duracion_minutos, capacidad_maxima, esta_activa, gimnasio_id)
+    VALUES (v_activity_id, 'Crossfit Intensivo', 'Clase de fuerza', 'gym', 60, 20, true, v_gym_id)
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO public.horarios_de_clase (id, actividad_id, entrenador_id, dia_de_la_semana, hora_inicio, hora_fin, esta_activa, gimnasio_id)
+    VALUES (v_horario_id, v_activity_id, v_admin_id, 1, '18:00:00', '19:00:00', true, v_gym_id)
+    ON CONFLICT (id) DO NOTHING;
+
 END $$;
-
--- 1. Planes de Suscripción (SaaS)
-INSERT INTO public.planes_suscripcion (id, nombre, precio_mensual, limite_sucursales, limite_usuarios, caracteristicas)
-VALUES 
-    ('01000000-0000-0000-0000-000000000001', 'Plan Básico', 49.99, 1, 100, '["rutinas_ia", "asistencias_qr"]'),
-    ('02000000-0000-0000-0000-000000000002', 'Plan Profesional', 99.99, 3, 500, '["rutinas_ia", "asistencias_qr", "gamificacion", "nutricion_ia"]'),
-    ('03000000-0000-0000-0000-000000000003', 'Plan Enterprise', 199.99, 10, 2000, '["rutinas_ia", "asistencias_qr", "gamificacion", "nutricion_ia", "pagos_online", "api_access"]')
-ON CONFLICT (id) DO NOTHING;
-
--- 2. Gimnasios de Prueba
-INSERT INTO public.gimnasios (id, nombre, slug, plan_id, estado_pago_saas, scoring_salud, modulos_activos)
-VALUES 
-    ('91000000-0000-0000-0000-000000000001', 'Virtud Training Center', 'virtud-tc', '02000000-0000-0000-0000-000000000002', 'active', 95.5, '{"rutinas_ia": true, "gamificacion": true, "nutricion_ia": true}'),
-    ('92000000-0000-0000-0000-000000000002', 'Iron Forge Gym', 'iron-forge', '01000000-0000-0000-0000-000000000001', 'pending', 72.0, '{"rutinas_ia": true, "gamificacion": false}'),
-    ('93000000-0000-0000-0000-000000000003', 'Olympus Fitness', 'olympus', '03000000-0000-0000-0000-000000000003', 'active', 88.0, '{"rutinas_ia": true, "gamificacion": true, "nutricion_ia": true, "pagos_online": true}')
-ON CONFLICT (id) DO NOTHING;
-
--- 3. Métricas SaaS Iniciales
-INSERT INTO public.saas_metrics (fecha, mrr, gyms_activos, churn_gyms_mes, total_alumnos, alumnos_activos_hoy, ingresos_totales_mes, rutinas_ia_hoy, videos_procesados_hoy)
-VALUES 
-    (CURRENT_DATE, 349.97, 3, 0.0, 1250, 450, 12000.50, 85, 42)
-ON CONFLICT (fecha) DO UPDATE 
-SET mrr = EXCLUDED.mrr,
-    gyms_activos = EXCLUDED.gyms_activos,
-    total_alumnos = EXCLUDED.total_alumnos;
-
--- 4. Anuncios Globales de Ejemplo
-INSERT INTO public.anuncios_globales (id, titulo, contenido, tipo, destino, activo)
-VALUES 
-    ('a1000000-0000-0000-0000-000000000001', 'Mantenimiento Programado', 'El sistema estará fuera de servicio el domingo de 2:00 AM a 4:00 AM por actualización de servidores.', 'mantenimiento', 'todos', true),
-    ('a2000000-0000-0000-0000-000000000002', 'Nueva Funcionalidad: Nutrición IA', '¡Ya está disponible el nuevo módulo de nutrición basado en visión artificial!', 'novedad', 'admin_gym', true)
-ON CONFLICT (id) DO NOTHING;

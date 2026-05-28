@@ -8,18 +8,18 @@ export const initAnalytics = () => {
     logger.info('Analytics initialized');
 };
 
-export const logEvent = (action: string, params: any) => {
-    if (typeof window !== 'undefined' && (window as any).gtag) {
-        (window as any).gtag('event', action, params);
-    } else {
-        logger.info('Analytics Event:', { action, params });
-    }
-};
+export const analytics = {
+    trackEvent: (eventName: string, properties: Record<string, unknown> = {}) => {
+        if (typeof window !== 'undefined' && (window as unknown as { gtag: unknown }).gtag) {
+            (window as unknown as { gtag: Function }).gtag('event', eventName, properties);
+        }
+    },
 
-export const pageview = (url: string) => {
-    if (typeof window !== 'undefined' && (window as any).gtag) {
-        (window as any).gtag('config', GA_MEASUREMENT_ID, {
-            page_path: url,
-        });
-    }
+    trackPageView: (url: string) => {
+        if (typeof window !== 'undefined' && (window as unknown as { gtag: unknown }).gtag) {
+            (window as unknown as { gtag: Function }).gtag('config', process.env.NEXT_PUBLIC_GA_ID, {
+                page_path: url,
+            });
+        }
+    },
 };

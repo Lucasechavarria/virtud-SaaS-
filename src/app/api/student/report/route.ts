@@ -20,14 +20,14 @@ export async function POST(req: Request) {
         }
 
         // 2. Insert Report
-        const { data, error } = await supabase
-            .from('reportes_de_alumnos')
+        const { data, error } = await (supabase as any)
+            .from('reportes_estudiante') // O el nombre físico correcto
             .insert({
-                usuario_id: user.id,
-                titulo: title,
-                descripcion: description,
-                tipo: type,
-                estado: 'pending'
+                user_id: user.id,
+                title,
+                description,
+                type,
+                status: 'pending'
             })
             .select()
             .single();

@@ -35,7 +35,7 @@ export function useChat(conversacionId: string | null) {
                 } else {
                     data = fetchedData as Message[];
                 }
-            } catch (error) {
+            } catch (_error) {
                 // This catch block would typically handle network errors or unexpected exceptions
                 // Supabase client usually returns errors in the 'error' object, not throws them.
                 toast.error('Error inesperado al cargar mensajes');

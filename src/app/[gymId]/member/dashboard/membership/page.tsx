@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     description: 'Gestiona tu plan activo y tu historial de pagos.',
 };
 
-export default function MembershipPage({ params }: { params: { gymId: string } }) {
+export default function MembershipPage({ _params }: { _params: { gymId: string } }) {
     return (
         <div className="p-6">
             <MembershipManagement />

@@ -5,6 +5,8 @@ import { RoutineAIResponse } from '@/lib/config/gemini';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { userGoalsService } from '@/services/user-goals.service';
 import { gymEquipmentService } from '@/services/gym-equipment.service';
+import { embed } from 'ai';
+import { google } from '@ai-sdk/google';
 
 /**
  * POST /api/ai/generate-routine
@@ -101,6 +103,30 @@ export async function POST(request: Request) {
         const gymEquipment = await gymEquipmentService.getAvailable();
 
 
+        // 4. RAG: Búsqueda Semántica de Rutinas Existentes (Memoria a Largo Plazo)
+        let historicContext = '';
+        try {
+            const embedTextContext = `Objetivo: ${goalText}`;
+            const { embedding } = await embed({
+                model: google.textEmbeddingModel('text-embedding-004'),
+                value: embedTextContext
+            });
+            
+            const { data: matchedRoutines } = await supabase.rpc('match_rutinas', {
+                query_embedding: `[${embedding.join(',')}]`,
+                match_threshold: 0.7,
+                match_count: 3,
+                p_usuario_id: studentId
+            });
+            
+            if (matchedRoutines && matchedRoutines.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                historicContext = matchedRoutines.map((r: any) => `- ${r.nombre} (Similitud: ${Math.round(r.similarity*100)}%)`).join('\n');
+            }
+        } catch (ragError) {
+            console.warn('RAG Retrieval failed, falling back to clean generation:', ragError);
+        }
+
         // 5. Generar prompt y llamar a Gemini usando el servicio unificado
         const prompt = aiService.buildPrompt({
             studentProfile,
@@ -108,14 +134,40 @@ export async function POST(request: Request) {
             gymEquipment,
             coachNotes,
             includeNutrition,
-            templateKey
+            templateKey,
+            historicContext
         });
 
         const aiResponse = await aiService.generateRoutineFromPrompt(prompt) as RoutineAIResponse;
 
+        // --- MIDDLEWARE DE SEGURIDAD MÉDICA (Fase 8) ---
+        // Validamos el plan generado por Gemini Pro mediante una instancia de Gemini Flash.
+        const safetyCheck = await aiService.validatePlanSafety(aiResponse, studentProfile.informacion_medica);
+        
+        if (!safetyCheck.safe) {
+            return NextResponse.json({
+                error: 'Seguridad Médica Comprometida',
+                message: safetyCheck.warning || 'La IA detectó ejercicios contraindicados para tu ficha médica.'
+            }, { status: 422 });
+        }
+        // -----------------------------------------------
+
         // Mapear metadatos de la nueva estructura
         const metadata = aiResponse.rutina_metadata;
         const routineName = metadata.objetivo_principal || goalText || 'Rutina Personalizada';
+
+        // 6. Generar Embedding Computacional (Vector) de la rutina completa usando text-embedding-004
+        let rutinaEmbedding: number[] | null = null;
+        try {
+            const embedTextContext = `Objetivo: ${goalText}. Tipo Rutina: ${routineName}. Notas médicas: ${aiResponse.aviso_legal?.mensaje_profesor || ''}. Días: ${aiResponse.rutina.length}`;
+            const { embedding } = await embed({
+                model: google.textEmbeddingModel('text-embedding-004'),
+                value: embedTextContext
+            });
+            rutinaEmbedding = embedding;
+        } catch (embedError) {
+            console.warn('Silent fail for embedding generation. Proceeding without vectors:', embedError);
+        }
 
         const { data: routine, error: routineError } = await supabase
             .from('rutinas')
@@ -128,6 +180,7 @@ export async function POST(request: Request) {
                 duracion_semanas: 4, // Default
                 generada_por_ia: true,
                 prompt_ia: prompt,
+                embedding: rutinaEmbedding ? `[${rutinaEmbedding.join(',')}]` : null, // pgvector sintax array
                 estado: profile.role === 'member' ? 'pendiente_aprobacion' : 'aprobada', // Enum match? check schema enums or string
                 consideraciones_medicas: aiResponse.aviso_legal?.mensaje_profesor || '',
                 equipamiento_usado: gymEquipment.map(eq => eq.id),

@@ -14,7 +14,9 @@ import { WaiverWarning } from '@/features/student/components/WaiverWarning';
 import { GoalRequestModal } from '@/features/student/components/GoalRequestModal';
 import { VisionAlert } from '@/features/student/components/VisionAlert';
 import { RecoveryForm } from '@/features/recovery/components/RecoveryForm';
+import { EliteCard } from '@/components/ui/EliteCard';
 import Paywall from '@/features/dashboard/components/Paywall';
+
 
 
 export default function StudentDashboard({ params }: { params: { gymId: string } }) {
@@ -84,8 +86,9 @@ export default function StudentDashboard({ params }: { params: { gymId: string }
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-12 pb-20"
+      className="space-y-12 pb-20 p-4 sm:p-0"
     >
+
       <DashboardHeader gender={profile?.gender} itemVariants={itemVariants} />
 
       <WaiverWarning waiverAccepted={profile?.exencion_aceptada} />
@@ -132,17 +135,22 @@ export default function StudentDashboard({ params }: { params: { gymId: string }
             itemVariants={itemVariants}
           />
 
-          <motion.div variants={itemVariants} className="bg-zinc-900 border border-white/5 rounded-[3rem] p-2 shadow-2xl overflow-hidden relative">
-            <div className="p-10 pb-2">
+          <EliteCard
+            variants={itemVariants}
+            variant="magenta"
+            className="p-0 shadow-neon-magenta/5 border-tactical-magenta/10"
+          >
+            <div className="p-10 pb-2 font-rajdhani">
               <div className="flex items-center gap-3 mb-1">
-                <span className="text-xs font-black text-zinc-500 uppercase tracking-[0.4em]">Hall of Fame</span>
+                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">Hall of Fame</span>
               </div>
-              <h3 className="text-3xl font-black text-white italic tracking-tighter uppercase mb-8">
-                🏆 Logros & <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Ranking Elite</span>
+              <h3 className="text-4xl font-black text-white tracking-tighter uppercase mb-8">
+                🏆 Logros & <span className="text-transparent bg-clip-text bg-gradient-to-r from-tactical-magenta to-[#FF66FF]">Ranking Elite</span>
               </h3>
             </div>
             <Gamification />
-          </motion.div>
+          </EliteCard>
+
         </div>
 
         <div className="space-y-12">

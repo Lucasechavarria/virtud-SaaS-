@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         }
 
         // 1. Verificar que el usuario participa y que el desafío está activo
-        const { data: participant, error: pError } = await supabase
+        const { data: participant, error: pError } = await (supabase as any)
             .from('participantes_desafio')
             .select('*, desafios(estado, titulo, creado_por)')
             .eq('desafio_id', challengeId)
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
         }
 
         // 2. Actualizar estado a pendiente de validación
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
             .from('participantes_desafio')
             .update({
                 estado: 'pending_validation',

@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
  * @param response - The Next.js response to modify
  * @returns Supabase client instance
  */
+import { SUPABASE_COOKIE_OPTIONS } from './config';
+
 export function createMiddlewareClient(
     request: NextRequest,
     response: NextResponse
@@ -20,45 +22,29 @@ export function createMiddlewareClient(
 
     if (!supabaseUrl || !supabaseAnonKey) {
         console.error('❌ Missing Supabase environment variables in middleware');
-        console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
-        console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? '✅ Set' : '❌ Missing');
-        throw new Error(
-            'Missing Supabase environment variables. ' +
-            'Please ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set in .env.local'
-        );
+        throw new Error('Missing Supabase environment variables.');
     }
 
     return createServerClient(
         supabaseUrl,
         supabaseAnonKey,
         {
+            cookieOptions: SUPABASE_COOKIE_OPTIONS,
             cookies: {
-                get(name: string) {
-                    return request.cookies.get(name)?.value;
+                getAll() {
+                    return request.cookies.getAll();
                 },
-                set(name: string, value: string, options: CookieOptions) {
-                    request.cookies.set({
-                        name,
-                        value,
-                        ...options,
-                    });
-                    response.cookies.set({
-                        name,
-                        value,
-                        ...options,
-                    });
-                },
-                remove(name: string, options: CookieOptions) {
-                    request.cookies.set({
-                        name,
-                        value: '',
-                        ...options,
-                    });
-                    response.cookies.set({
-                        name,
-                        value: '',
-                        ...options,
-                    });
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value }) =>
+                        request.cookies.set(name, value)
+                    );
+                    
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        response.cookies.set(name, value, { 
+                            ...SUPABASE_COOKIE_OPTIONS, // Forzar nuestras opciones de compatibilidad
+                            ...options 
+                        })
+                    );
                 },
             },
         }

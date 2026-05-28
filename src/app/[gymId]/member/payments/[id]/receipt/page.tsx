@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Download, Printer } from 'lucide-react';
-import Image from 'next/image';
+import _Image from 'next/image';
 
 export default function ReceiptPage({ params }: { params: { id: string } }) {
     const [payment, setPayment] = useState<any>(null);

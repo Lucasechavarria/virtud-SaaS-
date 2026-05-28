@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function POST(
     request: Request,
-    { params }: { params: Promise<{ id: string }> }
+    { _params }: { _params: Promise<{ id: string }> }
 ) {
     try {
         const supabase = await createClient();
@@ -21,48 +21,56 @@ export async function POST(
             return NextResponse.json({ error: 'ID de desafío es requerido' }, { status: 400 });
         }
 
-        // Verificar si ya participa
-        const { data: existing } = await supabase
-            .from('participantes_desafio')
-            .select('*')
-            .eq('desafio_id', challengeId)
-            .eq('usuario_id', user.id)
+        // 1. Obtener datos del desafío y verificar si ya está unido
+        const { data: challenge, error: challengeError } = await (supabase as any)
+            .from('desafios')
+            .select(`
+                *,
+                user_challenge_participation:desafio_participaciones!challenge_id(status, user_id)
+            `)
+            .eq('id', challengeId)
             .single();
 
-        if (existing) {
+        if (challengeError || !challenge) {
+            return NextResponse.json({ error: 'Desafío no encontrado' }, { status: 404 });
+        }
+
+        const existingParticipation = challenge.user_challenge_participation.find(
+            (p: any) => p.user_id === user.id
+        );
+
+        if (existingParticipation) {
             return NextResponse.json({ error: 'Ya estás participando en este desafío' }, { status: 400 });
         }
 
-        const { data, error } = await supabase
-            .from('participantes_desafio')
+        // 2. Unirse al desafío
+        const { data, error: joinError } = await (supabase as any)
+            .from('desafio_participaciones')
             .insert({
-                desafio_id: challengeId,
-                usuario_id: user.id,
-                estado: 'enrolled'
+                user_id: user.id,
+                challenge_id: challengeId,
+                status: 'active',
             })
             .select()
             .single();
 
-        if (error) throw error;
+        if (joinError) {
+            console.error('Error joining challenge:', joinError);
+            throw joinError;
+        }
 
         // 3. Notificar al creador/juez del desafío
         try {
-            const { data: challenge } = await supabase
-                .from('desafios')
-                .select('titulo, creado_por, perfiles:creado_por(nombre_completo)')
-                .eq('id', challengeId)
-                .single();
-
             if (challenge && challenge.creado_por) {
                 // Registrar notificación en historial
                 await supabase.from('historial_notificaciones').insert({
                     usuario_id: challenge.creado_por,
-                    tipo: 'sistema',
-                    titulo: '⚔️ Nuevo participante en desafío',
-                    cuerpo: `${user.user_metadata.full_name || 'Un alumno'} se ha unido a "${challenge.titulo}"`,
-                    datos: { challengeId, type: 'challenge_join' },
+                    tipo: 'mensaje',
+                    titulo: 'Nuevo participante',
+                    cuerpo: `${user.email} se ha unido a tu desafío: ${challenge.titulo}`,
+                    datos: { challengeId },
                     enviada: false
-                });
+                } as any);
 
                 // Intentar enviar push (opcional)
                 const pushBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

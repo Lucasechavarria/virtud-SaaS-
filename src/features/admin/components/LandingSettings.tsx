@@ -39,10 +39,11 @@ export default function LandingSettings() {
             if (!gymId) return;
             const { data } = await supabase.from('gimnasios').select('*').eq('id', gymId).single();
             if (data) {
-                if (data.config_landing) {
+                const gymData = data as any;
+                if (gymData.config_landing) {
                     setConfig(prev => ({
                         ...prev,
-                        ...(data.config_landing as any)
+                        ...gymData.config_landing
                     }));
                 }
                 setSlug(data.slug || '');
@@ -87,7 +88,7 @@ export default function LandingSettings() {
             .from('gimnasios')
             .update({
                 config_landing: config
-            })
+            } as any)
             .eq('id', gymId);
 
         setLoading(false);

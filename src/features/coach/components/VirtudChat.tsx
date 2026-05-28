@@ -2,18 +2,19 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-interface Message {
-    role: 'user' | 'model';
-    parts: string;
-}
+import { useChat } from '@ai-sdk/react';
 
 export default function VirtudChat() {
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [inputValue, setInputValue] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Vercel AI SDK magic
+    const { messages, input, handleInputChange, handleSubmit, isLoading } = (useChat as any)({
+        api: '/api/ai/chat',
+        onError: (err) => {
+            console.error('Chat error:', err);
+        }
+    });
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -23,38 +24,10 @@ export default function VirtudChat() {
         scrollToBottom();
     }, [messages]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const onSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!inputValue.trim() || isLoading) return;
-
-        const userMessage = inputValue.trim();
-        setInputValue('');
-        setMessages(prev => [...prev, { role: 'user', parts: userMessage }]);
-        setIsLoading(true);
-
-        try {
-            const response = await fetch('/api/ai/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: userMessage,
-                    history: messages // Send previous history context
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                setMessages(prev => [...prev, { role: 'model', parts: data.response }]);
-            } else {
-                setMessages(prev => [...prev, { role: 'model', parts: '⚠️ Error al conectar con Virtud AI. Intenta de nuevo.' }]);
-            }
-        } catch (error) {
-            console.error('Chat error:', error);
-            setMessages(prev => [...prev, { role: 'model', parts: '⚠️ Error de conexión.' }]);
-        } finally {
-            setIsLoading(false);
-        }
+        if (!input.trim() || isLoading) return;
+        handleSubmit(e);
     };
 
     return (
@@ -109,7 +82,7 @@ export default function VirtudChat() {
                                 </div>
                             )}
 
-                            {messages.map((msg, index) => (
+                            {(messages as any[]).map((msg, index) => (
                                 <div
                                     key={index}
                                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -117,16 +90,16 @@ export default function VirtudChat() {
                                     <div
                                         className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
                                                 ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-tr-none shadow-lg'
-                                                : 'bg-white/10 text-gray-200 rounded-tl-none border border-white/5'
+                                                : 'bg-white/10 text-gray-200 rounded-tl-none border border-white/5 whitespace-pre-wrap'
                                             }`}
                                     >
-                                        {msg.parts}
+                                        {msg.content}
                                     </div>
                                 </div>
                             ))}
 
-                            {/* Loading Indicator */}
-                            {isLoading && (
+                            {/* Loading Indicator for stream initialization */}
+                            {isLoading && messages[messages.length - 1]?.role === 'user' && (
                                 <div className="flex justify-start">
                                     <div className="bg-white/5 px-4 py-3 rounded-2xl rounded-tl-none border border-white/5 flex gap-1">
                                         <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
@@ -140,17 +113,17 @@ export default function VirtudChat() {
 
                         {/* Input Area */}
                         <div className="p-4 border-t border-white/5 bg-black/20">
-                            <form onSubmit={handleSubmit} className="flex gap-2">
+                            <form onSubmit={onSubmit} className="flex gap-2">
                                 <input
                                     type="text"
-                                    value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
+                                    value={input}
+                                    onChange={handleInputChange}
                                     placeholder="Escibe tu consulta..."
                                     className="flex-1 bg-white/5 hover:bg-white/10 focus:bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all placeholder-gray-500"
                                 />
                                 <button
                                     type="submit"
-                                    disabled={isLoading || !inputValue.trim()}
+                                    disabled={isLoading || !input.trim()}
                                     className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-colors shadow-lg shadow-orange-500/20"
                                 >
                                     ➤

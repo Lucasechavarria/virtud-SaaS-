@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getVideoAnalysisQueue } from '@/lib/queue';
+import { aiService } from '@/services/ai.service';
 
-export async function POST(req: Request) {
+export const maxDuration = 60;export async function POST(req: Request) {
     try {
         const supabase = await createClient();
 
@@ -10,16 +10,6 @@ export async function POST(req: Request) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-        }
-
-        const { data: profile } = await supabase
-            .from('perfiles')
-            .select('rol')
-            .eq('id', session.user.id)
-            .single();
-
-        if (profile?.rol !== 'coach' && profile?.rol !== 'admin') {
-            return NextResponse.json({ error: 'Solo entrenadores pueden subir videos' }, { status: 403 });
         }
 
         const formData = await req.formData();
@@ -31,6 +21,27 @@ export async function POST(req: Request) {
         if (!videoFile || !usuarioId) {
             return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 });
         }
+
+        // Obtener en paralelo los perfiles del coach y del alumno para blindar contra BOLA (Multi-tenant check)
+        const [coachProfileRes, studentProfileRes] = await Promise.all([
+            supabase.from('perfiles').select('gimnasio_id, rol').eq('id', session.user.id).single(),
+            supabase.from('perfiles').select('gimnasio_id').eq('id', usuarioId).single()
+        ]);
+
+        const coachProfile = coachProfileRes.data;
+        const studentProfile = studentProfileRes.data;
+
+        if (!coachProfile || (coachProfile.rol !== 'coach' && coachProfile.rol !== 'admin')) {
+            return NextResponse.json({ error: 'Solo entrenadores pueden subir videos' }, { status: 403 });
+        }
+
+        if (!studentProfile || coachProfile.gimnasio_id !== studentProfile.gimnasio_id) {
+            return NextResponse.json({ 
+                error: 'No autorizado: El entrenador y el alumno deben pertenecer al mismo gimnasio.' 
+            }, { status: 403 });
+        }
+
+        const gymId = coachProfile.gimnasio_id;
 
         // Validar tipo de archivo (solo video)
         if (!videoFile.type.startsWith('video/')) {
@@ -60,6 +71,7 @@ export async function POST(req: Request) {
             .insert({
                 usuario_id: usuarioId,
                 subido_por: session.user.id,
+                gimnasio_id: gymId, // Almacenar el gimnasio_id de forma explícita para aislamiento multi-tenant
                 ejercicio_id: ejercicioId || null,
                 nombre_ejercicio_custom: exerciseName || null,
                 url_video: publicUrl,
@@ -72,19 +84,14 @@ export async function POST(req: Request) {
             throw dbError;
         }
 
-        // 3. Encolar trabajo de análisis
-        const queue = getVideoAnalysisQueue();
-        await queue.add('analyze_video', {
-            videoId: videoRecord.id,
-            url: publicUrl,
-            ejercicioId: ejercicioId || null,
-            exerciseName: exerciseName || null
-        });
-
+        // Retornar de inmediato para evitar timeouts serverless y reducir costos de computación.
+        // El Database Webhook de Supabase disparará la Edge Function 'analyze-video' 
+        // de forma puramente asíncrona en segundo plano.
         return NextResponse.json({
             success: true,
             videoId: videoRecord.id,
-            message: 'Video subido y encolado para análisis'
+            estado: 'subido',
+            message: 'Video subido con éxito. El análisis biomecánico se procesará en segundo plano.'
         });
 
     } catch (error: any) {

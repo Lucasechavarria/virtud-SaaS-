@@ -25,7 +25,7 @@ export async function GET(
         }
 
         // 2. Obtener datos del alumno para el contexto
-        const { data: student, error: studentError } = await supabase
+        const { data: student, error: studentError } = await (supabase as any)
             .from('perfiles')
             .select('*, informacion_medica, metas_fitness(*)')
             .eq('id', studentId)
@@ -38,25 +38,25 @@ export async function GET(
         fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
         const [visionResponse, nutritionResponse, measurementsResponse, recoveryResponse] = await Promise.all([
-            supabase
+            (supabase as any)
                 .from('videos_ejercicio')
                 .select('*')
                 .eq('usuario_id', studentId)
                 .gte('creado_en', fourteenDaysAgo.toISOString())
                 .order('creado_en', { ascending: false }),
-            supabase
+            (supabase as any)
                 .from('registros_nutricion')
                 .select('*')
                 .eq('usuario_id', studentId)
                 .gte('creado_en', fourteenDaysAgo.toISOString())
                 .order('creado_en', { ascending: false }),
-            supabase
+            (supabase as any)
                 .from('mediciones')
                 .select('*')
                 .eq('usuario_id', studentId)
                 .gte('registrado_en', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
                 .order('registrado_en', { ascending: true }),
-            supabase
+            (supabase as any)
                 .from('registros_recuperacion')
                 .select('*')
                 .eq('usuario_id', studentId)
@@ -66,23 +66,12 @@ export async function GET(
 
         // 4. Generar reporte adaptativo con IA
         const report = await aiService.generateAdaptiveReport(
-            student,
+            student as any,
             visionResponse.data || [],
             nutritionResponse.data || [],
             measurementsResponse.data || [],
             recoveryResponse.data || []
         );
-
-        // 5. Disparar notificaciones proactivas de forma asíncrona
-        const pushBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        fetch(`${pushBaseUrl}/api/notifications/proactive`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                studentId,
-                reportData: report
-            })
-        }).catch(err => console.error('Error triggering proactive notifications:', err));
 
         return NextResponse.json({ success: true, report });
     } catch (error: any) {

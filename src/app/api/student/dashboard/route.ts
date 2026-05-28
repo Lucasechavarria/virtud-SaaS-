@@ -46,56 +46,67 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // 2. Fetch Progress (Measurements)
-        const { data: measurements } = await supabase
-            .from('mediciones')
-            .select('*')
-            .eq('usuario_id', user.id)
-            .order('registrado_en', { ascending: true })
-            .limit(10);
+        // 2-6. Fetch All Data in Parallel
+        const [
+            { data: measurements },
+            { data: bookings },
+            { data: activeRoutine },
+            { data: profile },
+            { data: sessionLogs }
+        ] = await Promise.all([
+            // Progress
+            (supabase as any)
+                .from('mediciones')
+                .select('id, peso, grasa_corporal, musculo_esqueletico, registrado_en')
+                .eq('usuario_id', user.id)
+                .order('registrado_en', { ascending: true })
+                .limit(10),
 
-        // 3. Fetch Recent Attendance (Bookings)
-        const { data: bookings } = await supabase
-            .from('reservas_de_clase')
-            .select('*')
-            .eq('usuario_id', user.id)
-            .eq('estado', 'asistida')
-            .gte('fecha', new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString());
+            // Attendance
+            supabase
+                .from('reservas_de_clase')
+                .select('fecha')
+                .eq('usuario_id', user.id)
+                .eq('estado', 'asistida')
+                .gte('fecha', new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString().split('T')[0]),
 
-        // 4. Fetch Active Routine
-        const { data: activeRoutine } = await supabase
-            .from('rutinas')
-            .select(`
-                *,
-                ejercicios (*)
-            `)
-            .eq('usuario_id', user.id)
-            .eq('esta_activa', true)
-            .single();
+            // Active Routine
+            supabase
+                .from('rutinas')
+                .select(`
+                    *,
+                    gimnasios (id, nombre, url_logo),
+                    planes:plan_id (id, nombre, precio_mensual)
+                `)
+                .eq('usuario_id', user.id)
+                .eq('esta_activa', true)
+                .single(),
 
-        // 5. Fetch Profile Status
-        const { data: profile } = await supabase
-            .from('perfiles')
-            .select('exencion_aceptada, nombre_completo, url_avatar, fecha_fin_membresia, genero, informacion_medica')
-            .eq('id', user.id)
-            .single();
+            // Profile
+            supabase
+                .from('perfiles')
+                .select('exencion_aceptada, nombre_completo, url_avatar, fecha_fin_membresia, gender, informacion_medica, gimnasios(nombre)')
+                .eq('id', user.id)
+                .single(),
 
-        // 6. Fetch Workout Volume (New - Functional Training)
-        const { data: sessionLogs } = await supabase
-            .from('sesiones_de_entrenamiento')
-            .select(`
-                id,
-                hora_inicio,
-                logs:registros_de_ejercicio(
-                    repeticiones_reales,
-                    peso_real,
-                    series_reales
-                )
-            `)
-            .eq('usuario_id', user.id)
-            .eq('estado', 'completed')
-            .order('hora_inicio', { ascending: true })
-            .limit(20);
+            // Volume
+            supabase
+                .from('sesiones_de_entrenamiento')
+                .select(`
+                    id,
+                    hora_inicio,
+                    logs:registros_de_ejercicio(
+                        repeticiones_reales,
+                        peso_real,
+                        series_reales
+                    )
+                `)
+                .eq('usuario_id', user.id)
+                .eq('estado', 'completed')
+                .order('hora_inicio', { ascending: true })
+                .limit(20)
+        ]);
+
 
         // Process Attendance Data for Chart
         const bookingsData: Pick<ClassBooking, 'fecha'>[] = bookings || [];

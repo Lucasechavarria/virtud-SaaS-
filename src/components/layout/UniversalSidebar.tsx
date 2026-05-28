@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
@@ -104,7 +106,13 @@ export function UniversalSidebar({
     useEffect(() => {
         if (gymId && gymId !== 'admin') { // Avoid fetching 'admin' as gymId if we are in superadmin
             supabase.from('gimnasios').select('nombre, logo_url, modulos_activos').eq('id', gymId).single().then(({ data }) => {
-                if (data) setGymInfo(data);
+                if (data) {
+                    setGymInfo({
+                        nombre: data.nombre || undefined,
+                        logo_url: data.logo_url || undefined,
+                        modulos_activos: (data.modulos_activos as string[]) || []
+                    });
+                }
             });
         }
     }, [gymId]);
@@ -202,22 +210,25 @@ export function UniversalSidebar({
         return { ...item, href: finalHref };
     });
 
-    const color = ROLE_COLORS[viewRole] || 'blue'; // This line is now effectively unused for color classes
+    const color = ROLE_COLORS[viewRole] || 'blue'; 
 
     return (
         <aside
             className={`
                 ${isMobile ? 'fixed' : 'sticky'} 
                 top-0 left-0 h-screen w-64 
-                bg-[#1c1c1e]/60 backdrop-blur-xl border-r border-white/10 
-                flex flex-col z-40
-                transition-transform duration-300 ease-in-out
+                bg-tactical-black/80 backdrop-blur-[40px] border-r border-white/5 
+                flex flex-col z-40 font-rajdhani
+                transition-transform duration-500 ease-in-out
                 ${isMobile && !isOpen ? '-translate-x-full' : 'translate-x-0'}
             `}
         >
+            {/* Tactical Glow Effect */}
+            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-tactical-cyan/5 to-transparent pointer-events-none" />
+
             {/* Logo & Close Button */}
-            <div className="p-6 shrink-0 flex justify-between items-center">
-                <Link href={navItems[0]?.href || '/'} className="block relative h-10 w-32">
+            <div className="p-8 shrink-0 flex justify-between items-center relative z-10">
+                <Link href={navItems[0]?.href || '/'} className="block relative h-12 w-32 filter drop-shadow-[0_0_8px_rgba(0,245,255,0.2)]">
                     <Image
                         src={gymInfo.logo_url || "/logos/Logo-Fondo-Negro.png"}
                         alt={gymInfo.nombre || "VIRTUD"}
@@ -226,6 +237,7 @@ export function UniversalSidebar({
                         sizes="128px"
                     />
                 </Link>
+
                 {/* Mobile Close Button */}
                 {isMobile && (
                     <button
@@ -247,36 +259,41 @@ export function UniversalSidebar({
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium relative ${isActive
-                                    ? `bg-primary text-primary-foreground shadow-lg shadow-primary/20`
-                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                className={`flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all font-bold relative group ${isActive
+                                    ? `bg-tactical-cyan text-black shadow-[0_0_20px_rgba(0,245,255,0.3)]`
+                                    : 'text-zinc-500 hover:bg-white/5 hover:text-white'
                                     }`}
                             >
-                                <span className="text-xl shrink-0" role="img" aria-label={item.label}>{item.icon}</span>
-                                <span className="truncate flex-1">{item.label}</span>
+                                <span className={`text-xl shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'filter drop-shadow-[0_0_5px_rgba(0,0,0,0.5)]' : ''}`} role="img" aria-label={item.label}>{item.icon}</span>
+                                <span className="truncate flex-1 tracking-wider uppercase text-[10px]">{item.label}</span>
+                                {isActive && (
+                                    <motion.div layoutId="sidebar-active" className="absolute left-0 w-1 h-1/2 bg-black rounded-r-full" />
+                                )}
                                 {item.label === 'Visión Lab' && visionBadgeCount > 0 && (
-                                    <span className="absolute right-2 top-2 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border border-[#1c1c1e]">
+                                    <span className="absolute right-3 top-3 min-w-[18px] h-[18px] bg-tactical-magenta text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 border border-black shadow-[0_0_10px_rgba(255,0,255,0.5)]">
                                         {visionBadgeCount}
                                     </span>
                                 )}
                             </Link>
                         );
                     })}
+
                 </div>
             </nav>
 
             {/* Profile + Logout */}
             <div className="p-4 border-t border-white/5 shrink-0 space-y-3">
                 {/* User info */}
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm border border-primary/20 shrink-0">
+                <div className="flex items-center gap-4 bg-black/40 p-3 rounded-2xl border border-white/5">
+                    <div className="w-10 h-10 rounded-xl bg-tactical-cyan/10 text-tactical-cyan flex items-center justify-center font-black text-sm border border-tactical-cyan/20 shrink-0 shadow-inner">
                         {profileName?.charAt(0).toUpperCase() || 'M'}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white truncate">{profileName || 'Miembro'}</p>
-                        <p className="text-[10px] text-gray-500 capitalize font-black uppercase tracking-widest truncate">{role}</p>
+                        <p className="text-xs font-black text-white uppercase tracking-wider truncate">{profileName || 'Miembro'}</p>
+                        <p className="text-[9px] text-tactical-cyan/60 font-black uppercase tracking-[0.3em] truncate">{role}</p>
                     </div>
                 </div>
+
 
                 {/* Logout button */}
                 <button

@@ -7,14 +7,42 @@ import { bookingsService } from '@/services/bookings.service';
 import { supabase } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 
-export default function SchedulePage({ params }: { params: { gymId: string } }) {
+export default function SchedulePage({ _params }: { _params: { gymId: string } }) {
     const [classes, setClasses] = useState<any[]>([]);
-    const [myBookings, setMyBookings] = useState<any[]>([]);
+    const [_myBookings, setMyBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDay, setSelectedDay] = useState(new Date().getDay()); // 0=Sunday, 1=Monday...
 
     useEffect(() => {
-        fetchSchedule();
+        let channel: any = null;
+
+        const loadAndSubscribe = async () => {
+            const fetchedClasses = await fetchSchedule();
+            
+            // Si hay clases, nos suscribimos SOLO a los eventos de esas clases específicas.
+            // Esto Evita el DDoS / Thundering Herd global en Supabase.
+            if (fetchedClasses && fetchedClasses.length > 0) {
+                const classIds = fetchedClasses.map(c => c.id).join(',');
+                channel = supabase.channel(`schedule_changes_${selectedDay}`)
+                    .on(
+                        'postgres_changes',
+                        { 
+                            event: '*', 
+                            schema: 'public', 
+                            table: 'reservas_de_clase',
+                            filter: `horario_clase_id=in.(${classIds})`
+                        },
+                        () => { fetchSchedule(); }
+                    )
+                    .subscribe();
+            }
+        };
+
+        loadAndSubscribe();
+
+        return () => { 
+            if (channel) supabase.removeChannel(channel); 
+        };
     }, [selectedDay]);
 
     const fetchSchedule = async () => {
@@ -30,6 +58,8 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
             // Fetch my upcoming bookings to check status
             const bookings = await bookingsService.getUpcomingBookings(user.id);
             setMyBookings(bookings || []);
+
+            return dayClasses;
 
         } catch (error) {
             console.error(error);

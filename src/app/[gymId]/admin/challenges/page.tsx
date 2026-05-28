@@ -147,7 +147,7 @@ export default function AdminChallengesPage() {
                                 } else {
                                     toast.error('Error al procesar', { id: tId });
                                 }
-                            } catch (e) {
+                            } catch (_e) {
                                 toast.error('Error de red', { id: tId });
                             }
                         }}

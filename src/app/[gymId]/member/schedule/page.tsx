@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Clock, User, Calendar as CalendarIcon, X, Info, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { supabase } from '@/lib/supabase/client';
 
 interface ScheduleItem {
     id: string;
@@ -34,7 +35,31 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
     const [filterActivity, setFilterActivity] = useState<string>('all');
 
     useEffect(() => {
-        fetchData();
+        let channel: any = null;
+
+        const loadAndSubscribe = async () => {
+            const schedData = await fetchData();
+            
+            if (schedData && schedData.length > 0) {
+                const classIds = schedData.map((s: any) => s.id).join(',');
+                channel = supabase.channel('global_schedule_changes')
+                    .on(
+                        'postgres_changes',
+                        { 
+                            event: '*', 
+                            schema: 'public', 
+                            table: 'reservas_de_clase',
+                            filter: `horario_clase_id=in.(${classIds})`
+                        },
+                        () => { fetchData(); } // Silent background update
+                    )
+                    .subscribe();
+            }
+        };
+
+        loadAndSubscribe();
+
+        return () => { if (channel) supabase.removeChannel(channel); };
     }, []);
 
     const fetchData = async () => {
@@ -49,6 +74,8 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
 
             if (Array.isArray(schedData)) setSchedule(schedData);
             if (Array.isArray(bookData)) setUserBookings(bookData);
+
+            return schedData;
         } catch (error) {
             console.error('Error loading data:', error);
             toast.error('Error al cargar datos');
@@ -112,7 +139,7 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
             toast.success('Reserva cancelada');
             fetchData();
             setSelectedEvent(null);
-        } catch (error) {
+        } catch (_error) {
             toast.error('No se pudo cancelar');
         } finally {
             setBookingLoading(false);
@@ -185,7 +212,7 @@ export default function SchedulePage({ params }: { params: { gymId: string } }) 
 
                     {/* Header Row (Days) */}
                     <div className="sticky top-0 z-20 bg-[#1c1c1e]/90 backdrop-blur border-b border-white/10 h-14 col-start-2 col-span-7 grid grid-cols-7">
-                        {DAYS.map((day, i) => (
+                        {DAYS.map((day, _i) => (
                             <div key={day} className="flex items-center justify-center font-bold text-gray-300 border-l border-white/5 uppercase text-sm tracking-wider">
                                 {day}
                             </div>

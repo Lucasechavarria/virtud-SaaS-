@@ -6,12 +6,9 @@ import { useEffect } from "react";
 export default function ClientProviders() {
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') {
-      import("@/services/analytics").then(({ initAnalytics, logEvent }) => {
+      import("@/services/analytics").then(({ initAnalytics, analytics }) => {
         initAnalytics();
-        logEvent("page_view", {
-          page_path: window.location.pathname,
-          page_title: document.title
-        });
+        analytics.trackPageView(window.location.pathname);
       });
     }
   }, []);

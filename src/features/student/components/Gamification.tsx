@@ -103,7 +103,7 @@ export function Gamification() {
                 const data = await res.json();
                 toast.error(data.error || 'No se pudo unir al desafío');
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Error al unirse');
         }
     };
@@ -523,7 +523,7 @@ export function Gamification() {
                                 <p className="text-zinc-600 text-xs mt-2">Ponete a prueba creando un desafío para toda la comunidad o un duelo directo.</p>
                             </div>
                         )}
-                        {challenges.map((challenge, i) => (
+                        {challenges.map((challenge, _i) => (
                             <div key={challenge.id} className="p-8 rounded-[2.5rem] border bg-zinc-900 border-white/5 hover:border-pink-500/30 transition-all relative overflow-hidden group shadow-2xl">
                                 {/* Decoration */}
                                 <div className="absolute top-0 right-0 p-6 pointer-events-none">
@@ -598,7 +598,7 @@ export function Gamification() {
                                                                 const data = await res.json();
                                                                 toast.error(data.error || 'Error al reportar', { id: toastId });
                                                             }
-                                                        } catch (err) {
+                                                        } catch (_err) {
                                                             toast.error('Error de conexión', { id: toastId });
                                                         }
                                                     }}
@@ -687,7 +687,7 @@ export function Gamification() {
 
                                         setShowCreateChallenge(false);
                                         fetchGamificationData();
-                                    } catch (error) {
+                                    } catch (_error) {
                                         toast.error('Error al crear el desafío');
                                     } finally {
                                         setLoading(false);

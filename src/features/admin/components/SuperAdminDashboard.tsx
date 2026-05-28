@@ -202,7 +202,7 @@ export default function SuperAdminOverview() {
             } else {
                 toast.error(data.error);
             }
-        } catch (err) {
+        } catch (_err) {
             toast.error('Error al intentar el acceso remoto');
         }
     };
@@ -230,7 +230,7 @@ export default function SuperAdminOverview() {
                 const d = await res.json();
                 toast.error(d.error);
             }
-        } catch (err) {
+        } catch (_err) {
             toast.error('Error al enviar comunicado');
         }
     };

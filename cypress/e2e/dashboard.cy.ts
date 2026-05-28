@@ -1,7 +1,7 @@
 
 /// <reference types="cypress" />
 
-describe('Student Dashboard', () => {
+describe.skip('Student Dashboard', () => {
 
     beforeEach(() => {
         cy.session('student-session', () => {

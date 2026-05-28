@@ -11,7 +11,7 @@ export const formatDate = (
 ): string => {
     const d = typeof date === 'string' ? new Date(date) : date;
 
-    const formats = {
+    const formats: Record<string, Intl.DateTimeFormatOptions> = {
         short: { day: '2-digit', month: '2-digit', year: 'numeric' },
         long: { day: '2-digit', month: 'long', year: 'numeric' },
         full: {
@@ -23,7 +23,7 @@ export const formatDate = (
         }
     };
 
-    return d.toLocaleDateString('es-AR', formats[format] as any);
+    return d.toLocaleDateString('es-AR', formats[format]);
 };
 
 export const formatWeight = (weight: number): string => {
