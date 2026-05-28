@@ -6,8 +6,31 @@
 --           la evaluación de RLS y operaciones de cliente legítimas. Resuelve
 --           el error de base de datos ("Database error querying schema") en 
 --           Cypress y flujo de autenticación al iniciar sesión.
+--           También corrige campos nulos ('email_change') en auth.users
+--           que causan "Scan error" y el mismo error 500.
 -- =========================================================================
 
+-- 1. CORREGIR CAMPOS NULOS CRÍTICOS EN AUTH.USERS (CAUSA RAÍZ DE ERROR SCAN GO-TRUE)
+-- GoTrue (Supabase Auth) requiere que ciertos campos no sean NULL, de lo contrario
+-- aborta con "Database error querying schema" al intentar escanear el registro.
+UPDATE auth.users 
+SET email_change = '' 
+WHERE email_change IS NULL;
+
+UPDATE auth.users 
+SET email_change_token_new = '' 
+WHERE email_change_token_new IS NULL;
+
+UPDATE auth.users 
+SET confirmation_token = '' 
+WHERE confirmation_token IS NULL;
+
+UPDATE auth.users 
+SET recovery_token = '' 
+WHERE recovery_token IS NULL;
+
+
+-- 2. RESTAURAR PRIVILEGIOS DE EJECUCIÓN SEGUROS PARA RLS
 DO $$
 DECLARE
     r RECORD;
