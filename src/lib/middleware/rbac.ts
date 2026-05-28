@@ -36,11 +36,13 @@ export async function handleRBAC(
 
         // Si no hay caché, consultar DB
         if (!userRole) {
-            const { data: profile } = await supabase
+            const { data: profile, error: dbError } = await supabase
                 .from('perfiles')
                 .select('rol, gimnasio_id, gimnasios(slug, modulos_activos)')
                 .eq('id', user.id)
                 .single();
+
+            console.warn(`[DEBUG_RBAC_DB] User: ${user.email} | ID: ${user.id} | Profile: ${JSON.stringify(profile)} | Error: ${JSON.stringify(dbError)}`);
 
             if (profile) {
                 userRole = profile.rol?.toLowerCase();
@@ -94,6 +96,8 @@ export async function handleRBAC(
             case 'coach': dest = gymId ? `/${gymId}/coach` : '/'; break;
             default: dest = gymId ? `/${gymId}/member/dashboard` : '/'; break;
         }
+
+        console.warn(`[DEBUG_RBAC_REDIRECT] User: ${user.email} | Role: ${userRole} | GymId: ${gymId} | Pathname: ${pathname} -> Redirecting to: ${dest}`);
 
         if (dest !== pathname) {
             return NextResponse.redirect(new URL(dest, request.url));
