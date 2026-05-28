@@ -7,6 +7,7 @@ import { UniversalLayoutWrapper } from '@/components/layout/UniversalLayoutWrapp
 import { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import SaaSGuard from '@/components/auth/SaaSGuard';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export default async function CoachLayout({
     children,
@@ -33,7 +34,8 @@ export default async function CoachLayout({
         redirect('/login');
     }
 
-    const { data: profile } = await supabase
+    const adminSupabase = createAdminClient();
+    const { data: profile } = await adminSupabase
         .from('perfiles')
         .select('*')
         .eq('id', user.id)
@@ -50,7 +52,7 @@ export default async function CoachLayout({
                     Role: {profile?.rol || 'null'}<br />
                     ID: {user.id}
                 </div>
-                <Link href="/dashboard" className="px-6 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform">
+                <Link href="/login" className="px-6 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform">
                     Volver al Dashboard
                 </Link>
             </div>

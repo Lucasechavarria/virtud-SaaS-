@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { UniversalLayoutWrapper } from '@/components/layout/UniversalLayoutWrapper';
 import { Toaster } from 'react-hot-toast';
 import SaaSGuard from '@/components/auth/SaaSGuard';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export default async function DashboardLayout({
     children,
@@ -31,7 +32,8 @@ export default async function DashboardLayout({
         redirect('/login');
     }
 
-    const { data: profile } = await supabase
+    const adminSupabase = createAdminClient();
+    const { data: profile } = await adminSupabase
         .from('perfiles')
         .select('rol, nombre_completo')
         .eq('id', user.id)
