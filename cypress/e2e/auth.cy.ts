@@ -52,6 +52,6 @@ describe('Authentication Flow', () => {
 
         // El Alumno redirige a /dashboard o /[gymId]/member/dashboard
         cy.url({ timeout: 15000 }).should('include', '/dashboard');
-        cy.contains('Mis Pagos', { timeout: 15000 }).should('exist');
+        cy.contains('Mi Membresía', { timeout: 15000 }).should('exist');
     });
 });

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SupabaseClient, User } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { MODULE_ROUTES, PUBLIC_ROUTES } from './constants';
 
 /**
@@ -36,11 +37,43 @@ export async function handleRBAC(
 
         // Si no hay caché, consultar DB
         if (!userRole) {
-            const { data: profile, error: dbError } = await supabase
-                .from('perfiles')
-                .select('rol, gimnasio_id, gimnasios(slug, modulos_activos)')
-                .eq('id', user.id)
-                .single();
+            let profile = null;
+            let dbError = null;
+
+            const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+            if (serviceRoleKey && supabaseUrl) {
+                try {
+                    // Usar service_role client para evitar políticas RLS recursivas o rotas en perfiles/gimnasios
+                    const adminSupabase = createServerClient(supabaseUrl, serviceRoleKey, {
+                        cookies: {
+                            getAll() { return []; },
+                            setAll() {}
+                        }
+                    });
+                    const { data, error } = await adminSupabase
+                        .from('perfiles')
+                        .select('rol, gimnasio_id, gimnasios(slug, modulos_activos)')
+                        .eq('id', user.id)
+                        .single();
+                    profile = data;
+                    dbError = error;
+                } catch (err) {
+                    console.error('[RBAC adminSupabase] Exception:', err);
+                }
+            }
+
+            // Fallback en caso de que no esté serviceRoleKey o haya fallado la consulta
+            if (!profile) {
+                const { data, error } = await supabase
+                    .from('perfiles')
+                    .select('rol, gimnasio_id, gimnasios(slug, modulos_activos)')
+                    .eq('id', user.id)
+                    .single();
+                profile = data;
+                dbError = error;
+            }
 
             console.warn(`[DEBUG_RBAC_DB] User: ${user.email} | ID: ${user.id} | Profile: ${JSON.stringify(profile)} | Error: ${JSON.stringify(dbError)}`);
 
@@ -139,7 +172,30 @@ export async function handleRBAC(
         
         // Fallback: Si no está en caché en la cookie, consultar DB
         if (!modules) {
-            const { data: gym } = await supabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
+            let gym = null;
+            const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+            if (serviceRoleKey && supabaseUrl) {
+                try {
+                    const adminSupabase = createServerClient(supabaseUrl, serviceRoleKey, {
+                        cookies: {
+                            getAll() { return []; },
+                            setAll() {}
+                        }
+                    });
+                    const { data } = await adminSupabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
+                    gym = data;
+                } catch (err) {
+                    console.error('[RBAC adminSupabase Gym] Exception:', err);
+                }
+            }
+
+            if (!gym) {
+                const { data } = await supabase.from('gimnasios').select('modulos_activos').eq('id', gymId).single();
+                gym = data;
+            }
+            
             modules = gym?.modulos_activos || {};
         }
 
