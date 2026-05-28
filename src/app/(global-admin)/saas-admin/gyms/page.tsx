@@ -520,7 +520,7 @@ export default function GymsManagementPage() {
                                         Configuración Global
                                     </button>
                                     <button
-                                        onClick={() => window.location.href = '/admin/finance/metrics'}
+                                        onClick={() => window.location.href = `/${gym.id}/admin/finance`}
                                         className="px-8 py-3 bg-white/5 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-widest border border-white/10 hover:bg-white/10 transition-all"
                                     >
                                         Ver Estadísticas

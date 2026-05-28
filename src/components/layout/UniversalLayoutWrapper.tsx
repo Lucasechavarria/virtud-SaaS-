@@ -15,6 +15,7 @@ export function UniversalLayoutWrapper({
 }) {
     const [isOpen, setIsOpen] = React.useState(false);
     const [isMobile, setIsMobile] = React.useState(false);
+    const [maintenance, setMaintenance] = React.useState<{ active: boolean; message: string }>({ active: false, message: '' });
 
     React.useEffect(() => {
         const checkMobile = () => {
@@ -25,6 +26,17 @@ export function UniversalLayoutWrapper({
 
         checkMobile();
         window.addEventListener('resize', checkMobile);
+        
+        // Fetch public maintenance settings
+        fetch('/api/saas-admin/settings/public')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.modo_mantenimiento) {
+                    setMaintenance({ active: true, message: data.mantenimiento_mensaje });
+                }
+            })
+            .catch(err => console.error('Error fetching maintenance state:', err));
+
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
@@ -68,6 +80,13 @@ export function UniversalLayoutWrapper({
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+                {/* Tactical Maintenance Banner */}
+                {maintenance.active && (
+                    <div className="bg-amber-500 text-black px-6 py-2.5 text-[10px] font-black text-center uppercase tracking-widest flex items-center justify-center gap-2 relative z-20 shadow-md">
+                        <span className="animate-pulse text-sm">⚠️</span> {maintenance.message}
+                    </div>
+                )}
+
                 {/* Header */}
                 <UniversalHeader currentRole={profileRole} profileRole={profileRole} />
 

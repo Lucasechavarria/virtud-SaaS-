@@ -48,7 +48,15 @@ export async function GET(request: Request) {
             if (endDate) query = query.lte('fecha', endDate);
 
             const { data: impersonationLogs } = await query;
-            results.impersonationLogs = impersonationLogs;
+            
+            // Mapear fecha como creado_en y inyectar duracion_minutos por compatibilidad UI
+            const formattedLogs = (impersonationLogs || []).map((log: any) => ({
+                ...log,
+                creado_en: log.fecha,
+                duracion_minutos: log.duracion_minutos || 15
+            }));
+            
+            results.impersonationLogs = formattedLogs;
         }
 
         return NextResponse.json(results);
