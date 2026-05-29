@@ -40,6 +40,8 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
         { href: '/saas-admin/billing', label: 'Cobros SaaS', icon: '💰' },
         { href: '/saas-admin/metrics', label: 'Métricas Globales', icon: '📊' },
         { href: '/saas-admin/audit', label: 'Auditoría', icon: '🎫' },
+        { href: '/saas-admin/support', label: 'Soporte B2B', icon: '🎧' },
+        { href: '/saas-admin/settings', label: 'Ajustes y Sandbox', icon: '⚙️' },
     ],
     coach: [
         { href: '/coach', label: 'Dashboard', icon: '🏠' },

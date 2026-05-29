@@ -116,41 +116,41 @@ export default function SuperAdminOverview() {
     ];
 
     const gymCards = [
-        { title: 'Gimnasios en Red', value: stats?.gyms || 0, icon: <Building2 />, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'hover:border-blue-500/50', href: '/admin/gyms' },
-        { title: 'Usuarios en Red', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/admin/users' },
-        { title: 'Soporte Técnico', value: alerts.filter(a => a.type === 'ticket').length, icon: <ShieldAlert />, color: 'text-red-500', bg: 'bg-red-500/10', border: 'hover:border-red-500/50', href: '/admin/support' },
+        { title: 'Gimnasios en Red', value: stats?.gyms || 0, icon: <Building2 />, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'hover:border-blue-500/50', href: '/saas-admin/gyms' },
+        { title: 'Usuarios en Red', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/saas-admin/gyms' },
+        { title: 'Soporte Técnico', value: alerts.filter(a => a.type === 'ticket').length, icon: <ShieldAlert />, color: 'text-red-500', bg: 'bg-red-500/10', border: 'hover:border-red-500/50', href: '/saas-admin/support' },
     ];
 
     const saasCards = [
         { title: 'MRR Estimado', value: `$${(stats?.mrr || 0).toLocaleString('es-AR')}`, icon: <TrendingUp />, color: 'text-green-500', bg: 'bg-green-500/10', border: 'hover:border-green-500/50', href: '/saas-admin/metrics' },
         { title: 'Revenue Mensual Real', value: `$${(stats?.monthly_real_revenue || 0).toLocaleString('es-AR')}`, icon: <CreditCard />, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'hover:border-emerald-500/50', href: '/saas-admin/billing' },
-        { title: 'Planes Activos', value: Object.keys(stats?.plan_breakdown || {}).length, icon: <Gem />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/admin/plans' },
+        { title: 'Planes Activos', value: Object.keys(stats?.plan_breakdown || {}).length, icon: <Gem />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/saas-admin/billing' },
     ];
 
     const globalCards = [
-        { title: 'Usuarios Globales', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/admin/users' },
-        { title: 'Soporte Técnico', value: alerts.filter(a => a.type === 'ticket').length, icon: <ShieldAlert />, color: 'text-red-500', bg: 'bg-red-500/10', border: 'hover:border-red-500/50', href: '/admin/support' },
+        { title: 'Usuarios Globales', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/saas-admin/gyms' },
+        { title: 'Soporte Técnico', value: alerts.filter(a => a.type === 'ticket').length, icon: <ShieldAlert />, color: 'text-red-500', bg: 'bg-red-500/10', border: 'hover:border-red-500/50', href: '/saas-admin/support' },
         { title: 'Logs de Auditoría', value: activities.length, icon: <History />, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'hover:border-amber-500/50', href: '/saas-admin/audit' },
     ];
 
     const quickActions = {
         gyms: [
             { label: 'Nuevo Gimnasio', icon: <PlusCircle size={20} />, href: '/saas-admin/gyms', color: 'from-blue-600 to-cyan-500' },
-            { label: 'Configurar Red', icon: <Building2 size={20} />, href: '/admin/gyms', color: 'from-indigo-600 to-blue-500' },
-            { label: 'Usuarios Red', icon: <Users size={20} />, href: '/admin/users', color: 'from-purple-600 to-indigo-500' },
-            { label: 'Centro Soporte', icon: <ShieldAlert size={20} />, href: '/admin/support', color: 'from-red-600 to-pink-500' },
+            { label: 'Configurar Red', icon: <Building2 size={20} />, href: '/saas-admin/gyms', color: 'from-indigo-600 to-blue-500' },
+            { label: 'Usuarios Red', icon: <Users size={20} />, href: '/saas-admin/gyms', color: 'from-purple-600 to-indigo-500' },
+            { label: 'Centro Soporte', icon: <ShieldAlert size={20} />, href: '/saas-admin/support', color: 'from-red-600 to-pink-500' },
         ],
         saas: [
-            { label: 'Planes SaaS', icon: <Gem size={20} />, href: '/admin/plans', color: 'from-purple-600 to-pink-500' },
+            { label: 'Planes SaaS', icon: <Gem size={20} />, href: '/saas-admin/billing', color: 'from-purple-600 to-pink-500' },
             { label: 'Ingresos (Hub)', icon: <TrendingUp size={20} />, href: '/saas-admin/metrics', color: 'from-green-600 to-emerald-500' },
             { label: 'Reportes Biz', icon: <BarChart3 size={20} />, href: '/saas-admin/metrics', color: 'from-orange-600 to-amber-500' },
             { label: 'MercadoPago', icon: <DollarSign size={20} />, href: '/saas-admin/billing', color: 'from-blue-600 to-sky-500' },
         ],
         global: [
             { label: 'Auditoría', icon: <History size={20} />, href: '/saas-admin/audit', color: 'from-amber-600 to-orange-500' },
-            { label: 'Seguridad Hub', icon: <ShieldAlert size={20} />, href: '/admin/security-dashboard', color: 'from-red-600 to-orange-500' },
+            { label: 'Seguridad Hub', icon: <ShieldAlert size={20} />, href: '/saas-admin/audit', color: 'from-red-600 to-orange-500' },
             { label: 'Broadcast', icon: <Megaphone size={20} />, href: '#', color: 'from-purple-600 to-indigo-500' },
-            { label: 'Remote Access', icon: <Eye size={20} />, href: '#', color: 'from-blue-600 to-cyan-500' },
+            { label: 'Sandbox / Settings', icon: <Eye size={20} />, href: '/saas-admin/settings', color: 'from-blue-600 to-cyan-500' },
         ],
     };
 
@@ -443,7 +443,17 @@ export default function SuperAdminOverview() {
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {quickActions[activeTab].map((action, i) => (
-                            <Link key={i} href={action.href} className="group relative h-24 overflow-hidden rounded-2xl">
+                            <Link
+                                key={i}
+                                href={action.href}
+                                onClick={(e) => {
+                                    if (action.label === 'Broadcast') {
+                                        e.preventDefault();
+                                        setShowBroadcastModal(true);
+                                    }
+                                }}
+                                className="group relative h-24 overflow-hidden rounded-2xl"
+                            >
                                 <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
                                 <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                                 <div className="relative h-full flex flex-col items-center justify-center gap-2 border border-white/5 group-hover:border-white/20 transition-all rounded-2xl">
@@ -480,7 +490,7 @@ export default function SuperAdminOverview() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => router.push(`/admin/gyms/${gym.id}`)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all" title="Ver Configuración">
+                                                <button onClick={() => router.push(`/saas-admin/gyms`)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all" title="Ver Configuración">
                                                     <ToggleLeft size={16} />
                                                 </button>
                                                 <button

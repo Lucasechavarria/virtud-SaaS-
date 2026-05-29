@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
             success: true,
             message: 'Acceso concedido al entorno del gimnasio',
-            redirectUrl: `/admin/gyms/${gymId}/dashboard`
+            redirectUrl: `/${gymId}/admin`
         });
 
     } catch (error) {

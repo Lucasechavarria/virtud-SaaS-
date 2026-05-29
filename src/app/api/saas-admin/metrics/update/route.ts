@@ -26,6 +26,32 @@ export async function GET(request: Request) {
         // 3. Contar alumnos totales
         const { count: totalStudents } = await supabase.from('perfiles').select('id', { count: 'exact', head: true }).eq('rol', 'alumno');
 
+        // 3b. Contar consumos de IA (Videos Biomecánicos procesados y Rutinas Generadas)
+        const [{ count: videosCount }, { count: rutinasCount }] = await Promise.all([
+            supabase.from('videos_ejercicio').select('id', { count: 'exact', head: true }).eq('estado', 'analizado'),
+            supabase.from('rutinas').select('id', { count: 'exact', head: true })
+        ]);
+
+        const videosProcesados = videosCount || 0;
+        const rutinasIA = rutinasCount || 0;
+
+        // 3c. Calcular Ingresos Reales SaaS (Pagos de membresías SaaS de gimnasios aprobados este mes)
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        const { data: saasPayments } = await supabase
+            .from('saas_pagos_historial')
+            .select('monto')
+            .eq('estado', 'completado')
+            .gte('creado_en', startOfMonth);
+        
+        const realSaaSRevenue = saasPayments?.reduce((acc, curr) => acc + Number(curr.monto), 0) || 0;
+        const ingresosTotales = realSaaSRevenue > 0 ? realSaaSRevenue : mrr;
+
+        // 3d. Calcular Gastos (Alojamiento base + Consumo de IA)
+        const costoAlojamiento = 49.00; // Vercel Pro ($20) + Supabase Pro ($29)
+        const costoIA = (videosProcesados * 0.05) + (rutinasIA * 0.01); // $0.05 por análisis de video, $0.01 por consulta LLM de rutinas
+        const gastosTotales = costoAlojamiento + costoIA;
+        const gananciaNeta = ingresosTotales - gastosTotales;
+
         // 4. Intentar guardar el snapshot
         const { error: upsertError } = await supabase.from('saas_metrics').upsert({
             fecha: new Date().toISOString().split('T')[0],
@@ -33,7 +59,9 @@ export async function GET(request: Request) {
             gyms_activos: activeGyms || 0,
             gyms_suspendidos: suspendedGyms || 0,
             total_alumnos: totalStudents || 0,
-            ingresos_totales_mes: mrr // Por ahora igual al mrr estimado si no hay pasarela
+            ingresos_totales_mes: ingresosTotales,
+            rutinas_ia_hoy: rutinasIA,
+            videos_procesados_hoy: videosProcesados
         }, { onConflict: 'fecha' });
 
         if (upsertError) throw upsertError;
@@ -42,9 +70,16 @@ export async function GET(request: Request) {
             success: true,
             metrics: {
                 mrr,
-                gyms_activos: activeGyms,
-                gyms_suspendidos: suspendedGyms,
-                total_alumnos: totalStudents
+                gyms_activos: activeGyms || 0,
+                gyms_suspendidos: suspendedGyms || 0,
+                total_alumnos: totalStudents || 0,
+                videos_procesados: videosProcesados,
+                rutinas_ia: rutinasIA,
+                ingresos_totales_mes: ingresosTotales,
+                gastos_alojamiento: costoAlojamiento,
+                gastos_ia: costoIA,
+                gastos_totales: gastosTotales,
+                ganancia_neta: gananciaNeta
             }
         });
 
