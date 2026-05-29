@@ -38,7 +38,14 @@ export default function GymOnboardingPage() {
         },
         admin_nombre: '',
         admin_email: '',
-        admin_password: ''
+        admin_password: '',
+        configuracion: {
+            modelo_facturacion: 'membresia',
+            limites: {
+                max_videos_mensual: 100,
+                max_alumnos: 500
+            }
+        }
     });
 
     useEffect(() => {
@@ -185,6 +192,32 @@ export default function GymOnboardingPage() {
                                                     </div>
                                                 </div>
                                                 {formData.plan_id === plan.id && <CheckCircle2 size={24} className="text-red-600" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Modelo de Facturación Inicial</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {[
+                                            { id: 'membresia', label: 'Membresía Fija', desc: 'Suscripción + alumnos extras' },
+                                            { id: 'consumo', label: 'Pago x Consumo', desc: 'Pago por uso (POS + IA)' }
+                                        ].map(model => (
+                                            <button
+                                                key={model.id}
+                                                type="button"
+                                                onClick={() => setFormData({
+                                                    ...formData,
+                                                    configuracion: {
+                                                        ...formData.configuracion,
+                                                        modelo_facturacion: model.id
+                                                    }
+                                                })}
+                                                className={`p-5 rounded-2xl border text-left transition-all ${formData.configuracion?.modelo_facturacion === model.id ? 'bg-red-600/10 border-red-600 text-white' : 'bg-black/20 border-white/5 text-gray-500 hover:border-white/20'
+                                                    }`}
+                                            >
+                                                <p className="font-black uppercase text-[10px] tracking-widest leading-none mb-1">{model.label}</p>
+                                                <p className="text-[8px] text-gray-600 font-bold leading-normal">{model.desc}</p>
                                             </button>
                                         ))}
                                     </div>

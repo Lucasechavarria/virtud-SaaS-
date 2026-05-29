@@ -17,8 +17,12 @@ const DEFAULT_SETTINGS = {
     vision_computacional_activa: true,
     limite_tokens_diarios: 500000,
     costo_alojamiento_fijo: 49.00,
-    costo_por_video_ia: 0.05,
-    costo_por_rutina_ia: 0.01
+    costo_por_video_ia: 0.07,
+    costo_por_rutina_ia: 0.015,
+    costo_por_video_ia_real: 0.05,
+    ganancia_por_video_ia_saas: 0.02,
+    costo_por_rutina_ia_real: 0.01,
+    ganancia_por_rutina_ia_saas: 0.005
 };
 
 function getSettings() {
@@ -32,7 +36,9 @@ function getSettings() {
             return DEFAULT_SETTINGS;
         }
         const data = fs.readFileSync(filePath, 'utf-8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        // Garantizar que si el archivo existe pero no tiene las nuevas propiedades, se inyecten los fallbacks por defecto
+        return { ...DEFAULT_SETTINGS, ...parsed };
     } catch (err) {
         console.error('Error reading settings:', err);
         return DEFAULT_SETTINGS;
@@ -82,6 +88,11 @@ export async function POST(request: Request) {
         const body = await request.json();
         const current = getSettings();
 
+        const video_real = typeof body.costo_por_video_ia_real === 'number' ? body.costo_por_video_ia_real : current.costo_por_video_ia_real;
+        const video_saas = typeof body.ganancia_por_video_ia_saas === 'number' ? body.ganancia_por_video_ia_saas : current.ganancia_por_video_ia_saas;
+        const rutina_real = typeof body.costo_por_rutina_ia_real === 'number' ? body.costo_por_rutina_ia_real : current.costo_por_rutina_ia_real;
+        const rutina_saas = typeof body.ganancia_por_rutina_ia_saas === 'number' ? body.ganancia_por_rutina_ia_saas : current.ganancia_por_rutina_ia_saas;
+
         const updated = {
             modo_mantenimiento: typeof body.modo_mantenimiento === 'boolean' ? body.modo_mantenimiento : current.modo_mantenimiento,
             mantenimiento_mensaje: typeof body.mantenimiento_mensaje === 'string' ? body.mantenimiento_mensaje : current.mantenimiento_mensaje,
@@ -92,8 +103,14 @@ export async function POST(request: Request) {
             vision_computacional_activa: typeof body.vision_computacional_activa === 'boolean' ? body.vision_computacional_activa : current.vision_computacional_activa,
             limite_tokens_diarios: typeof body.limite_tokens_diarios === 'number' ? body.limite_tokens_diarios : current.limite_tokens_diarios,
             costo_alojamiento_fijo: typeof body.costo_alojamiento_fijo === 'number' ? body.costo_alojamiento_fijo : current.costo_alojamiento_fijo,
-            costo_por_video_ia: typeof body.costo_por_video_ia === 'number' ? body.costo_por_video_ia : current.costo_por_video_ia,
-            costo_por_rutina_ia: typeof body.costo_por_rutina_ia === 'number' ? body.costo_por_rutina_ia : current.costo_por_rutina_ia
+            // Sincronizar legacy con la suma real + ganancia
+            costo_por_video_ia: video_real + video_saas,
+            costo_por_rutina_ia: rutina_real + rutina_saas,
+            // Nuevas variables individuales
+            costo_por_video_ia_real: video_real,
+            ganancia_por_video_ia_saas: video_saas,
+            costo_por_rutina_ia_real: rutina_real,
+            ganancia_por_rutina_ia_saas: rutina_saas
         };
 
         const success = saveSettings(updated);

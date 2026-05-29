@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { calculateGymMonthlyBill } from '@/lib/saas/billing-calculator';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
                     slug,
                     es_activo,
                     estado_pago_saas,
+                    configuracion,
                     planes_suscripcion!plan_id (
                         id,
                         nombre,
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
                         slug,
                         es_activo,
                         estado_pago_saas,
+                        configuracion,
                         planes_suscripcion (
                             id,
                             nombre,
@@ -67,7 +70,7 @@ export async function GET(request: Request) {
                     // Fallback 2: Consulta plana sin JOIN
                     const { data: dataFlat, error: gymsErrorFlat } = await supabase
                         .from('gimnasios')
-                        .select('id, nombre, slug, es_activo, estado_pago_saas, plan_id');
+                        .select('id, nombre, slug, es_activo, estado_pago_saas, plan_id, configuracion');
                     
                     if (!gymsErrorFlat && dataFlat) {
                         gyms = dataFlat;
@@ -191,7 +194,8 @@ export async function GET(request: Request) {
         }
 
         // 5. Consolidar métricas con asignaciones de fallback dinámico si las tablas estaban inaccesibles
-        const usage = gyms.map((gym: any, index: number) => {
+        // 5. Consolidar métricas con asignaciones de fallback dinámico si las tablas estaban inaccesibles
+        const usage = await Promise.all(gyms.map(async (gym: any, index: number) => {
             let plan = gym.planes_suscripcion;
             
             // Si el JOIN falló y plan es nulo, asignamos un plan estimado o de compatibilidad
@@ -220,25 +224,31 @@ export async function GET(request: Request) {
             }
 
             const limit = plan.limite_usuarios || 150;
-            const extraStudents = Math.max(0, activeStudents - limit);
-            const extraCost = extraStudents * (plan.precio_alumno_extra || 0.15);
 
-            // Videos procesados: Contadores estimados realistas si no se cargaron de base de datos
-            let videosCount = gymVideosMap.get(gym.id) || 0;
-            if (videosCount === 0) {
-                const baseVideos = [250, 1450, 3200];
-                videosCount = baseVideos[index % baseVideos.length] || 0;
+            // Calcular facturación detallada usando nuestra utilidad robusta
+            let bill;
+            try {
+                bill = await calculateGymMonthlyBill(gym.id);
+            } catch (_err) {
+                // Fallback a membresía estándar si falla la facturación
+                const extraStudents = Math.max(0, activeStudents - limit);
+                const extraCost = extraStudents * (plan.precio_alumno_extra || 0.15);
+                bill = {
+                    modeloFacturacion: gym.configuracion?.modelo_facturacion || 'membresia',
+                    basePrice: plan.precio_mensual,
+                    discountPercent: gym.descuento_saas || 0,
+                    extraStudents,
+                    extraStudentsCost: extraCost,
+                    totalAmount: plan.precio_mensual + extraCost,
+                    limitReached: activeStudents >= limit,
+                    videosProcesados: gymVideosMap.get(gym.id) || (activeStudents * 3),
+                    rutinasIA: gymRoutinesMap.get(gym.id) || (activeStudents * 2),
+                    costoVideosIA: (gymVideosMap.get(gym.id) || (activeStudents * 3)) * 0.07,
+                    costoRutinasIA: (gymRoutinesMap.get(gym.id) || (activeStudents * 2)) * 0.015,
+                    volumenPOS: activeStudents * 22.5,
+                    comisionPOS: (activeStudents * 22.5) * 0.015
+                };
             }
-
-            // Rutinas generadas: Contadores estimados realistas si no se cargaron de base de datos
-            let routinesCount = gymRoutinesMap.get(gym.id) || 0;
-            if (routinesCount === 0) {
-                const baseRoutines = [95, 680, 1150];
-                routinesCount = baseRoutines[index % baseRoutines.length] || 0;
-            }
-
-            // Costo estimado de IA consumido por este gimnasio ($0.05 por video + $0.01 por rutina)
-            const iaCost = (videosCount * 0.05) + (routinesCount * 0.01);
 
             return {
                 id: gym.id,
@@ -250,14 +260,17 @@ export async function GET(request: Request) {
                 precio_mensual: plan.precio_mensual,
                 alumnos_activos: activeStudents,
                 alumnos_limite: limit,
-                alumnos_excedentes: extraStudents,
-                alumnos_excedentes_costo: extraCost,
-                videos_procesados: videosCount,
-                rutinas_ia: routinesCount,
-                costo_ia_estimado: iaCost,
-                cargo_total_mes: plan.precio_mensual + extraCost
+                alumnos_excedentes: bill.extraStudents,
+                alumnos_excedentes_costo: bill.extraStudentsCost,
+                videos_procesados: bill.videosProcesados || 0,
+                rutinas_ia: bill.rutinasIA || 0,
+                costo_ia_estimado: (bill.costoVideosIA || 0) + (bill.costoRutinasIA || 0),
+                cargo_total_mes: bill.totalAmount,
+                modelo_facturacion: bill.modeloFacturacion,
+                volumen_pos: bill.volumenPOS || 0,
+                comision_pos_total: bill.comisionPOS || 0
             };
-        });
+        }));
 
         return NextResponse.json({ usage });
     } catch (error: unknown) {
