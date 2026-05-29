@@ -10,8 +10,12 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
     try {
-        const { error: authError } = await authenticateAndRequireRole(request, ['superadmin']);
+        const { user, error: authError } = await authenticateAndRequireRole(request, ['superadmin']);
         if (authError) return authError;
+
+        if (!user) {
+            return NextResponse.json({ error: 'User profiles verification failed' }, { status: 401 });
+        }
 
         const { action, gymId } = await request.json();
 
@@ -133,6 +137,7 @@ export async function POST(request: Request) {
                 .from('tickets_soporte_saas' as any)
                 .insert({
                     gimnasio_id: gymId,
+                    usuario_id: user.id,
                     asunto: alertSubjects[idx],
                     descripcion: alertDescs[idx],
                     prioridad: 'critica',

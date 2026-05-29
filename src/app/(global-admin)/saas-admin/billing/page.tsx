@@ -55,7 +55,18 @@ export default function AdminBillingPage() {
         precio_mensual: 0,
         limite_sucursales: 1,
         limite_usuarios: 100,
-        caracteristicasStr: ''
+        caracteristicasStr: '',
+        modulos: {
+            rutinas_ia: true,
+            nutricion_ia: false,
+            vision_ia: false,
+            pagos_online: true,
+            crm: false,
+            tienda_pos: false,
+            equipamiento_ia: false,
+            gamificacion: false,
+            clases_reserva: true
+        }
     });
 
     useEffect(() => {
@@ -95,7 +106,7 @@ export default function AdminBillingPage() {
     const handleUpdateStatus = async (gymId: string, status: string) => {
         setUpdating(true);
         try {
-            const res = await fetch('/api/admin/billing/update-status', {
+            const res = await fetch('/api/admin/billing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ gymId, status })
@@ -114,7 +125,7 @@ export default function AdminBillingPage() {
     const handleUpdateDiscount = async (gymId: string, discount: number) => {
         setUpdating(true);
         try {
-            const res = await fetch('/api/admin/billing/update-status', {
+            const res = await fetch('/api/admin/billing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ gymId, discount })
@@ -138,19 +149,45 @@ export default function AdminBillingPage() {
             precio_mensual: 29.00,
             limite_sucursales: 1,
             limite_usuarios: 100,
-            caracteristicasStr: 'IA Rutinas Inteligentes\nControl Biomecánico Básico\nCaja POS Integrada\nSoporte B2B'
+            caracteristicasStr: 'Soporte B2B Técnico',
+            modulos: {
+                rutinas_ia: true,
+                nutricion_ia: false,
+                vision_ia: false,
+                pagos_online: true,
+                crm: false,
+                tienda_pos: false,
+                equipamiento_ia: false,
+                gamificacion: false,
+                clases_reserva: true
+            }
         });
         setShowPlanModal(true);
     };
 
     const openEditPlan = (plan: SubscriptionPlan) => {
         setEditingPlan(plan);
+        const caracts = plan.caracteristicas || [];
+        const modulos = {
+            rutinas_ia: caracts.includes('Módulo: Rutinas IA'),
+            nutricion_ia: caracts.includes('Módulo: Nutrición IA'),
+            vision_ia: caracts.includes('Módulo: Visión Lab'),
+            pagos_online: caracts.includes('Módulo: Pagos Online'),
+            crm: caracts.includes('Módulo: CRM Ventas'),
+            tienda_pos: caracts.includes('Módulo: Tienda & POS'),
+            equipamiento_ia: caracts.includes('Módulo: Equipamiento (IA)'),
+            gamificacion: caracts.includes('Módulo: Gamificación'),
+            clases_reserva: caracts.includes('Módulo: Clases & Reservas')
+        };
+        const filtradas = caracts.filter(x => !x.startsWith('Módulo: '));
+
         setPlanForm({
             nombre: plan.nombre,
             precio_mensual: plan.precio_mensual,
             limite_sucursales: plan.limite_sucursales || 1,
             limite_usuarios: plan.limite_usuarios || 100,
-            caracteristicasStr: (plan.caracteristicas || []).join('\n')
+            caracteristicasStr: filtradas.join('\n'),
+            modulos
         });
         setShowPlanModal(true);
     };
@@ -162,12 +199,25 @@ export default function AdminBillingPage() {
             const url = editingPlan ? `/api/admin/plans/${editingPlan.id}` : '/api/admin/plans';
             const method = editingPlan ? 'PUT' : 'POST';
             
+            const caractsList: string[] = [];
+            if (planForm.modulos.rutinas_ia) caractsList.push('Módulo: Rutinas IA');
+            if (planForm.modulos.nutricion_ia) caractsList.push('Módulo: Nutrición IA');
+            if (planForm.modulos.vision_ia) caractsList.push('Módulo: Visión Lab');
+            if (planForm.modulos.pagos_online) caractsList.push('Módulo: Pagos Online');
+            if (planForm.modulos.crm) caractsList.push('Módulo: CRM Ventas');
+            if (planForm.modulos.tienda_pos) caractsList.push('Módulo: Tienda & POS');
+            if (planForm.modulos.equipamiento_ia) caractsList.push('Módulo: Equipamiento (IA)');
+            if (planForm.modulos.gamificacion) caractsList.push('Módulo: Gamificación');
+            if (planForm.modulos.clases_reserva) caractsList.push('Módulo: Clases & Reservas');
+
+            const adicionales = planForm.caracteristicasStr.split('\n').filter(x => x.trim() !== '');
+
             const payload = {
                 nombre: planForm.nombre,
                 precio_mensual: Number(planForm.precio_mensual),
                 limite_sucursales: Number(planForm.limite_sucursales),
                 limite_usuarios: Number(planForm.limite_usuarios),
-                caracteristicas: planForm.caracteristicasStr.split('\n').filter(x => x.trim() !== '')
+                caracteristicas: [...caractsList, ...adicionales]
             };
 
             const res = await fetch(url, {
@@ -477,12 +527,22 @@ export default function AdminBillingPage() {
                                     </div>
 
                                     <ul className="space-y-3">
-                                        {(plan.caracteristicas || []).map((feat, idx) => (
-                                            <li key={idx} className="flex items-center gap-3 text-xs text-zinc-400 font-bold uppercase tracking-wider">
-                                                <span className="text-tactical-cyan filter drop-shadow-[0_0_4px_rgba(0,245,255,0.4)]">✓</span>
-                                                {feat}
-                                            </li>
-                                        ))}
+                                        {(plan.caracteristicas || []).map((feat, idx) => {
+                                            const isModulo = feat.startsWith('Módulo: ');
+                                            const displayName = isModulo ? feat.replace('Módulo: ', '') : feat;
+                                            return (
+                                                <li key={idx} className={`flex items-center gap-3 text-xs font-bold uppercase tracking-wider ${
+                                                    isModulo ? 'text-tactical-cyan' : 'text-zinc-400'
+                                                }`}>
+                                                    {isModulo ? (
+                                                        <span className="text-tactical-magenta filter drop-shadow-[0_0_4px_rgba(255,0,255,0.4)]">⚡</span>
+                                                    ) : (
+                                                        <span className="text-tactical-cyan filter drop-shadow-[0_0_4px_rgba(0,245,255,0.4)]">✓</span>
+                                                    )}
+                                                    {displayName}
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 </div>
                             </motion.div>
@@ -559,16 +619,49 @@ export default function AdminBillingPage() {
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Características (Una por línea)</label>
-                                <textarea
-                                    rows={4}
-                                    value={planForm.caracteristicasStr}
-                                    onChange={e => setPlanForm({ ...planForm, caracteristicasStr: e.target.value })}
-                                    placeholder="Ej: Rutinas de Ejercicio IA&#10;Procesamiento Biomecánico&#10;Caja POS..."
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all resize-none"
-                                />
-                            </div>
+                                <div className="space-y-3 border-t border-b border-white/5 py-4 my-2">
+                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Módulos del Sistema Incluidos</label>
+                                <div className="grid grid-cols-2 gap-3 text-xs font-bold uppercase">
+                                    {[
+                                        { key: 'rutinas_ia', label: '🧠 Rutinas IA' },
+                                        { key: 'nutricion_ia', label: '🥗 Nutrición IA' },
+                                        { key: 'vision_ia', label: '🎥 Visión Lab (Videos)' },
+                                        { key: 'pagos_online', label: '💳 Pagos Online / POS' },
+                                        { key: 'crm', label: '🎯 CRM Ventas' },
+                                        { key: 'tienda_pos', label: '🛒 Tienda & POS' },
+                                        { key: 'equipamiento_ia', label: '🏋️ Equipamiento (IA)' },
+                                        { key: 'gamificacion', label: '⚔️ Gamificación' },
+                                        { key: 'clases_reserva', label: '📅 Clases & Reservas' }
+                                    ].map((m) => (
+                                        <label key={m.key} className="flex items-center gap-2 p-3 bg-white/2 border border-white/5 rounded-xl cursor-pointer hover:border-tactical-cyan/20 transition-all select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={(planForm.modulos as any)[m.key]}
+                                                onChange={e => setPlanForm({
+                                                    ...planForm,
+                                                    modulos: {
+                                                        ...planForm.modulos,
+                                                        [m.key]: e.target.checked
+                                                    }
+                                                })}
+                                                className="w-4 h-4 rounded text-tactical-cyan bg-zinc-800 border-white/10 outline-none"
+                                            />
+                                            <span>{m.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                             </div>
+
+                             <div className="space-y-2">
+                                 <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Características Adicionales (Una por línea)</label>
+                                 <textarea
+                                     rows={3}
+                                     value={planForm.caracteristicasStr}
+                                     onChange={e => setPlanForm({ ...planForm, caracteristicasStr: e.target.value })}
+                                     placeholder="Ej: Soporte B2B Técnico Premium..."
+                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all resize-none"
+                                 />
+                             </div>
 
                             <div className="flex gap-4 pt-4">
                                 <button

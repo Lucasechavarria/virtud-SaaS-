@@ -41,6 +41,9 @@ interface SystemSettings {
     ia_global_activa: boolean;
     vision_computacional_activa: boolean;
     limite_tokens_diarios: number;
+    costo_alojamiento_fijo: number;
+    costo_por_video_ia: number;
+    costo_por_rutina_ia: number;
 }
 
 export default function SaaSAdminSettingsPage() {
@@ -341,6 +344,17 @@ export default function SaaSAdminSettingsPage() {
                                             required
                                         />
                                     </div>
+
+                                    <div className="space-y-2 mt-4">
+                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Costo Fijo de Alojamiento (USD/mes)</label>
+                                        <input
+                                            type="number"
+                                            value={settings.costo_alojamiento_fijo}
+                                            onChange={e => setSettings({ ...settings, costo_alojamiento_fijo: Number(e.target.value) })}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                            required
+                                        />
+                                    </div>
                                     
                                     <div className="p-4 bg-tactical-cyan/5 border border-tactical-cyan/15 rounded-2xl flex gap-3 text-tactical-cyan mt-6">
                                         <ShieldAlert size={20} className="shrink-0" />
@@ -437,6 +451,31 @@ export default function SaaSAdminSettingsPage() {
                                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
                                             required
                                         />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 mt-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Costo por Video Analizado (USD)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={settings.costo_por_video_ia}
+                                                onChange={e => setSettings({ ...settings, costo_por_video_ia: Number(e.target.value) })}
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Costo por Rutina IA (USD)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={settings.costo_por_rutina_ia}
+                                                onChange={e => setSettings({ ...settings, costo_por_rutina_ia: Number(e.target.value) })}
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                required
+                                            />
+                                        </div>
                                     </div>
 
                                     <div className="p-4 bg-tactical-magenta/5 border border-tactical-magenta/15 rounded-2xl flex gap-3 text-tactical-magenta mt-4">
