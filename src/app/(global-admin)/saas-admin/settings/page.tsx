@@ -814,6 +814,7 @@ export default function SaaSAdminSettingsPage() {
                                                         >
                                                             <option value="membresia" className="bg-zinc-950 text-white">Membresía (Plan Fijo)</option>
                                                             <option value="consumo" className="bg-zinc-950 text-white">Por Consumo (Pago por Uso)</option>
+                                                            <option value="hibrido" className="bg-zinc-950 text-white">Híbrido (Mensual + IA Extra)</option>
                                                         </select>
                                                     </div>
                                                 </div>
