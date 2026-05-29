@@ -622,8 +622,55 @@ export default function FinanceHubPage() {
                             </div>
                         )}
 
+                        {/* Historial de Movimientos de AI Wallet */}
+                        {billingSummary && billingSummary.configuracion?.historial_recargas && (
+                            <div className="space-y-4 pt-4">
+                                <h4 className="text-xs font-black text-white uppercase tracking-wider">Historial de Movimientos de AI Wallet</h4>
+                                <div className="space-y-3">
+                                    {(billingSummary.configuracion.historial_recargas as any[]).length === 0 ? (
+                                        <div className="py-8 text-center bg-white/2 rounded-2xl border border-white/5 opacity-35">
+                                            <p className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">No se registran movimientos en el monedero</p>
+                                        </div>
+                                    ) : (
+                                        [...(billingSummary.configuracion.historial_recargas as any[])]
+                                            .reverse()
+                                            .slice(0, 8)
+                                            .map((tx: any, idx: number) => (
+                                                <div key={idx} className="bg-[#121214] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
+                                                            tx.monto > 0 
+                                                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                                                                : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                                        }`}>
+                                                            {tx.monto > 0 ? <TrendingUp size={16} className="text-emerald-400" /> : <TrendingUp size={16} className="text-red-400 rotate-180" />}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-black text-white uppercase tracking-tight">
+                                                                {tx.monto > 0 ? 'Recarga de Créditos Prepago' : 'Débito por Consumo de IA'}
+                                                            </p>
+                                                            <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">
+                                                                Método: {tx.metodo || 'Transacción del Monedero'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className={`text-xs font-black font-mono ${tx.monto > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {tx.monto > 0 ? '+' : ''}${Number(tx.monto).toFixed(2)} USD
+                                                        </p>
+                                                        <p className="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">
+                                                            {new Date(tx.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Local Past SaaS Invoices List */}
-                        <div className="space-y-4">
+                        <div className="space-y-4 pt-4">
                             <h4 className="text-xs font-black text-white uppercase tracking-wider">Historial de Facturas SaaS Pagadas</h4>
                             <div className="space-y-4">
                                 {saasPayments.length === 0 ? <EmptyFinance /> : (

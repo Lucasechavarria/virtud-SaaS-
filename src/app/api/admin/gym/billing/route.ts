@@ -28,9 +28,19 @@ export async function GET(request: Request) {
         // 3. Calcular la factura mensual en tiempo real
         const bill = await calculateGymMonthlyBill(gymId);
 
+        // Obtener configuracion completa para el historial de transacciones de Wallet
+        const { data: gym } = await adminClient
+            .from('gimnasios')
+            .select('configuracion')
+            .eq('id', gymId)
+            .single();
+
         return NextResponse.json({
             success: true,
-            bill
+            bill: {
+                ...bill,
+                configuracion: gym?.configuracion || {}
+            }
         });
 
     } catch (error: unknown) {
