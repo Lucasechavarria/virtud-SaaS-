@@ -18,7 +18,8 @@ export async function POST(request: Request) {
             plan_id,
             estado_pago_saas,
             config_visual,
-            modulos_activos
+            modulos_activos,
+            configuracion
         } = await request.json();
 
         if (!id) {
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
                 plan_id,
                 estado_pago_saas,
                 config_visual,
-                modulos_activos
+                modulos_activos,
+                configuracion
             })
             .eq('id', id)
             .select()
