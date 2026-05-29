@@ -16,7 +16,8 @@ import {
     Zap,
     Users,
     Video,
-    Sparkles
+    Sparkles,
+    Wallet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -67,7 +68,8 @@ export default function SaaSAdminSettingsPage() {
         max_videos_mensual: 100,
         max_alumnos: 500,
         estado_pago: 'active',
-        modelo_facturacion: 'membresia'
+        modelo_facturacion: 'membresia',
+        saldo_creditos: 0
     });
 
     // Sandbox States
@@ -97,7 +99,8 @@ export default function SaaSAdminSettingsPage() {
                     max_videos_mensual: gym.configuracion?.limites?.max_videos_mensual ?? 100,
                     max_alumnos: gym.configuracion?.limites?.max_alumnos ?? 500,
                     estado_pago: gym.estado_pago_saas ?? 'active',
-                    modelo_facturacion: gym.configuracion?.modelo_facturacion ?? 'membresia'
+                    modelo_facturacion: gym.configuracion?.modelo_facturacion ?? 'membresia',
+                    saldo_creditos: gym.configuracion?.saldo_creditos ?? 0
                 });
             }
         } else {
@@ -181,6 +184,7 @@ export default function SaaSAdminSettingsPage() {
                     configuracion: {
                         ...selectedGym.configuracion,
                         modelo_facturacion: gymQuotaForm.modelo_facturacion,
+                        saldo_creditos: Number(gymQuotaForm.saldo_creditos),
                         limites: {
                             max_videos_mensual: Number(gymQuotaForm.max_videos_mensual),
                             max_alumnos: Number(gymQuotaForm.max_alumnos)
@@ -816,6 +820,21 @@ export default function SaaSAdminSettingsPage() {
                                                             <option value="consumo" className="bg-zinc-950 text-white">Por Consumo (Pago por Uso)</option>
                                                             <option value="hibrido" className="bg-zinc-950 text-white">Híbrido (Mensual + IA Extra)</option>
                                                         </select>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                                                            <Wallet size={12} className="text-emerald-400" /> Saldo AI Wallet ($ USD)
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={gymQuotaForm.saldo_creditos}
+                                                            onChange={e => setGymQuotaForm({ ...gymQuotaForm, saldo_creditos: Number(e.target.value) })}
+                                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                            placeholder="Saldo de créditos prepago de IA"
+                                                            required
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
