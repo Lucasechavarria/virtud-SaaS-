@@ -19,8 +19,8 @@ function getSettings() {
     }
     return {
         costo_alojamiento_fijo: 49.00,
-        costo_por_video_ia: 0.05,
-        costo_por_rutina_ia: 0.01
+        costo_por_video_ia_real: 0.05,
+        costo_por_rutina_ia_real: 0.01
     };
 }
 
@@ -36,8 +36,8 @@ export async function GET(request: Request) {
         const supabase = createAdminClient();
         const sysSettings = getSettings();
         const costoAlojamiento = Number(sysSettings.costo_alojamiento_fijo ?? 49.00);
-        const costoPorVideo = Number(sysSettings.costo_por_video_ia ?? 0.05);
-        const costoPorRutina = Number(sysSettings.costo_por_rutina_ia ?? 0.01);
+        const costoPorVideo = Number(sysSettings.costo_por_video_ia_real ?? 0.05);
+        const costoPorRutina = Number(sysSettings.costo_por_rutina_ia_real ?? 0.01);
 
         let rawHistory: any[] = [];
         let rawLatest: any = null;
