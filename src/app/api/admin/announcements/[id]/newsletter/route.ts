@@ -27,12 +27,16 @@ export async function POST(
         let query = adminSupabase.from('perfiles').select('correo');
 
         if (announcement.destino === 'admin_gym') {
-            query = query.eq('rol', 'admin' as "admin" | "coach" | "member" | "superadmin" | "alumno");
+            query = query.eq('rol', 'admin');
+        } else if (announcement.destino === 'alumnos') {
+            query = query.eq('rol', 'member');
+        } else if (announcement.destino === 'coaches') {
+            query = query.eq('rol', 'coach');
         } else if (announcement.destino === 'todos') {
             // No filter, but avoid superadmins for clutter
-            query = query.neq('rol', 'superadmin' as "admin" | "coach" | "member" | "superadmin" | "alumno");
+            query = query.neq('rol', 'superadmin');
         } else {
-            query = query.eq('rol', announcement.destino as "admin" | "coach" | "member" | "superadmin" | "alumno");
+            query = query.eq('rol', announcement.destino as any);
         }
 
         const { data: users, error: usersError } = await query;
