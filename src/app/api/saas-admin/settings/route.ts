@@ -15,7 +15,10 @@ const DEFAULT_SETTINGS = {
     comision_pos: 1.5,
     ia_global_activa: true,
     vision_computacional_activa: true,
-    limite_tokens_diarios: 500000
+    limite_tokens_diarios: 500000,
+    costo_alojamiento_fijo: 49.00,
+    costo_por_video_ia: 0.05,
+    costo_por_rutina_ia: 0.01
 };
 
 function getSettings() {
@@ -87,7 +90,10 @@ export async function POST(request: Request) {
             comision_pos: typeof body.comision_pos === 'number' ? body.comision_pos : current.comision_pos,
             ia_global_activa: typeof body.ia_global_activa === 'boolean' ? body.ia_global_activa : current.ia_global_activa,
             vision_computacional_activa: typeof body.vision_computacional_activa === 'boolean' ? body.vision_computacional_activa : current.vision_computacional_activa,
-            limite_tokens_diarios: typeof body.limite_tokens_diarios === 'number' ? body.limite_tokens_diarios : current.limite_tokens_diarios
+            limite_tokens_diarios: typeof body.limite_tokens_diarios === 'number' ? body.limite_tokens_diarios : current.limite_tokens_diarios,
+            costo_alojamiento_fijo: typeof body.costo_alojamiento_fijo === 'number' ? body.costo_alojamiento_fijo : current.costo_alojamiento_fijo,
+            costo_por_video_ia: typeof body.costo_por_video_ia === 'number' ? body.costo_por_video_ia : current.costo_por_video_ia,
+            costo_por_rutina_ia: typeof body.costo_por_rutina_ia === 'number' ? body.costo_por_rutina_ia : current.costo_por_rutina_ia
         };
 
         const success = saveSettings(updated);

@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
     try {
-        const { error: authError, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
+        const { error: authError, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (authError || !user) return authError || NextResponse.json({ error: 'No user authenticated' }, { status: 401 });
 
         const adminClient = createAdminClient();
@@ -30,8 +30,8 @@ export async function GET(request: Request) {
             gimnasios (nombre)
         `);
 
-        // Si no es superadmin, solo ve los de su gimnasio
-        if (profile.rol !== 'superadmin') {
+        // Si tiene gimnasio_id asignado, filtra estrictamente por su gimnasio (aislamiento multi-tenant)
+        if (profile.gimnasio_id) {
             query = query.eq('gimnasio_id', profile.gimnasio_id);
         }
 
@@ -47,10 +47,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const { error: authError, user } = await authenticateAndRequireRole(request, ['admin', 'coach']);
+        const { error: authError, user } = await authenticateAndRequireRole(request, ['superadmin', 'admin']);
         if (authError || !user) return authError || NextResponse.json({ error: 'No user authenticated' }, { status: 401 });
 
-        const { asunto, prioridad, mensaje } = await request.json();
+        const { asunto, prioridad, categoria, mensaje } = await request.json();
 
         if (!asunto || !mensaje) {
             return NextResponse.json({ error: 'Asunto y mensaje son obligatorios' }, { status: 400 });
@@ -74,7 +74,8 @@ export async function POST(request: Request) {
                 gimnasio_id: profile.gimnasio_id,
                 usuario_id: profile.id,
                 asunto,
-                prioridad: prioridad || 'media'
+                prioridad: prioridad || 'media',
+                categoria: categoria || 'tecnico'
             })
             .select()
             .single();
