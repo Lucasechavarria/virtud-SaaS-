@@ -41,6 +41,7 @@ export default function GymsManagementPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showBranchModal, setShowBranchModal] = useState(false);
     const [showConfigModal, setShowConfigModal] = useState(false);
+    const [isOnboardMode, setIsOnboardMode] = useState(false);
 
     const [creating, setCreating] = useState(false);
     const [selectedGym, setSelectedGym] = useState<Gimnasio | null>(null);
@@ -51,7 +52,20 @@ export default function GymsManagementPage() {
         slug: '',
         sucursal_nombre: 'Casa Central',
         direccion: '',
-        logo_url: ''
+        logo_url: '',
+        plan_id: '',
+        admin_nombre: '',
+        admin_email: '',
+        admin_password: '',
+        mp_public_key: '',
+        mp_access_token: '',
+        modulos: {
+            rutinas_ia: true,
+            nutricion_ia: false,
+            pagos_online: true,
+            clases_reserva: true,
+            gamificacion: false
+        } as Record<string, boolean>
     });
 
     const [branchData, setBranchData] = useState({
@@ -108,22 +122,61 @@ export default function GymsManagementPage() {
         e.preventDefault();
         setCreating(true);
         try {
-            const res = await fetch('/api/admin/gyms/create', {
+            const url = isOnboardMode ? '/api/admin/gyms/onboard' : '/api/admin/gyms/create';
+            
+            const payload = isOnboardMode ? {
+                nombre: formData.nombre,
+                slug: formData.slug.toLowerCase(),
+                plan_id: formData.plan_id || plans[0]?.id || '',
+                modulos: formData.modulos,
+                admin_nombre: formData.admin_nombre,
+                admin_email: formData.admin_email,
+                admin_password: formData.admin_password,
+                configuracion: (formData.mp_public_key || formData.mp_access_token) ? {
+                    mercado_pago: {
+                        public_key: formData.mp_public_key,
+                        access_token: formData.mp_access_token,
+                        sandbox_mode: true
+                    }
+                } : {}
+            } : formData;
+
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success('¡Gimnasio creado con éxito!');
+                toast.success(isOnboardMode ? '¡Onboarding completado con éxito!' : '¡Gimnasio creado con éxito!');
                 setShowCreateModal(false);
-                setFormData({ nombre: '', slug: '', sucursal_nombre: 'Casa Central', direccion: '', logo_url: '' });
+                setIsOnboardMode(false);
+                setFormData({
+                    nombre: '',
+                    slug: '',
+                    sucursal_nombre: 'Casa Central',
+                    direccion: '',
+                    logo_url: '',
+                    plan_id: '',
+                    admin_nombre: '',
+                    admin_email: '',
+                    admin_password: '',
+                    mp_public_key: '',
+                    mp_access_token: '',
+                    modulos: {
+                        rutinas_ia: true,
+                        nutricion_ia: false,
+                        pagos_online: true,
+                        clases_reserva: true,
+                        gamificacion: false
+                    }
+                });
                 fetchGyms();
             } else {
-                toast.error(data.error || 'Error al crear');
+                toast.error(data.error || 'Error al procesar la solicitud');
             }
         } catch (err) {
-            console.error('Create gym error:', err);
+            console.error('Gym creation error:', err);
             toast.error('Error de red');
         } finally {
             setCreating(false);
@@ -251,14 +304,114 @@ export default function GymsManagementPage() {
             <AnimatePresence>
                 {showCreateModal && (
                     <Modal onClose={() => setShowCreateModal(false)} title="Nueva Entidad Gym">
-                        <form onSubmit={handleCreate} className="space-y-4">
+                        <form onSubmit={handleCreate} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2">
                             <Input label="Nombre Comercial" value={formData.nombre} onChange={v => setFormData({ ...formData, nombre: v })} placeholder="Ej: PowerBox S.A." />
                             <Input label="Identificador (Slug)" value={formData.slug} onChange={v => setFormData({ ...formData, slug: v })} placeholder="ej: powerbox" className="font-mono text-sm" />
                             <Input label="Nombre Sede Inicial" value={formData.sucursal_nombre} onChange={v => setFormData({ ...formData, sucursal_nombre: v })} />
                             <Input label="Dirección" value={formData.direccion} onChange={v => setFormData({ ...formData, direccion: v })} placeholder="Calle 123, Ciudad" />
+                            
+                            {/* Switch de Onboarding Completo */}
+                            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 my-4">
+                                <div className="pr-4">
+                                    <p className="text-xs font-black uppercase text-white leading-none">Modo Onboarding Completo</p>
+                                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-1.5 leading-tight">
+                                        Inicializa simultáneamente la cuenta del administrador, el plan de suscripción y sus módulos autorizados.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsOnboardMode(!isOnboardMode)}
+                                    className={`w-14 h-7 rounded-full transition-all relative shrink-0 p-1 flex items-center ${isOnboardMode ? 'bg-primary' : 'bg-zinc-800'}`}
+                                >
+                                    <div
+                                        className={`w-5 h-5 bg-white rounded-full transition-transform duration-300 ${
+                                            isOnboardMode ? 'translate-x-7' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </button>
+                            </div>
+
+                            {/* Secciones Adicionales de Onboarding */}
+                            <AnimatePresence>
+                                {isOnboardMode && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="space-y-4 border-t border-white/5 pt-4 overflow-hidden"
+                                    >
+                                        <div className="border-b border-white/5 pb-2">
+                                            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Credenciales del Administrador</h4>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <Input label="Nombre Administrador" value={formData.admin_nombre} onChange={v => setFormData({ ...formData, admin_nombre: v })} placeholder="Ej: Juan Pérez" />
+                                            <Input label="Email Administrador" value={formData.admin_email} onChange={v => setFormData({ ...formData, admin_email: v })} placeholder="juan@gimnasio.com" />
+                                        </div>
+                                        <Input label="Contraseña Inicial" value={formData.admin_password} onChange={v => setFormData({ ...formData, admin_password: v })} placeholder="Clave temporal" className="font-mono text-sm" />
+
+                                        <div className="border-b border-white/5 pb-2 pt-2">
+                                            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Plan & Módulos Activos</h4>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Plan Comercial</label>
+                                            <select
+                                                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-red-500 outline-none transition-all"
+                                                value={formData.plan_id}
+                                                onChange={e => setFormData({ ...formData, plan_id: e.target.value })}
+                                            >
+                                                <option value="" className="bg-[#1c1c1e]">Selecciona un Plan</option>
+                                                {plans.map(p => (
+                                                    <option key={p.id} value={p.id} className="bg-[#1c1c1e]">{p.nombre} (${p.precio_mensual}/mes)</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3 pt-2">
+                                            {[
+                                                { id: 'rutinas_ia', label: 'IA Rutinas' },
+                                                { id: 'nutricion_ia', label: 'IA Nutrición' },
+                                                { id: 'pagos_online', label: 'Pagos / POS' },
+                                                { id: 'clases_reserva', label: 'Reservas' },
+                                                { id: 'gamificacion', label: 'Gamificación' }
+                                            ].map(m => (
+                                                <div key={m.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData({
+                                                            ...formData,
+                                                            modulos: {
+                                                                ...formData.modulos,
+                                                                [m.id]: !formData.modulos[m.id]
+                                                            }
+                                                        })}
+                                                        className={`w-10 h-5 rounded-full transition-all relative shrink-0 p-0.5 flex items-center ${formData.modulos[m.id] ? 'bg-primary' : 'bg-zinc-800'}`}
+                                                    >
+                                                        <div
+                                                            className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${
+                                                                formData.modulos[m.id] ? 'translate-x-5' : 'translate-x-0'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                    <span className="text-[9px] font-bold text-gray-300 uppercase tracking-wide">{m.label}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="border-b border-white/5 pb-2 pt-4">
+                                            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pasarela MercadoPago (Opcional)</h4>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <Input label="Access Token MP" value={formData.mp_access_token} onChange={v => setFormData({ ...formData, mp_access_token: v })} placeholder="APP_USR-..." className="text-xs" />
+                                            <Input label="Public Key MP" value={formData.mp_public_key} onChange={v => setFormData({ ...formData, mp_public_key: v })} placeholder="APP_USR-..." className="text-xs" />
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
                             <div className="flex gap-4 pt-4">
-                                <ModalButton type="button" onClick={() => setShowCreateModal(false)} variant="secondary">Cancelar</ModalButton>
-                                <ModalButton type="submit" disabled={creating}>{creating ? 'Creando...' : 'Confirmar Registro'}</ModalButton>
+                                <ModalButton type="button" onClick={() => { setShowCreateModal(false); setIsOnboardMode(false); }} variant="secondary">Cancelar</ModalButton>
+                                <ModalButton type="submit" disabled={creating}>{creating ? 'Procesando...' : isOnboardMode ? 'Completar Onboarding' : 'Confirmar Registro'}</ModalButton>
                             </div>
                         </form>
                     </Modal>

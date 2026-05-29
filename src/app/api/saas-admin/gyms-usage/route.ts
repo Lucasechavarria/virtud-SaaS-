@@ -136,7 +136,7 @@ export async function GET(request: Request) {
             const { data: profiles, error: profError } = await supabase
                 .from('perfiles')
                 .select('id, gimnasio_id')
-                .eq('rol', 'alumno');
+                .eq('rol', 'member');
 
             if (!profError && profiles) {
                 profilesLoaded = true;

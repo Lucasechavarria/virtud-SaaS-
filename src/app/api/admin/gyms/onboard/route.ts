@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { nombre, slug, plan_id, modulos, admin_nombre, admin_email, admin_password } = body;
+        const { nombre, slug, plan_id, modulos, admin_nombre, admin_email, admin_password, configuracion } = body;
 
         // 1. Validar slug único
         const { data: existingGym } = await adminSupabase
@@ -31,7 +31,8 @@ export async function POST(request: Request) {
                 slug,
                 plan_id,
                 modulos_activos: modulos,
-                estado_pago_saas: 'active' // O inicializar como trial
+                estado_pago_saas: 'active', // O inicializar como trial
+                configuracion: configuracion || {}
             })
             .select()
             .single();

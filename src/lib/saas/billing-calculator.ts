@@ -47,7 +47,7 @@ export async function calculateGymMonthlyBill(gymId: string): Promise<BillingSum
         .from('perfiles')
         .select('id', { count: 'exact', head: true })
         .eq('gimnasio_id', gymId)
-        .eq('rol', 'alumno');
+        .eq('rol', 'member');
 
     const students = studentCount || 0;
     const limit = plan.limite_usuarios;

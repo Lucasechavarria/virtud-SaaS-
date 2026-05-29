@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         const { count: suspendedGyms } = await supabase.from('gimnasios').select('id', { count: 'exact', head: true }).eq('estado_pago_saas', 'suspended');
 
         // 3. Contar alumnos totales
-        const { count: totalStudents } = await supabase.from('perfiles').select('id', { count: 'exact', head: true }).eq('rol', 'alumno');
+        const { count: totalStudents } = await supabase.from('perfiles').select('id', { count: 'exact', head: true }).eq('rol', 'member');
 
         // 3b. Contar consumos de IA (Videos Biomecánicos procesados y Rutinas Generadas) con fallbacks
         let videosProcesados = 0;
