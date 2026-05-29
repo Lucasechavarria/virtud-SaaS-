@@ -63,6 +63,9 @@ interface GymUsage {
     rutinas_ia: number;
     costo_ia_estimado: number;
     cargo_total_mes: number;
+    modelo_facturacion?: 'membresia' | 'consumo';
+    volumen_pos?: number;
+    comision_pos_total?: number;
 }
 
 export default function SaaSMetricsPage() {
@@ -433,9 +436,20 @@ export default function SaaSMetricsPage() {
 
                                                     {/* Plan Name */}
                                                     <td className="px-8 py-5">
-                                                        <span className="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-[9px] font-black uppercase tracking-widest border border-purple-500/20">
-                                                            {gym.plan_nombre}
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 items-start">
+                                                            <span className="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-[9px] font-black uppercase tracking-widest border border-purple-500/20">
+                                                                {gym.plan_nombre}
+                                                            </span>
+                                                            {gym.modelo_facturacion === 'consumo' ? (
+                                                                <span className="px-2 py-0.5 bg-tactical-magenta/10 text-tactical-magenta rounded-md text-[8px] font-bold uppercase tracking-widest border border-tactical-magenta/20">
+                                                                    Pago x Uso
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 bg-tactical-cyan/10 text-tactical-cyan rounded-md text-[8px] font-bold uppercase tracking-widest border border-tactical-cyan/20">
+                                                                    Fijo Mensual
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
 
                                                     {/* Alumnos usage progress */}
@@ -480,7 +494,19 @@ export default function SaaSMetricsPage() {
 
                                                     {/* Overages */}
                                                     <td className="px-8 py-5 text-right">
-                                                        {isExceeded ? (
+                                                        {gym.modelo_facturacion === 'consumo' ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-xs font-black text-tactical-cyan">
+                                                                    +${gym.comision_pos_total?.toFixed(2) ?? '0.00'}
+                                                                </span>
+                                                                <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider">
+                                                                    comisión POS
+                                                                </span>
+                                                                <span className="text-[7px] text-zinc-600 font-bold uppercase tracking-wider">
+                                                                    (de ${gym.volumen_pos?.toFixed(0) ?? '0'} ventas)
+                                                                </span>
+                                                            </div>
+                                                        ) : isExceeded ? (
                                                             <div className="flex flex-col items-end">
                                                                 <span className="text-xs font-black text-tactical-magenta">
                                                                     +${gym.alumnos_excedentes_costo.toFixed(2)}
