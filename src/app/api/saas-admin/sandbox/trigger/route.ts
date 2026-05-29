@@ -56,6 +56,32 @@ export async function POST(request: Request) {
                 amount = bill.basePrice;
                 discount = bill.discountPercent;
                 finalAmount = bill.totalAmount;
+
+                // Si se debitaron créditos de su billetera virtual, persistir en base de datos
+                if (bill.pagadoConCreditos && bill.pagadoConCreditos > 0) {
+                    const { data: gymData } = await supabase
+                        .from('gimnasios')
+                        .select('configuracion')
+                        .eq('id', gymId)
+                        .single();
+
+                    if (gymData) {
+                        const config = (gymData.configuracion || {}) as Record<string, any>;
+                        config.saldo_creditos = Number(Math.max(0, Number(config.saldo_creditos ?? 0) - bill.pagadoConCreditos).toFixed(2));
+                        
+                        if (!config.historial_recargas) config.historial_recargas = [];
+                        config.historial_recargas.push({
+                            fecha: new Date().toISOString(),
+                            monto: -bill.pagadoConCreditos,
+                            metodo: 'Débito Automático IA'
+                        });
+
+                        await supabase
+                            .from('gimnasios')
+                            .update({ configuracion: config })
+                            .eq('id', gymId);
+                    }
+                }
             } catch (_err) {
                 amount = Math.floor(Math.random() * 50) + 49;
                 discount = Math.random() > 0.7 ? 10 : 0;

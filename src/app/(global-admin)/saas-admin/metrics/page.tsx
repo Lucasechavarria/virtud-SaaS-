@@ -15,7 +15,8 @@ import {
     BarChart3,
     Activity,
     AlertTriangle,
-    Eye
+    Eye,
+    Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -63,9 +64,13 @@ interface GymUsage {
     rutinas_ia: number;
     costo_ia_estimado: number;
     cargo_total_mes: number;
-    modelo_facturacion?: 'membresia' | 'consumo';
+    modelo_facturacion?: 'membresia' | 'consumo' | 'hibrido';
     volumen_pos?: number;
     comision_pos_total?: number;
+    saldo_creditos?: number;
+    limite_alerta_saldo?: number;
+    metodo_cobro_excedentes?: 'prepago' | 'postpago';
+    configuracion?: any;
 }
 
 export default function SaaSMetricsPage() {
@@ -73,8 +78,9 @@ export default function SaaSMetricsPage() {
     const [history, setHistory] = useState<MetricHistory[]>([]);
     const [gymsUsage, setGymsUsage] = useState<GymUsage[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'global' | 'gyms'>('global');
+    const [activeTab, setActiveTab] = useState<'global' | 'gyms' | 'advisor'>('global');
     const [searchGym, setSearchGym] = useState('');
+    const [migratingId, setMigratingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (activeTab === 'global') {
@@ -83,6 +89,43 @@ export default function SaaSMetricsPage() {
             fetchGymsUsage();
         }
     }, [activeTab]);
+
+    const handleMigrateModel = async (gym: GymUsage, newModel: 'membresia' | 'consumo' | 'hibrido') => {
+        setMigratingId(gym.id);
+        try {
+            const res = await fetch('/api/admin/gyms/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: gym.id,
+                    nombre: gym.nombre,
+                    slug: gym.slug,
+                    es_activo: gym.es_activo,
+                    plan_id: gym.configuracion?.plan_id || null,
+                    estado_pago_saas: gym.estado_pago_saas,
+                    configuracion: {
+                        ...(gym.configuracion || {}),
+                        modelo_facturacion: newModel
+                    }
+                })
+            });
+            if (res.ok) {
+                toast.success(`Sede "${gym.nombre}" migrada con éxito a ${newModel.toUpperCase()}`);
+                fetchGymsUsage();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Error al realizar migración');
+            }
+        } catch (_err) {
+            toast.error('Error de red al migrar modelo');
+        } finally {
+            setMigratingId(null);
+        }
+    };
+
+    const handleExportPDF = () => {
+        window.print();
+    };
 
     const fetchMetrics = async () => {
         setLoading(true);
@@ -153,14 +196,15 @@ export default function SaaSMetricsPage() {
                 
                 <div className="flex items-center gap-4">
                     {/* Tab Selector */}
-                    <div className="flex bg-zinc-900/80 p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                    <div className="flex bg-zinc-900/80 p-1.5 rounded-2xl border border-white/5 shadow-inner no-print">
                         {[
                             { id: 'global', label: 'Econ. Global', icon: <BarChart3 size={14} /> },
-                            { id: 'gyms', label: 'Consumos e IA', icon: <Cpu size={14} /> }
+                            { id: 'gyms', label: 'Consumos e IA', icon: <Cpu size={14} /> },
+                            { id: 'advisor', label: 'Asesor BI Activo', icon: <TrendingUp size={14} /> }
                         ].map(t => (
                             <button
                                 key={t.id}
-                                onClick={() => setActiveTab(t.id as 'global' | 'gyms')}
+                                onClick={() => setActiveTab(t.id as any)}
                                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                     activeTab === t.id
                                         ? 'bg-tactical-cyan text-black shadow-[0_0_15px_rgba(0,245,255,0.25)]'
@@ -383,7 +427,7 @@ export default function SaaSMetricsPage() {
                             </div>
                         </div>
                     </motion.div>
-                ) : (
+                ) : activeTab === 'gyms' ? (
                     <motion.div
                         key="gyms"
                         initial={{ opacity: 0, y: 15 }}
@@ -392,7 +436,7 @@ export default function SaaSMetricsPage() {
                         className="space-y-6"
                     >
                         {/* Search Gym Usage bar */}
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-950 p-6 rounded-[2rem] border border-white/5 shadow-lg">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-950 p-6 rounded-[2rem] border border-white/5 shadow-lg no-print">
                             <h3 className="text-lg font-black text-white italic uppercase tracking-wider">Monitoreo de Cuotas e IA B2B</h3>
                             <div className="relative max-w-md w-full">
                                 <input
@@ -443,6 +487,10 @@ export default function SaaSMetricsPage() {
                                                             {gym.modelo_facturacion === 'consumo' ? (
                                                                 <span className="px-2 py-0.5 bg-tactical-magenta/10 text-tactical-magenta rounded-md text-[8px] font-bold uppercase tracking-widest border border-tactical-magenta/20">
                                                                     Pago x Uso
+                                                                </span>
+                                                            ) : gym.modelo_facturacion === 'hibrido' ? (
+                                                                <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-md text-[8px] font-bold uppercase tracking-widest border border-amber-500/20">
+                                                                    Híbrido
                                                                 </span>
                                                             ) : (
                                                                 <span className="px-2 py-0.5 bg-tactical-cyan/10 text-tactical-cyan rounded-md text-[8px] font-bold uppercase tracking-widest border border-tactical-cyan/20">
@@ -506,6 +554,15 @@ export default function SaaSMetricsPage() {
                                                                     (de ${gym.volumen_pos?.toFixed(0) ?? '0'} ventas)
                                                                 </span>
                                                             </div>
+                                                        ) : gym.modelo_facturacion === 'hibrido' ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-xs font-black text-amber-400">
+                                                                    +${(gym.costo_ia_estimado > 5.0 ? gym.costo_ia_estimado - 4.5 : 0).toFixed(2)}
+                                                                </span>
+                                                                <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider">
+                                                                    Excedentes IA
+                                                                </span>
+                                                            </div>
                                                         ) : isExceeded ? (
                                                             <div className="flex flex-col items-end">
                                                                 <span className="text-xs font-black text-tactical-magenta">
@@ -528,7 +585,7 @@ export default function SaaSMetricsPage() {
                                                             </span>
                                                             <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider">
                                                                 Mes en curso
-                                                            </span>
+                                                             </span>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -544,6 +601,218 @@ export default function SaaSMetricsPage() {
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="advisor"
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="space-y-6 print-full"
+                    >
+                        {/* CSS inyectado para soporte de PDF */}
+                        <style dangerouslySetInnerHTML={{ __html: `
+                            @media print {
+                                body {
+                                    background: #ffffff !important;
+                                    color: #000000 !important;
+                                }
+                                .no-print {
+                                    display: none !important;
+                                }
+                                .print-full {
+                                    width: 100% !important;
+                                    max-width: 100% !important;
+                                    margin: 0 !important;
+                                    padding: 1.5rem !important;
+                                    background: #ffffff !important;
+                                    color: #000000 !important;
+                                }
+                                .print-card {
+                                    background: #ffffff !important;
+                                    border: 1px solid #e4e4e7 !important;
+                                    color: #000000 !important;
+                                    box-shadow: none !important;
+                                    border-radius: 1rem !important;
+                                    padding: 1.5rem !important;
+                                }
+                                .print-text-dark {
+                                    color: #09090b !important;
+                                }
+                                .print-text-muted {
+                                    color: #71717a !important;
+                                }
+                                .print-badge {
+                                    border: 1px solid #000000 !important;
+                                    color: #000000 !important;
+                                    background: transparent !important;
+                                }
+                            }
+                        `}} />
+
+                        {/* Executive Header */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-zinc-950 p-8 rounded-[2rem] border border-white/5 shadow-lg print-card">
+                            <div className="space-y-1">
+                                <span className="px-3 py-1 bg-amber-500/10 text-amber-400 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-500/20 print-badge">
+                                    Inteligencia Activa SaaS
+                                </span>
+                                <h3 className="text-2xl font-black text-white italic uppercase tracking-wider print-text-dark">
+                                    Asesor de Optimización Financiera B2B
+                                </h3>
+                                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest print-text-muted">
+                                    Informes y recomendaciones de rentabilidad dirigidos exclusivamente al Super Admin
+                                </p>
+                            </div>
+                            <button
+                                onClick={handleExportPDF}
+                                className="flex items-center gap-2 px-6 py-3.5 bg-tactical-cyan text-black hover:bg-tactical-cyan/80 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-tactical-cyan/25 transition-all no-print"
+                            >
+                                <Download size={14} /> Exportar Reporte BI (PDF)
+                            </button>
+                        </div>
+
+                        {/* Network Optimization Status Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-zinc-950 p-6 rounded-3xl border border-white/5 print-card">
+                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest print-text-muted">Sedes con Margen de Mejora</span>
+                                <p className="text-3xl font-black text-amber-400 italic uppercase leading-none mt-2">
+                                    {gymsUsage.filter(g => g.modelo_facturacion === 'membresia').length} Sedes
+                                </p>
+                                <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mt-2 print-text-muted">Potencial de facturación incrementado detectado</p>
+                            </div>
+                            <div className="bg-zinc-950 p-6 rounded-3xl border border-white/5 print-card">
+                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest print-text-muted">Proyección Margen SaaS Mensual</span>
+                                <p className="text-3xl font-black text-tactical-cyan italic uppercase leading-none mt-2">
+                                    +${(gymsUsage.filter(g => g.modelo_facturacion === 'membresia').length * 24.50).toFixed(2)} USD
+                                </p>
+                                <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mt-2 print-text-muted">Ingreso adicional neto si se aplica migración activa</p>
+                            </div>
+                            <div className="bg-zinc-950 p-6 rounded-3xl border border-white/5 print-card">
+                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest print-text-muted">Fondos Totales AI Wallet</span>
+                                <p className="text-3xl font-black text-tactical-magenta italic uppercase leading-none mt-2">
+                                    ${gymsUsage.reduce((acc, g) => acc + (g.saldo_creditos || 0), 0).toFixed(2)} USD
+                                </p>
+                                <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mt-2 print-text-muted">Créditos prepagados activos de IA en la red</p>
+                            </div>
+                        </div>
+
+                        {/* Gym-by-Gym BI Recommendation Sheets */}
+                        <div className="space-y-6">
+                            {gymsUsage.map((gym) => {
+                                // Cálculos comparativos rápidos
+                                const costMembresia = gym.precio_mensual + (gym.alumnos_excedentes * gym.alumnos_excedentes_costo);
+                                const costConsumo = (gym.volumen_pos || 0) * 0.015 + (gym.videos_procesados * 0.07) + (gym.rutinas_ia * 0.015);
+                                const costHibrido = gym.precio_mensual + Math.max(0, gym.videos_procesados - 50) * 0.07 + Math.max(0, gym.rutinas_ia - 100) * 0.015 + (gym.volumen_pos || 0) * 0.015;
+
+                                // Lógica de Recomendación Exclusiva del Super Admin para maximizar rentabilidad
+                                let recommendedModel: 'membresia' | 'consumo' | 'hibrido' = 'membresia';
+                                let explanation = '';
+                                let revenueDiff = 0;
+
+                                if (gym.videos_procesados > 40 || gym.rutinas_ia > 80) {
+                                    recommendedModel = 'hibrido';
+                                    revenueDiff = costHibrido - costMembresia;
+                                    explanation = `El alto volumen de procesamiento IA (${gym.videos_procesados} videos, ${gym.rutinas_ia} rutinas) genera altos costos de cómputo GPU. Migrar al modelo HÍBRIDO te permite resguardar tu costo base con la tarifa mensual fija y cobrar excedentes por cada análisis de IA extra.`;
+                                } else if (gym.alumnos_activos > 200) {
+                                    recommendedModel = 'consumo';
+                                    revenueDiff = costConsumo - costMembresia;
+                                    explanation = `Con ${gym.alumnos_activos} alumnos y un volumen de venta POS de $${(gym.volumen_pos || 0).toFixed(0)} USD, la comisión SaaS del 1.5% + consumos de IA es la alternativa más rentable para el SaaS en comparación a una cuota mensual plana.`;
+                                } else {
+                                    recommendedModel = 'membresia';
+                                    explanation = `El consumo es moderado y estable. Mantener al cliente bajo Membresía Fija asegura ingresos predecibles recurrentes (MRR) y fidelización a largo plazo.`;
+                                }
+
+                                const isCurrentRecommended = gym.modelo_facturacion === recommendedModel;
+
+                                return (
+                                    <div key={gym.id} className="bg-zinc-950 p-8 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all print-card space-y-6">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                            <div>
+                                                <h4 className="text-lg font-black text-white italic uppercase tracking-wider print-text-dark">{gym.nombre}</h4>
+                                                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest print-text-muted">{gym.slug} • Plan contratado: {gym.plan_nombre}</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Esquema Actual:</span>
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                    gym.modelo_facturacion === 'consumo' ? 'bg-tactical-magenta/10 text-tactical-magenta border-tactical-magenta/20' :
+                                                    gym.modelo_facturacion === 'hibrido' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                    'bg-tactical-cyan/10 text-tactical-cyan border-tactical-cyan/20'
+                                                }`}>
+                                                    {gym.modelo_facturacion === 'consumo' ? 'Pago x Uso' : gym.modelo_facturacion === 'hibrido' ? 'Híbrido' : 'Membresía'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Comparador de Modelos Proyectado */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div className={`p-4 rounded-2xl border text-center ${gym.modelo_facturacion === 'membresia' ? 'bg-white/2 border-white/10' : 'bg-black/30 border-white/5 opacity-60'} print-card`}>
+                                                <span className="text-[8px] font-black text-zinc-500 uppercase tracking-wider print-text-muted">Membresía Fija</span>
+                                                <p className="text-xl font-black text-white italic mt-1 print-text-dark">${costMembresia.toFixed(2)}</p>
+                                                <span className="text-[7px] text-zinc-600 font-bold uppercase print-text-muted">USD / mes</span>
+                                            </div>
+                                            <div className={`p-4 rounded-2xl border text-center ${gym.modelo_facturacion === 'consumo' ? 'bg-white/2 border-white/10' : 'bg-black/30 border-white/5 opacity-60'} print-card`}>
+                                                <span className="text-[8px] font-black text-zinc-500 uppercase tracking-wider print-text-muted">Pago por Uso</span>
+                                                <p className="text-xl font-black text-white italic mt-1 print-text-dark">${costConsumo.toFixed(2)}</p>
+                                                <span className="text-[7px] text-zinc-600 font-bold uppercase print-text-muted">USD / mes</span>
+                                            </div>
+                                            <div className={`p-4 rounded-2xl border text-center ${gym.modelo_facturacion === 'hibrido' ? 'bg-white/2 border-white/10' : 'bg-black/30 border-white/5 opacity-60'} print-card`}>
+                                                <span className="text-[8px] font-black text-zinc-500 uppercase tracking-wider print-text-muted">Híbrido Avanzado</span>
+                                                <p className="text-xl font-black text-white italic mt-1 print-text-dark">${costHibrido.toFixed(2)}</p>
+                                                <span className="text-[7px] text-zinc-600 font-bold uppercase print-text-muted">USD / mes</span>
+                                            </div>
+                                        </div>
+
+                                        {/* BI Intelligent Recommendation Alert Box */}
+                                        <div className={`p-6 rounded-2xl border ${isCurrentRecommended ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-amber-500/5 border-amber-500/20'} print-card`}>
+                                            <div className="flex items-start gap-4">
+                                                <span className="text-2xl shrink-0">💡</span>
+                                                <div className="space-y-1.5">
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-white print-text-dark">
+                                                        Recomendación BI Superadmin: {isCurrentRecommended ? (
+                                                            <span className="text-emerald-400 font-black">Modelo Óptimo Activo</span>
+                                                        ) : (
+                                                            <span className="text-amber-400 font-black">Acción de Optimización Requerida</span>
+                                                        )}
+                                                    </p>
+                                                    <p className="text-xs text-zinc-400 leading-relaxed font-medium print-text-dark">
+                                                        {explanation}
+                                                    </p>
+                                                    {!isCurrentRecommended && revenueDiff > 0 && (
+                                                        <p className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">
+                                                            Beneficio Proyectado para SaaS: +${revenueDiff.toFixed(2)} USD / mes de margen adicional
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Quick Actions (1-Click Migration Console) */}
+                                        {!isCurrentRecommended && (
+                                            <div className="flex flex-wrap items-center gap-3 pt-2 no-print">
+                                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-wider">Migración en 1-Clic:</span>
+                                                {['membresia', 'consumo', 'hibrido'].map((m) => {
+                                                    if (gym.modelo_facturacion === m) return null;
+                                                    return (
+                                                        <button
+                                                            key={m}
+                                                            disabled={migratingId === gym.id}
+                                                            onClick={() => handleMigrateModel(gym, m as any)}
+                                                            className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50 ${
+                                                                m === recommendedModel
+                                                                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 font-black'
+                                                                    : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
+                                                            }`}
+                                                        >
+                                                            {migratingId === gym.id ? 'Migrando...' : `Cambiar a ${m === 'consumo' ? 'PAGO X USO' : m.toUpperCase()}`}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </motion.div>
                 )}

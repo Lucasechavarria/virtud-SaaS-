@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 interface BillingSummary {
-    modeloFacturacion: 'membresia' | 'consumo';
+    modeloFacturacion: 'membresia' | 'consumo' | 'hibrido';
     basePrice: number;
     discountPercent: number;
     extraStudents: number;
@@ -16,6 +16,18 @@ interface BillingSummary {
     costoRutinasIA?: number;
     volumenPOS?: number;
     comisionPOS?: number;
+    // Campos del AI Wallet y Modelo Híbrido
+    saldoCreditos?: number;
+    pagadoConCreditos?: number;
+    saldoRestante?: number;
+    limiteAlertaSaldo?: number;
+    metodoCobroExcedentes?: 'prepago' | 'postpago';
+    limiteVideosHibrido?: number;
+    limiteRutinasHibrido?: number;
+    extraVideos?: number;
+    extraRoutines?: number;
+    costoExtraVideos?: number;
+    costoExtraRutinas?: number;
 }
 
 const settingsPath = path.join(process.cwd(), 'src', 'lib', 'data', 'saas_settings.json');
@@ -72,7 +84,14 @@ export async function calculateGymMonthlyBill(gymId: string): Promise<BillingSum
 
     const plan = gym.planes_suscripcion as unknown as PlanData;
     const config = (gym.configuracion || {}) as Record<string, any>;
-    const modeloFacturacion = config.modelo_facturacion === 'consumo' ? 'consumo' : 'membresia';
+    
+    // Obtener modelo activo de facturación (membresia, consumo o hibrido)
+    let modeloFacturacion: 'membresia' | 'consumo' | 'hibrido' = 'membresia';
+    if (config.modelo_facturacion === 'consumo') {
+        modeloFacturacion = 'consumo';
+    } else if (config.modelo_facturacion === 'hibrido') {
+        modeloFacturacion = 'hibrido';
+    }
 
     // 2. Contar alumnos actuales
     const { count: studentCount } = await supabase
@@ -141,19 +160,53 @@ export async function calculateGymMonthlyBill(gymId: string): Promise<BillingSum
     const discount = gym.descuento_saas || 0;
 
     const extraStudents = Math.max(0, students - limit);
-    const extraStudentsCost = extraStudents * (plan.precio_alumno_extra || 0);
+    const extraStudentsCost = extraStudents * (plan.precio_alumno_extra || 0.15);
     const basePrice = plan.precio_mensual;
+
+    // Campos Híbridos
+    const limiteVideosHibrido = config.limite_videos_hibrido ?? 50;
+    const limiteRutinasHibrido = config.limite_rutinas_hibrido ?? 100;
+    const extraVideos = Math.max(0, videosCount - limiteVideosHibrido);
+    const extraRoutines = Math.max(0, routinesCount - limiteRutinasHibrido);
+    const costoExtraVideos = extraVideos * costoVideoFacturado;
+    const costoExtraRutinas = extraRoutines * costoRutinaFacturado;
 
     if (modeloFacturacion === 'consumo') {
         // Modelo por consumo: Comisión POS + Consumos de IA
         const totalConsumo = comisionPOS + costoVideosIA + costoRutinasIA;
         // Aplicamos descuento de SaaS si corresponde
         totalAmount = totalConsumo * (1 - (discount / 100));
+    } else if (modeloFacturacion === 'hibrido') {
+        // Modelo híbrido: Suscripción Base + Exceso de Alumnos + Exceso de IA + Comisión POS
+        const baseConDescuento = basePrice * (1 - (discount / 100));
+        totalAmount = baseConDescuento + extraStudentsCost + costoExtraVideos + costoExtraRutinas + comisionPOS;
     } else {
         // Modelo por membresía estándar
         const discountedBase = basePrice * (1 - (discount / 100));
         totalAmount = discountedBase + extraStudentsCost;
     }
+
+    // 5. Lógica del Monedero Virtual de IA & Créditos Prepago (AI Wallet)
+    const saldoCreditos = Number(config.saldo_creditos ?? 0.0);
+    const limiteAlertaSaldo = Number(config.limite_alerta_saldo ?? 10.0);
+    const metodoCobroExcedentes = config.metodo_cobro_excedentes === 'prepago' ? 'prepago' : 'postpago';
+
+    // Determinar coste de IA elegible para cubrir con créditos de billetera
+    let iaCostToCover = 0;
+    if (modeloFacturacion === 'consumo') {
+        iaCostToCover = costoVideosIA + costoRutinasIA;
+    } else if (modeloFacturacion === 'hibrido') {
+        iaCostToCover = costoExtraVideos + costoExtraRutinas;
+    }
+
+    let pagadoConCreditos = 0;
+    if (metodoCobroExcedentes === 'prepago' && iaCostToCover > 0) {
+        pagadoConCreditos = Math.min(saldoCreditos, iaCostToCover);
+        // Reducimos el total a cobrar de la factura
+        totalAmount = Math.max(0, totalAmount - pagadoConCreditos);
+    }
+
+    const saldoRestante = Number((saldoCreditos - pagadoConCreditos).toFixed(2));
 
     return {
         modeloFacturacion,
@@ -168,6 +221,18 @@ export async function calculateGymMonthlyBill(gymId: string): Promise<BillingSum
         costoVideosIA: Number(costoVideosIA.toFixed(2)),
         costoRutinasIA: Number(costoRutinasIA.toFixed(2)),
         volumenPOS: Number(volumenPOS.toFixed(2)),
-        comisionPOS: Number(comisionPOS.toFixed(2))
+        comisionPOS: Number(comisionPOS.toFixed(2)),
+        // Campos inyectados de AI Wallet y Híbrido
+        saldoCreditos,
+        pagadoConCreditos: Number(pagadoConCreditos.toFixed(2)),
+        saldoRestante,
+        limiteAlertaSaldo,
+        metodoCobroExcedentes,
+        limiteVideosHibrido,
+        limiteRutinasHibrido,
+        extraVideos,
+        extraRoutines,
+        costoExtraVideos: Number(costoExtraVideos.toFixed(2)),
+        costoExtraRutinas: Number(costoExtraRutinas.toFixed(2))
     };
 }

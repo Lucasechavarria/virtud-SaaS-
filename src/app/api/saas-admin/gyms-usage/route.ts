@@ -268,7 +268,11 @@ export async function GET(request: Request) {
                 cargo_total_mes: bill.totalAmount,
                 modelo_facturacion: bill.modeloFacturacion,
                 volumen_pos: bill.volumenPOS || 0,
-                comision_pos_total: bill.comisionPOS || 0
+                comision_pos_total: bill.comisionPOS || 0,
+                saldo_creditos: bill.saldoCreditos || 0,
+                limite_alerta_saldo: bill.limiteAlertaSaldo || 10,
+                metodo_cobro_excedentes: bill.metodoCobroExcedentes || 'postpago',
+                configuracion: gym.configuracion || {}
             };
         }));
 
