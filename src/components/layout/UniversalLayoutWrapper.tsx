@@ -44,17 +44,23 @@ export function UniversalLayoutWrapper({
             })
             .catch(err => console.error('Error fetching maintenance state:', err));
 
-        // Fetch pro-active wallet alert for local gym admin
+        // Fetch pro-active wallet alert for local gym admin (SSOT)
         if (gymId && gymId !== 'admin' && gymId !== 'saas-admin' && profileRole === 'admin') {
             fetch('/api/admin/gym/billing')
                 .then(res => res.json())
                 .then(data => {
-                    if (data && data.bill) {
-                        const threshold = data.bill.limiteAlertaSaldo ?? 10;
-                        if (data.bill.saldoCreditos < threshold && data.bill.metodoCobroExcedentes === 'prepago') {
+                    if (data && data.bill && data.bill.configuracion) {
+                        const alertas = data.bill.configuracion.alertas_sistema || [];
+                        const alertaSaldoBajo = alertas.find((a: any) => a.tipo === 'saldo_bajo' && a.activo === true);
+                        if (alertaSaldoBajo) {
                             setWalletAlert({
                                 active: true,
-                                message: `¡Alerta de AI Wallet! Tu saldo de créditos de IA ($${data.bill.saldoCreditos.toFixed(2)} USD) está por debajo de tu límite de $${threshold}.00 USD. Por favor realiza una recarga.`
+                                message: alertaSaldoBajo.mensaje
+                            });
+                        } else {
+                            setWalletAlert({
+                                active: false,
+                                message: ''
                             });
                         }
                     }
