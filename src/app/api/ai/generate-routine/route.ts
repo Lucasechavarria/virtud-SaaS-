@@ -38,7 +38,18 @@ export async function POST(request: Request) {
         const { studentId, goalId, goal, coachNotes, includeNutrition = true, templateKey } = await request.json();
 
         // --- CONTROL DE CUOTAS IA (Q3 Goal A) ---
+        let isRoutineOverage = false;
         if (profile?.gimnasio_id) {
+            const { checkGymLimits } = await import('@/lib/saas/limits');
+            const limits = await checkGymLimits(profile.gimnasio_id);
+            isRoutineOverage = !!limits.nextRoutineIsOverage;
+            if (limits.canGenerateRoutine === false) {
+                return NextResponse.json({
+                    error: limits.reason || 'Saldo prepago insuficiente en tu AI Wallet. Por favor realiza una carga de créditos.',
+                    limitReached: true
+                }, { status: 402 }); // 402 Payment Required!
+            }
+
             const { consumeAIQuota } = await import('@/lib/ai/quota-gate');
             const quotaCheck = await consumeAIQuota(
                 profile.gimnasio_id,
@@ -268,6 +279,12 @@ export async function POST(request: Request) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .update({ plan_nutricional_id: nutrition.id } as any)
                 .eq('id', routine.id);
+        }
+
+        // --- DEDUCCIÓN EN TIEMPO REAL SI CORRESPONDE ---
+        if (profile?.gimnasio_id && isRoutineOverage) {
+            const { deductPrepagoQuota } = await import('@/lib/saas/limits');
+            await deductPrepagoQuota(profile.gimnasio_id, 'routine');
         }
 
         return NextResponse.json({

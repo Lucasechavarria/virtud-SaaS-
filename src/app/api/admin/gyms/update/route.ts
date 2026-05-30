@@ -28,6 +28,35 @@ export async function POST(request: Request) {
 
         const supabase = createAdminClient();
 
+        // 1. Validar si el Super Admin ajustó manualmente el saldo de AI Wallet
+        let prevSaldo = 0;
+        try {
+            const { data: oldGym } = await supabase
+                .from('gimnasios')
+                .select('configuracion')
+                .eq('id', id)
+                .single();
+            if (oldGym) {
+                const oldConfig = oldGym.configuracion as any;
+                prevSaldo = Number(oldConfig?.saldo_creditos ?? 0.0);
+            }
+        } catch (_err) {}
+
+        const newConfig = (configuracion || {}) as Record<string, any>;
+        const newSaldo = Number(newConfig.saldo_creditos ?? 0.0);
+        const diff = newSaldo - prevSaldo;
+
+        if (Math.abs(diff) >= 0.01) {
+            if (!newConfig.historial_recargas) newConfig.historial_recargas = [];
+            newConfig.historial_recargas.push({
+                fecha: new Date().toISOString(),
+                monto: diff,
+                metodo: diff > 0 
+                    ? 'Ajuste manual del Super Admin (Abono)' 
+                    : 'Ajuste manual del Super Admin (Débito)'
+            });
+        }
+
         const { data: gym, error: gymError } = await supabase
             .from('gimnasios')
             .update({
@@ -40,7 +69,7 @@ export async function POST(request: Request) {
                 estado_pago_saas,
                 config_visual,
                 modulos_activos,
-                configuracion
+                configuracion: newConfig
             })
             .eq('id', id)
             .select()

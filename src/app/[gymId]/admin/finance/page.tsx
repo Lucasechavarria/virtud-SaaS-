@@ -543,7 +543,7 @@ export default function FinanceHubPage() {
                                         </p>
                                     </div>
                                     <button
-                                        onClick={() => toast.success('Redirigiendo a consolas de cambio de plan corporativo...')}
+                                        onClick={() => router.push(`/${gymId}/admin/plans`)}
                                         className="px-5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest shrink-0 transition-all"
                                     >
                                         Mejorar Plan
