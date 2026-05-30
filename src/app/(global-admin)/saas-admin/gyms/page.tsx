@@ -127,6 +127,8 @@ export default function GymsManagementPage() {
             const payload = isOnboardMode ? {
                 nombre: formData.nombre,
                 slug: formData.slug.toLowerCase(),
+                sucursal_nombre: formData.sucursal_nombre || 'Casa Central',
+                direccion: formData.direccion || '',
                 plan_id: formData.plan_id || plans[0]?.id || '',
                 modulos: formData.modulos,
                 admin_nombre: formData.admin_nombre,
