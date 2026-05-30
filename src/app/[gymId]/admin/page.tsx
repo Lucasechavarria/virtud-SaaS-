@@ -7,8 +7,10 @@ import { redirect } from 'next/navigation';
 
 export default async function AdminDashboard({
     params,
+    searchParams,
 }: {
     params: { gymId: string };
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
 }) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -27,7 +29,14 @@ export default async function AdminDashboard({
         .eq('id', user.id)
         .single();
 
+    // Resolver searchParams compatible con Next.js 14/15
+    const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : searchParams;
+    const isImpersonating = resolvedSearchParams?.impersonate === 'true';
+
     if (profile?.rol === 'superadmin') {
+        if (isImpersonating) {
+            return <GymAdminDashboard gymId={params.gymId} isImpersonating={true} />;
+        }
         return <SuperAdminTabs />;
     }
 

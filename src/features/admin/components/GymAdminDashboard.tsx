@@ -41,7 +41,7 @@ interface GymStats {
     }>;
 }
 
-export default function GymAdminDashboard({ gymId }: { gymId: string }) {
+export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: string; isImpersonating?: boolean }) {
     const [stats, setStats] = useState<GymStats | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
@@ -90,6 +90,38 @@ export default function GymAdminDashboard({ gymId }: { gymId: string }) {
 
     return (
         <div className="space-y-8">
+            {/* Banner de Impersonación Premium */}
+            {isImpersonating && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="relative overflow-hidden rounded-[2rem] border border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-amber-600/5 to-transparent p-6 backdrop-blur-xl shadow-[0_0_50px_rgba(245,158,11,0.05)]"
+                >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-[60px]" />
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-pulse">
+                                <ShieldAlert size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-white text-base font-black italic uppercase tracking-tight">
+                                    Modo de Soporte y Acceso Remoto
+                                </h3>
+                                <p className="text-[10px] text-amber-400/80 font-black uppercase tracking-widest mt-1">
+                                    Estás visualizando el panel como Super Admin. Todas las acciones se registran con fines de auditoría técnica.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => router.push(`/${gymId}/admin`)}
+                            className="w-full sm:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.6)] transform hover:-translate-y-0.5 active:translate-y-0"
+                        >
+                            Salir del Acceso Remoto
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
             {/* Header / Brand */}
             <div className="flex items-center justify-between">
                 <div>
