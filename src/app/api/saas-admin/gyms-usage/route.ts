@@ -15,7 +15,9 @@ function getSettings() {
             const data = fs.readFileSync(settingsPath, 'utf-8');
             return JSON.parse(data);
         }
-    } catch (_e) {}
+    } catch (_e) {
+        // Silencioso: Fallback a configuraciones por defecto
+    }
     return {
         comision_pos: 1.5,
         costo_por_video_ia_real: 0.05,

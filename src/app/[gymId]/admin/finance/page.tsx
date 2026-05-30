@@ -82,7 +82,9 @@ export default function FinanceHubPage() {
             const res = await fetch('/api/admin/gyms');
             const data = await res.json();
             if (res.ok) setGyms(data.gyms || []);
-        } catch (_err) {}
+        } catch (_err) {
+            // Silencioso: Fallback a lista vacía de gimnasios
+        }
     };
 
     const fetchFinanceData = async () => {

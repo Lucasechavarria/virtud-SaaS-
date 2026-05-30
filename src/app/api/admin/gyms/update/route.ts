@@ -40,7 +40,9 @@ export async function POST(request: Request) {
                 const oldConfig = oldGym.configuracion as any;
                 prevSaldo = Number(oldConfig?.saldo_creditos ?? 0.0);
             }
-        } catch (_err) {}
+        } catch (_err) {
+            // Silencioso: Fallback si el gimnasio no existe o error en base de datos
+        }
 
         const newConfig = (configuracion || {}) as Record<string, any>;
         const newSaldo = Number(newConfig.saldo_creditos ?? 0.0);
