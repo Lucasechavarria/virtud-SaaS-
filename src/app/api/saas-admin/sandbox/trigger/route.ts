@@ -57,8 +57,8 @@ export async function POST(request: Request) {
                 discount = bill.discountPercent;
                 finalAmount = bill.totalAmount;
 
-                // Si se debitaron créditos de su billetera virtual, persistir en base de datos
-                if (bill.pagadoConCreditos && bill.pagadoConCreditos > 0) {
+                // Si cobra excedentes postpago y se debitaron créditos al final de mes, persistir en base de datos
+                if (bill.pagadoConCreditos && bill.pagadoConCreditos > 0 && bill.metodoCobroExcedentes === 'postpago') {
                     const { data: gymData } = await supabase
                         .from('gimnasios')
                         .select('configuracion')

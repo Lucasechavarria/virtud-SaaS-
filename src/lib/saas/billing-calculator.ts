@@ -137,9 +137,9 @@ export async function calculateGymMonthlyBill(gymId: string): Promise<BillingSum
         routinesCount = config.simulado?.rutinas_ia ?? (students * 2);
     }
 
-    // Si devuelve 0 en base de datos, inyectamos contadores estables de prueba basados en el número de alumnos
-    if (videosCount === 0) videosCount = config.simulado?.videos_procesados ?? Math.floor(students * 2.5);
-    if (routinesCount === 0) routinesCount = config.simulado?.rutinas_ia ?? Math.floor(students * 1.8);
+    // Si devuelve 0 en base de datos, inyectamos contadores de prueba si está habilitada la simulación
+    if (videosCount === 0) videosCount = config.simulado?.videos_procesados ?? 0;
+    if (routinesCount === 0) routinesCount = config.simulado?.rutinas_ia ?? 0;
 
     // Obtener parámetros financieros globales
     const sysSettings = getSettings();
@@ -171,21 +171,6 @@ export async function calculateGymMonthlyBill(gymId: string): Promise<BillingSum
     const costoExtraVideos = extraVideos * costoVideoFacturado;
     const costoExtraRutinas = extraRoutines * costoRutinaFacturado;
 
-    if (modeloFacturacion === 'consumo') {
-        // Modelo por consumo: Comisión POS + Consumos de IA
-        const totalConsumo = comisionPOS + costoVideosIA + costoRutinasIA;
-        // Aplicamos descuento de SaaS si corresponde
-        totalAmount = totalConsumo * (1 - (discount / 100));
-    } else if (modeloFacturacion === 'hibrido') {
-        // Modelo híbrido: Suscripción Base + Exceso de Alumnos + Exceso de IA + Comisión POS
-        const baseConDescuento = basePrice * (1 - (discount / 100));
-        totalAmount = baseConDescuento + extraStudentsCost + costoExtraVideos + costoExtraRutinas + comisionPOS;
-    } else {
-        // Modelo por membresía estándar
-        const discountedBase = basePrice * (1 - (discount / 100));
-        totalAmount = discountedBase + extraStudentsCost;
-    }
-
     // 5. Lógica del Monedero Virtual de IA & Créditos Prepago (AI Wallet)
     const saldoCreditos = Number(config.saldo_creditos ?? 0.0);
     const limiteAlertaSaldo = Number(config.limite_alerta_saldo ?? 10.0);
@@ -199,14 +184,32 @@ export async function calculateGymMonthlyBill(gymId: string): Promise<BillingSum
         iaCostToCover = costoExtraVideos + costoExtraRutinas;
     }
 
-    let pagadoConCreditos = 0;
-    if (metodoCobroExcedentes === 'prepago' && iaCostToCover > 0) {
-        pagadoConCreditos = Math.min(saldoCreditos, iaCostToCover);
-        // Reducimos el total a cobrar de la factura
-        totalAmount = Math.max(0, totalAmount - pagadoConCreditos);
+    if (modeloFacturacion === 'consumo') {
+        // Modelo por consumo: Comisión POS + Consumos de IA
+        // Si cobra excedentes prepago, los consumos de IA ya se pagaron en caliente y se excluyen de la factura final
+        const costoIA = metodoCobroExcedentes === 'prepago' ? 0 : (costoVideosIA + costoRutinasIA);
+        const totalConsumo = comisionPOS + costoIA;
+        // Aplicamos descuento de SaaS si corresponde
+        totalAmount = totalConsumo * (1 - (discount / 100));
+    } else if (modeloFacturacion === 'hibrido') {
+        // Modelo híbrido: Suscripción Base + Exceso de Alumnos + Exceso de IA + Comisión POS
+        const baseConDescuento = basePrice * (1 - (discount / 100));
+        // Si cobra excedentes prepago, los excedentes de IA ya se pagaron en caliente y se excluyen de la factura final
+        const costoExtrasIA = metodoCobroExcedentes === 'prepago' ? 0 : (costoExtraVideos + costoExtraRutinas);
+        totalAmount = baseConDescuento + extraStudentsCost + costoExtrasIA + comisionPOS;
+    } else {
+        // Modelo por membresía estándar
+        const discountedBase = basePrice * (1 - (discount / 100));
+        totalAmount = discountedBase + extraStudentsCost;
     }
 
-    const saldoRestante = Number((saldoCreditos - pagadoConCreditos).toFixed(2));
+    let pagadoConCreditos = 0;
+    if (metodoCobroExcedentes === 'prepago' && iaCostToCover > 0) {
+        // En prepago, reportamos de manera informativa lo que se debitó del Wallet en tiempo real
+        pagadoConCreditos = iaCostToCover;
+    }
+
+    const saldoRestante = saldoCreditos;
 
     return {
         modeloFacturacion,
