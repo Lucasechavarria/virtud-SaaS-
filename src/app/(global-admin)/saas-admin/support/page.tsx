@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     ShieldAlert,
     Clock,
@@ -13,7 +13,8 @@ import {
     TrendingUp,
     Settings,
     DollarSign,
-    X
+    X,
+    Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -42,9 +43,70 @@ export default function SaaSAdminSupportPage() {
     const [updating, setUpdating] = useState(false);
     const router = useRouter();
 
+    // Estados para el Chat de Soporte Técnico en Vivo
+    const [messages, setMessages] = useState<any[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [loadingMessages, setLoadingMessages] = useState(false);
+    const [sendingMessage, setSendingMessage] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         fetchTickets();
     }, []);
+
+    useEffect(() => {
+        if (selectedTicket) {
+            fetchMessages(selectedTicket.id);
+        } else {
+            setMessages([]);
+        }
+    }, [selectedTicket]);
+
+    useEffect(() => {
+        if (messages.length > 0) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, loadingMessages]);
+
+    const fetchMessages = async (ticketId: string) => {
+        setLoadingMessages(true);
+        try {
+            const res = await fetch(`/api/saas/support/${ticketId}/messages`);
+            const data = await res.json();
+            if (res.ok) {
+                setMessages(data.messages || []);
+            }
+        } catch (error) {
+            console.error('Error fetching support messages:', error);
+        } finally {
+            setLoadingMessages(false);
+        }
+    };
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedTicket || !newMessage.trim()) return;
+        setSendingMessage(true);
+        try {
+            const res = await fetch(`/api/saas/support/${selectedTicket.id}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mensaje: newMessage.trim() })
+            });
+
+            if (res.ok) {
+                setNewMessage('');
+                fetchMessages(selectedTicket.id);
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Error al enviar el mensaje');
+            }
+        } catch (_err) {
+            toast.error('Error de red al enviar el mensaje');
+        } finally {
+            setSendingMessage(false);
+        }
+    };
 
     const fetchTickets = async () => {
         setLoading(true);
@@ -265,68 +327,176 @@ export default function SaaSAdminSupportPage() {
                 {selectedTicket && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            className="bg-zinc-950 border border-white/10 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col relative"
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-zinc-950 border border-white/10 rounded-[2.5rem] w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col relative"
                         >
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-tactical-magenta" />
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-tactical-magenta to-tactical-cyan" />
                             
                             <div className="p-8 border-b border-white/5 flex justify-between items-start">
                                 <div>
-                                    <span className="px-2 py-0.5 bg-white/5 border border-white/5 rounded text-[8px] font-black uppercase text-zinc-500 tracking-widest">{selectedTicket.categoria}</span>
-                                    <h3 className="text-xl font-black text-white italic uppercase tracking-tight mt-1">{selectedTicket.asunto}</h3>
-                                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-1">Remite: {selectedTicket.gimnasio_nombre}</p>
+                                    <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[8px] font-black uppercase text-zinc-400 tracking-widest">{selectedTicket.categoria}</span>
+                                    <h3 className="text-2xl font-black text-white italic uppercase tracking-tight mt-2">{selectedTicket.asunto}</h3>
+                                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-1">Remite: <span className="text-zinc-300 font-bold">{selectedTicket.gimnasio_nombre}</span></p>
                                 </div>
                                 <button
                                     onClick={() => setSelectedTicket(null)}
-                                    className="p-2 bg-white/5 hover:bg-white/10 rounded-xl transition-colors text-zinc-400 hover:text-white"
+                                    className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-zinc-400 hover:text-white active:scale-95"
                                 >
-                                    <X size={16} />
+                                    <X size={18} />
                                 </button>
                             </div>
 
-                            <div className="p-8 space-y-6 flex-1 overflow-y-auto">
-                                <div className="space-y-2">
-                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Descripción del Incidente</span>
-                                    <div className="bg-white/2 border border-white/5 rounded-2xl p-5 text-sm text-zinc-300 leading-relaxed max-h-[160px] overflow-y-auto font-medium">
-                                        {selectedTicket.descripcion}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 md:p-8 overflow-y-auto md:overflow-hidden h-auto md:h-[580px]">
+                                {/* Columna Izquierda: Información Estática y Estado */}
+                                <div className="flex flex-col space-y-6 md:overflow-y-auto md:pr-4 pr-0 scrollbar-thin scrollbar-thumb-zinc-800">
+                                    <div className="space-y-2">
+                                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.15em]">Descripción del Incidente</span>
+                                        <div className="bg-white/2 border border-white/5 rounded-[1.5rem] p-5 text-sm text-zinc-300 leading-relaxed font-medium">
+                                            {selectedTicket.descripcion}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6 bg-white/1 border border-white/5 rounded-2xl p-5 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                                        <div>
+                                            <span>Prioridad del Ticket</span>
+                                            <p className={`text-xs font-black italic mt-1.5 uppercase ${
+                                                selectedTicket.prioridad === 'critica' ? 'text-red-500' :
+                                                selectedTicket.prioridad === 'alta' ? 'text-orange-400' :
+                                                selectedTicket.prioridad === 'media' ? 'text-blue-400' : 'text-zinc-400'
+                                            }`}>{selectedTicket.prioridad}</p>
+                                        </div>
+                                        <div>
+                                            <span>Contacto Administrador</span>
+                                            <p className="text-xs font-mono text-zinc-300 mt-1.5 truncate">{selectedTicket.usuario_email}</p>
+                                            <p className="text-[9px] font-mono text-zinc-500 mt-0.5 lowercase tracking-normal">{selectedTicket.usuario_nombre}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3 pt-4 border-t border-white/5 mt-auto">
+                                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.15em]">Control Operativo del Estado</span>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[
+                                                { id: 'abierto', label: 'Abierto', color: 'hover:bg-red-500/10 text-red-500 hover:border-red-500/30' },
+                                                { id: 'en_progreso', label: 'En Curso', color: 'hover:bg-amber-500/10 text-amber-500 hover:border-amber-500/30' },
+                                                { id: 'resuelto', label: 'Resuelto', color: 'hover:bg-green-500/10 text-green-500 hover:border-green-500/30' }
+                                            ].map(state => (
+                                                <button
+                                                    key={state.id}
+                                                    disabled={updating}
+                                                    onClick={() => handleUpdateStatus(selectedTicket.id, state.id)}
+                                                    className={`px-4 py-3 bg-white/2 border border-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                        selectedTicket.estado === state.id
+                                                            ? 'bg-white/10 border-white/20 text-white shadow-inner scale-95 font-bold'
+                                                            : state.color
+                                                    }`}
+                                                >
+                                                    {state.label}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                                    <div>
-                                        <span>Prioridad</span>
-                                        <p className="text-sm font-black text-white italic mt-1">{selectedTicket.prioridad}</p>
+                                {/* Columna Derecha: Chat Conversacional B2B */}
+                                <div className="flex flex-col h-full border-t md:border-t-0 md:border-l border-white/5 pt-6 md:pt-0 md:pl-8 md:overflow-hidden">
+                                    <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4">
+                                        <span className="text-[10px] font-black text-white uppercase tracking-[0.15em] flex items-center gap-2">
+                                            <MessageSquare size={14} className="text-red-500" />
+                                            Mesa de Soporte en Vivo
+                                        </span>
+                                        <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider">
+                                            {messages.length} mensajes
+                                        </span>
                                     </div>
-                                    <div>
-                                        <span>Contacto Administrador</span>
-                                        <p className="text-xs font-mono text-zinc-400 mt-1 truncate">{selectedTicket.usuario_email}</p>
-                                    </div>
-                                </div>
 
-                                <div className="space-y-3 pt-4 border-t border-white/5">
-                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Control Operativo</span>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {[
-                                            { id: 'abierto', label: 'Abierto', color: 'hover:bg-red-500/10 text-red-500 hover:border-red-500/30' },
-                                            { id: 'en_progreso', label: 'En Curso', color: 'hover:bg-amber-500/10 text-amber-500 hover:border-amber-500/30' },
-                                            { id: 'resuelto', label: 'Resuelto', color: 'hover:bg-green-500/10 text-green-500 hover:border-green-500/30' }
-                                        ].map(state => (
-                                            <button
-                                                key={state.id}
-                                                disabled={updating}
-                                                onClick={() => handleUpdateStatus(selectedTicket.id, state.id)}
-                                                className={`px-4 py-3 bg-white/2 border border-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                                    selectedTicket.estado === state.id
-                                                        ? 'bg-white/10 border-white/20 text-white shadow-inner scale-95 font-black'
-                                                        : state.color
-                                                }`}
-                                            >
-                                                {state.label}
-                                            </button>
-                                        ))}
+                                    {/* Contenedor de Chat con Scroll */}
+                                    <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2 scrollbar-thin scrollbar-thumb-zinc-800 min-h-[300px] md:min-h-0">
+                                        {loadingMessages ? (
+                                            <div className="flex flex-col items-center justify-center h-full py-12 space-y-4">
+                                                <div className="w-8 h-8 border-2 border-red-500/20 border-t-red-500 rounded-full animate-spin shadow-[0_0_10px_rgba(239,68,68,0.3)]" />
+                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest animate-pulse">Cargando conversación...</p>
+                                            </div>
+                                        ) : messages.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full py-12 text-center px-4 space-y-3">
+                                                <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center text-zinc-600">
+                                                    <MessageSquare size={20} />
+                                                </div>
+                                                <p className="text-xs font-black text-zinc-400 uppercase tracking-wider">Historial vacío</p>
+                                                <p className="text-[10px] text-zinc-500 font-medium max-w-[200px]">
+                                                    No hay mensajes en esta conversación. Escribe un mensaje abajo para iniciar la resolución técnica.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {messages.map((msg: any) => {
+                                                    const isStaff = msg.es_del_staff_saas === true;
+                                                    return (
+                                                        <div key={msg.id} className={`flex ${isStaff ? 'justify-end' : 'justify-start'} w-full`}>
+                                                            <div className={`max-w-[85%] rounded-2xl p-4 space-y-1.5 border transition-all ${
+                                                                isStaff
+                                                                    ? 'bg-red-500/5 border-red-500/20 text-white rounded-tr-none shadow-[0_0_15px_rgba(239,68,68,0.02)]'
+                                                                    : 'bg-zinc-900/60 border-white/5 text-zinc-100 rounded-tl-none'
+                                                            }`}>
+                                                                <div className="flex items-center justify-between gap-4">
+                                                                    <span className={`text-[8px] font-black uppercase tracking-widest ${
+                                                                        isStaff ? 'text-red-400' : 'text-zinc-400'
+                                                                    }`}>
+                                                                        {isStaff ? 'Soporte (Staff)' : (msg.perfiles?.nombre_completo || 'Cliente')}
+                                                                    </span>
+                                                                    <span className="text-[8px] font-mono text-zinc-500">
+                                                                        {new Date(msg.creado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs font-medium leading-relaxed break-words">
+                                                                    {msg.mensaje}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                <div ref={messagesEndRef} />
+                                            </div>
+                                        )}
                                     </div>
+
+                                    {/* Formulario de envío */}
+                                    <form onSubmit={handleSendMessage} className="mt-auto pt-4 border-t border-white/5 space-y-3">
+                                        <div className="relative">
+                                            <textarea
+                                                value={newMessage}
+                                                onChange={(e) => setNewMessage(e.target.value)}
+                                                placeholder="Escribe una respuesta oficial de soporte..."
+                                                maxLength={1000}
+                                                rows={2}
+                                                className="w-full bg-white/2 border border-white/10 rounded-2xl px-4 py-3 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all resize-none font-medium leading-relaxed"
+                                                disabled={sendingMessage}
+                                            />
+                                            <div className="absolute right-3 bottom-3 flex items-center gap-2">
+                                                <span className="text-[9px] font-mono text-zinc-600 font-bold">
+                                                    {newMessage.length}/1000
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={sendingMessage || !newMessage.trim()}
+                                            className="w-full py-3 bg-red-600 hover:bg-red-500 disabled:bg-zinc-900 disabled:text-zinc-600 disabled:border-white/5 disabled:cursor-not-allowed text-white font-black text-[10px] uppercase tracking-widest rounded-2xl border border-red-500/20 hover:border-red-400/30 shadow-lg hover:shadow-red-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
+                                        >
+                                            {sendingMessage ? (
+                                                <>
+                                                    <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                    <span>Enviando...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Send size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                                    <span>Enviar Respuesta</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                         </motion.div>
