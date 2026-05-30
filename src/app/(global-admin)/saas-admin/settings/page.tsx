@@ -69,7 +69,11 @@ export default function SaaSAdminSettingsPage() {
         max_alumnos: 500,
         estado_pago: 'active',
         modelo_facturacion: 'membresia',
-        saldo_creditos: 0
+        saldo_creditos: 0,
+        metodo_cobro_excedentes: 'postpago',
+        limite_alerta_saldo: 10.0,
+        limite_videos_hibrido: 50,
+        limite_rutinas_hibrido: 100
     });
 
     // Sandbox States
@@ -100,7 +104,11 @@ export default function SaaSAdminSettingsPage() {
                     max_alumnos: gym.configuracion?.limites?.max_alumnos ?? 500,
                     estado_pago: gym.estado_pago_saas ?? 'active',
                     modelo_facturacion: gym.configuracion?.modelo_facturacion ?? 'membresia',
-                    saldo_creditos: gym.configuracion?.saldo_creditos ?? 0
+                    saldo_creditos: gym.configuracion?.saldo_creditos ?? 0,
+                    metodo_cobro_excedentes: gym.configuracion?.metodo_cobro_excedentes ?? 'postpago',
+                    limite_alerta_saldo: gym.configuracion?.limite_alerta_saldo ?? 10.0,
+                    limite_videos_hibrido: gym.configuracion?.limite_videos_hibrido ?? 50,
+                    limite_rutinas_hibrido: gym.configuracion?.limite_rutinas_hibrido ?? 100
                 });
             }
         } else {
@@ -185,7 +193,12 @@ export default function SaaSAdminSettingsPage() {
                         ...selectedGym.configuracion,
                         modelo_facturacion: gymQuotaForm.modelo_facturacion,
                         saldo_creditos: Number(gymQuotaForm.saldo_creditos),
+                        metodo_cobro_excedentes: gymQuotaForm.metodo_cobro_excedentes,
+                        limite_alerta_saldo: Number(gymQuotaForm.limite_alerta_saldo),
+                        limite_videos_hibrido: Number(gymQuotaForm.limite_videos_hibrido),
+                        limite_rutinas_hibrido: Number(gymQuotaForm.limite_rutinas_hibrido),
                         limites: {
+                            ...selectedGym.configuracion?.limites,
                             max_videos_mensual: Number(gymQuotaForm.max_videos_mensual),
                             max_alumnos: Number(gymQuotaForm.max_alumnos)
                         }
@@ -195,7 +208,7 @@ export default function SaaSAdminSettingsPage() {
 
             if (res.ok) {
                 toast.success(`Cuotas de "${selectedGym.nombre}" actualizadas correctamente.`);
-                fetchGyms(); // Recargar listado
+                fetchGyms();
             } else {
                 const data = await res.json();
                 toast.error(data.error || 'Error al actualizar cuotas del gimnasio');
@@ -239,11 +252,9 @@ export default function SaaSAdminSettingsPage() {
 
     return (
         <div className="space-y-8 p-4 md:p-8 font-rajdhani relative overflow-hidden">
-            {/* Background design elements */}
             <div className="absolute top-0 right-0 w-80 h-80 bg-tactical-cyan/5 rounded-full blur-3xl -mr-40 -mt-40 z-0" />
             <div className="absolute bottom-0 left-0 w-80 h-80 bg-tactical-magenta/5 rounded-full blur-3xl -ml-40 -mb-40 z-0" />
 
-            {/* Header section */}
             <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                 <div>
                     <h1 className="text-4xl font-black text-transparent bg-clip-text bg-linear-to-r from-white via-white to-tactical-cyan italic uppercase tracking-tighter leading-none flex items-center gap-3">
@@ -254,7 +265,6 @@ export default function SaaSAdminSettingsPage() {
                     </p>
                 </div>
 
-                {/* Switcher Tabs */}
                 <div className="flex bg-zinc-950/80 p-1.5 rounded-2xl border border-white/5 shadow-inner flex-wrap gap-1">
                     {[
                         { id: 'system', label: 'Sistema', icon: <Settings size={14} /> },
@@ -280,7 +290,6 @@ export default function SaaSAdminSettingsPage() {
                 </div>
             </div>
 
-            {/* Banner Mantenimiento Táctico (Visualización de prueba para el superadmin en tiempo real) */}
             {settings.modo_mantenimiento && (
                 <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -295,10 +304,8 @@ export default function SaaSAdminSettingsPage() {
                 </motion.div>
             )}
 
-            {/* Main Tabs Container */}
             <div className="relative z-10">
                 <AnimatePresence mode="wait">
-                    {/* Tab 1: System Settings */}
                     {activeTab === 'system' && (
                         <motion.form
                             key="system"
@@ -395,7 +402,6 @@ export default function SaaSAdminSettingsPage() {
                         </motion.form>
                     )}
 
-                    {/* Tab 2: AI & GPU Control */}
                     {activeTab === 'ai' && (
                         <motion.form
                             key="ai"
@@ -517,7 +523,6 @@ export default function SaaSAdminSettingsPage() {
                         </motion.form>
                     )}
 
-                    {/* Tab 3: Gateway & Fees */}
                     {activeTab === 'gateway' && (
                         <motion.form
                             key="gateway"
@@ -652,7 +657,6 @@ export default function SaaSAdminSettingsPage() {
                         </motion.form>
                     )}
 
-                    {/* Tab 4: Quotas Red (Overrides por gimnasio) */}
                     {activeTab === 'quotas' && (
                         <motion.div
                             key="quotas"
@@ -661,7 +665,6 @@ export default function SaaSAdminSettingsPage() {
                             exit={{ opacity: 0 }}
                             className="grid grid-cols-1 lg:grid-cols-3 gap-8"
                         >
-                            {/* Gym Selector Panel */}
                             <div className="bg-zinc-950 p-6 rounded-[2rem] border border-white/5 space-y-4 shadow-xl lg:col-span-1">
                                 <h3 className="text-md font-black text-white italic uppercase tracking-tight flex items-center gap-2">
                                     <Building2 className="text-tactical-cyan" size={16} /> Sedes en Red
@@ -695,7 +698,6 @@ export default function SaaSAdminSettingsPage() {
                                 </div>
                             </div>
 
-                            {/* Quota Config Form Panel */}
                             <div className="bg-zinc-950 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl lg:col-span-2">
                                 <AnimatePresence mode="wait">
                                     {selectedGym ? (

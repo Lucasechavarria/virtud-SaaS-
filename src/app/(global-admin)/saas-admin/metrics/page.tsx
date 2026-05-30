@@ -71,6 +71,16 @@ interface GymUsage {
     limite_alerta_saldo?: number;
     metodo_cobro_excedentes?: 'prepago' | 'postpago';
     configuracion?: any;
+    // Campos inyectados para el frontend
+    costo_extra_videos?: number;
+    costo_extra_rutinas?: number;
+    exceso_videos?: number;
+    exceso_rutinas?: number;
+    limite_videos_hibrido?: number;
+    limite_rutinas_hibrido?: number;
+    comparativa_membresia?: number;
+    comparativa_consumo?: number;
+    comparativa_hibrido?: number;
 }
 
 export default function SaaSMetricsPage() {
@@ -557,10 +567,13 @@ export default function SaaSMetricsPage() {
                                                         ) : gym.modelo_facturacion === 'hibrido' ? (
                                                             <div className="flex flex-col items-end">
                                                                 <span className="text-xs font-black text-amber-400">
-                                                                    +${(gym.costo_ia_estimado > 5.0 ? gym.costo_ia_estimado - 4.5 : 0).toFixed(2)}
+                                                                    +${((gym.costo_extra_videos || 0) + (gym.costo_extra_rutinas || 0)).toFixed(2)}
                                                                 </span>
                                                                 <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider">
                                                                     Excedentes IA
+                                                                </span>
+                                                                <span className="text-[7px] text-zinc-600 font-bold uppercase tracking-wider">
+                                                                    ({gym.exceso_videos || 0} vids, {gym.exceso_rutinas || 0} ruts extra)
                                                                 </span>
                                                             </div>
                                                         ) : isExceeded ? (
@@ -700,21 +713,23 @@ export default function SaaSMetricsPage() {
                         {/* Gym-by-Gym BI Recommendation Sheets */}
                         <div className="space-y-6">
                             {gymsUsage.map((gym) => {
-                                // Cálculos comparativos rápidos
-                                const costMembresia = gym.precio_mensual + (gym.alumnos_excedentes * gym.alumnos_excedentes_costo);
-                                const costConsumo = (gym.volumen_pos || 0) * 0.015 + (gym.videos_procesados * 0.07) + (gym.rutinas_ia * 0.015);
-                                const costHibrido = gym.precio_mensual + Math.max(0, gym.videos_procesados - 50) * 0.07 + Math.max(0, gym.rutinas_ia - 100) * 0.015 + (gym.volumen_pos || 0) * 0.015;
+                                // Leer las proyecciones comparativas calculadas con precisión por el backend
+                                const costMembresia = gym.comparativa_membresia ?? (gym.precio_mensual + (gym.alumnos_excedentes * gym.alumnos_excedentes_costo));
+                                const costConsumo = gym.comparativa_consumo ?? ((gym.volumen_pos || 0) * 0.015 + (gym.videos_procesados * 0.07) + (gym.rutinas_ia * 0.015));
+                                const costHibrido = gym.comparativa_hibrido ?? (gym.precio_mensual + Math.max(0, gym.videos_procesados - 50) * 0.07 + Math.max(0, gym.rutinas_ia - 100) * 0.015 + (gym.volumen_pos || 0) * 0.015);
 
                                 // Lógica de Recomendación Exclusiva del Super Admin para maximizar rentabilidad
                                 let recommendedModel: 'membresia' | 'consumo' | 'hibrido' = 'membresia';
                                 let explanation = '';
                                 let revenueDiff = 0;
 
-                                if (gym.videos_procesados > 40 || gym.rutinas_ia > 80) {
+                                // Determinar el modelo más rentable para el SaaS basándonos en los precios calculados
+                                const maxCost = Math.max(costMembresia, costConsumo, costHibrido);
+                                if (maxCost === costHibrido) {
                                     recommendedModel = 'hibrido';
                                     revenueDiff = costHibrido - costMembresia;
                                     explanation = `El alto volumen de procesamiento IA (${gym.videos_procesados} videos, ${gym.rutinas_ia} rutinas) genera altos costos de cómputo GPU. Migrar al modelo HÍBRIDO te permite resguardar tu costo base con la tarifa mensual fija y cobrar excedentes por cada análisis de IA extra.`;
-                                } else if (gym.alumnos_activos > 200) {
+                                } else if (maxCost === costConsumo) {
                                     recommendedModel = 'consumo';
                                     revenueDiff = costConsumo - costMembresia;
                                     explanation = `Con ${gym.alumnos_activos} alumnos y un volumen de venta POS de $${(gym.volumen_pos || 0).toFixed(0)} USD, la comisión SaaS del 1.5% + consumos de IA es la alternativa más rentable para el SaaS en comparación a una cuota mensual plana.`;

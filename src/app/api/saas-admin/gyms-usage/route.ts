@@ -2,8 +2,28 @@ import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { calculateGymMonthlyBill } from '@/lib/saas/billing-calculator';
+import fs from 'fs';
+import path from 'path';
 
 export const dynamic = 'force-dynamic';
+
+const settingsPath = path.join(process.cwd(), 'src', 'lib', 'data', 'saas_settings.json');
+
+function getSettings() {
+    try {
+        if (fs.existsSync(settingsPath)) {
+            const data = fs.readFileSync(settingsPath, 'utf-8');
+            return JSON.parse(data);
+        }
+    } catch (_e) {}
+    return {
+        comision_pos: 1.5,
+        costo_por_video_ia_real: 0.05,
+        ganancia_por_video_ia_saas: 0.02,
+        costo_por_rutina_ia_real: 0.01,
+        ganancia_por_rutina_ia_saas: 0.005
+    };
+}
 
 /**
  * GET /api/saas-admin/gyms-usage
@@ -246,9 +266,46 @@ export async function GET(request: Request) {
                     costoVideosIA: (gymVideosMap.get(gym.id) || (activeStudents * 3)) * 0.07,
                     costoRutinasIA: (gymRoutinesMap.get(gym.id) || (activeStudents * 2)) * 0.015,
                     volumenPOS: activeStudents * 22.5,
-                    comisionPOS: (activeStudents * 22.5) * 0.015
+                    comisionPOS: (activeStudents * 22.5) * 0.015,
+                    saldoCreditos: gym.configuracion?.saldo_creditos ?? 0,
+                    limiteAlertaSaldo: gym.configuracion?.limite_alerta_saldo ?? 10,
+                    metodoCobroExcedentes: gym.configuracion?.metodo_cobro_excedentes ?? 'postpago'
                 };
             }
+
+            // Obtener parámetros globales y límites híbridos específicos para BI
+            const sysSettings = getSettings();
+            const config = gym.configuracion || {};
+            const basePrice = plan.precio_mensual;
+            const discount = gym.descuento_saas || 0;
+            const discountedBase = basePrice * (1 - (discount / 100));
+
+            // IA Pricing
+            const costoVideoFacturado = Number(sysSettings.costo_por_video_ia_real ?? 0.05) + Number(sysSettings.ganancia_por_video_ia_saas ?? 0.02);
+            const costoRutinaFacturado = Number(sysSettings.costo_por_rutina_ia_real ?? 0.01) + Number(sysSettings.ganancia_por_rutina_ia_saas ?? 0.005);
+            const comisionPOSPorc = Number(sysSettings.comision_pos ?? 1.5) / 100;
+
+            // 1. Proyección Membresía
+            const extraStudents = Math.max(0, activeStudents - limit);
+            const extraStudentsCost = extraStudents * (plan.precio_alumno_extra || 0.15);
+            const comparativa_membresia = Number((discountedBase + extraStudentsCost).toFixed(2));
+
+            // 2. Proyección Consumo
+            const comisionPOS = bill.volumenPOS ? (bill.volumenPOS * comisionPOSPorc) : (activeStudents * 22.5 * comisionPOSPorc);
+            const costoVideosIA = (bill.videosProcesados || 0) * costoVideoFacturado;
+            const costoRutinasIA = (bill.rutinasIA || 0) * costoRutinaFacturado;
+            const comparativa_consumo = Number(((comisionPOS + costoVideosIA + costoRutinasIA) * (1 - (discount / 100))).toFixed(2));
+
+            // 3. Proyección Híbrido
+            const limiteVideosHibrido = Number(config.limite_videos_hibrido ?? 50);
+            const limiteRutinasHibrido = Number(config.limite_rutinas_hibrido ?? 100);
+            
+            const extraVideos = Math.max(0, (bill.videosProcesados || 0) - limiteVideosHibrido);
+            const extraRoutines = Math.max(0, (bill.rutinasIA || 0) - limiteRutinasHibrido);
+            
+            const costoExtraVideos = extraVideos * costoVideoFacturado;
+            const costoExtraRutinas = extraRoutines * costoRutinaFacturado;
+            const comparativa_hibrido = Number((discountedBase + extraStudentsCost + costoExtraVideos + costoExtraRutinas + comisionPOS).toFixed(2));
 
             return {
                 id: gym.id,
@@ -272,7 +329,17 @@ export async function GET(request: Request) {
                 saldo_creditos: bill.saldoCreditos || 0,
                 limite_alerta_saldo: bill.limiteAlertaSaldo || 10,
                 metodo_cobro_excedentes: bill.metodoCobroExcedentes || 'postpago',
-                configuracion: gym.configuracion || {}
+                configuracion: gym.configuracion || {},
+                // Campos inyectados para el frontend
+                costo_extra_videos: Number(costoExtraVideos.toFixed(2)),
+                costo_extra_rutinas: Number(costoExtraRutinas.toFixed(2)),
+                exceso_videos: extraVideos,
+                exceso_rutinas: extraRoutines,
+                limite_videos_hibrido: limiteVideosHibrido,
+                limite_rutinas_hibrido: limiteRutinasHibrido,
+                comparativa_membresia,
+                comparativa_consumo,
+                comparativa_hibrido
             };
         }));
 
