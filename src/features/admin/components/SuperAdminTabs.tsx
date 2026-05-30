@@ -4,16 +4,18 @@ import React, { useState } from 'react';
 import SuperAdminDashboard from '@/features/admin/components/SuperAdminDashboard';
 import AutomationCenter from '@/features/admin/components/AutomationCenter';
 import BusinessIntelligence from '@/features/admin/components/BusinessIntelligence';
-import { LayoutDashboard, Zap, TrendingUp, BarChart3 } from 'lucide-react';
+import { RoleManagement } from '@/features/admin/components/RoleManagement';
+import { LayoutDashboard, Zap, BarChart3, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SuperAdminTabs() {
-    const [activeTab, setActiveTab] = useState<'overview' | 'automation' | 'bi'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'automation' | 'bi' | 'access'>('overview');
 
     const tabs = [
         { id: 'overview', label: 'Monitor Global', icon: LayoutDashboard },
         { id: 'bi', label: 'Métricas Inteligentes', icon: BarChart3 },
         { id: 'automation', label: 'Centro de Comando', icon: Zap },
+        { id: 'access', label: 'Control de Accesos', icon: Shield },
     ];
 
     return (
@@ -77,6 +79,24 @@ export default function SuperAdminTabs() {
                             transition={{ duration: 0.2 }}
                         >
                             <AutomationCenter />
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'access' && (
+                        <motion.div
+                            key="access"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <div className="bg-[#1c1c1e] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl space-y-6">
+                                <div className="border-b border-white/5 pb-6">
+                                    <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">Control de Accesos</h2>
+                                    <p className="text-xs text-gray-500 font-medium uppercase tracking-widest mt-1">Gestiona los permisos y roles de los usuarios en la red global</p>
+                                </div>
+                                <RoleManagement />
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Building2,
     Users,
@@ -109,6 +109,11 @@ export default function SuperAdminOverview() {
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
     const [newAnnouncement, setNewAnnouncement] = useState({ titulo: '', contenido: '', tipo: 'info', destino: 'todos', sendEmail: false });
 
+    // Estados para el Modal de Impersonación Premium
+    const [impersonationTarget, setImpersonationTarget] = useState<{ id: string; nombre: string } | null>(null);
+    const [impersonationReason, setImpersonationReason] = useState('Soporte Técnico / Verificación');
+    const [isImpersonatingApi, setIsImpersonatingApi] = useState(false);
+
     const tabs = [
         { id: 'gyms', label: 'Gestión de Red', icon: <Building2 size={16} /> },
         { id: 'saas', label: 'Econ. SaaS', icon: <TrendingUp size={16} /> },
@@ -184,26 +189,39 @@ export default function SuperAdminOverview() {
         }
     };
 
-    const handleImpersonate = async (gymId: string, gymName: string) => {
-        if (!confirm(`¿Estás seguro de que deseas acceder remotamente al entorno de "${gymName}"?\nEsta acción quedará registrada en el log de auditoría.`)) return;
+    const handleImpersonate = (gymId: string, gymName: string) => {
+        setImpersonationTarget({ id: gymId, nombre: gymName });
+        setImpersonationReason('Soporte Técnico / Verificación');
+    };
 
+    const executeImpersonation = async () => {
+        if (!impersonationTarget) return;
+        setIsImpersonatingApi(true);
+        const loadingToast = toast.loading(`Accediendo remotamente al entorno de ${impersonationTarget.nombre}...`);
         try {
             const res = await fetch('/api/admin/impersonate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ gymId, reason: 'Acceso desde Panel de SuperAdmin' })
+                body: JSON.stringify({ 
+                    gymId: impersonationTarget.id, 
+                    reason: impersonationReason || 'Soporte Técnico / Verificación' 
+                })
             });
 
             const data = await res.json();
             if (res.ok) {
                 toast.success(data.message);
-                // Redirect to the gym's dashboard in a new tab or same view
                 window.open(data.redirectUrl, '_blank');
+                setImpersonationTarget(null);
+                setImpersonationReason('Soporte Técnico / Verificación');
             } else {
-                toast.error(data.error);
+                toast.error(data.error || 'Error al intentar el acceso remoto');
             }
         } catch (_err) {
-            toast.error('Error al intentar el acceso remoto');
+            toast.error('Error de red al intentar el acceso remoto');
+        } finally {
+            toast.dismiss(loadingToast);
+            setIsImpersonatingApi(false);
         }
     };
 
@@ -705,6 +723,72 @@ export default function SuperAdminOverview() {
                     </motion.div>
                 </div>
             )}
+
+            {/* Modal de Impersonación Premium con Justificación de Auditoría */}
+            <AnimatePresence>
+                {impersonationTarget && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="bg-[#1c1c1e] border border-amber-500/20 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-[0_0_50px_rgba(245,158,11,0.15)] flex flex-col"
+                        >
+                            <div className="p-8 border-b border-white/5 bg-gradient-to-r from-amber-500/10 via-orange-600/5 to-transparent flex items-center gap-4 relative">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl" />
+                                <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-pulse shrink-0">
+                                    <ShieldAlert size={24} />
+                                </div>
+                                <div className="relative z-10">
+                                    <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Acceso Remoto Auditado</h3>
+                                    <p className="text-[10px] text-amber-400/80 font-black uppercase tracking-widest mt-1">Protocolo de Seguridad Nivel 4</p>
+                                </div>
+                            </div>
+
+                            <div className="p-8 space-y-6">
+                                <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
+                                    <p className="text-xs font-black uppercase text-amber-400">Gimnasio Destino:</p>
+                                    <p className="text-xl font-black text-white italic uppercase tracking-tight mt-1">{impersonationTarget.nombre}</p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Motivo / Justificación de Soporte</label>
+                                    <textarea
+                                        rows={3}
+                                        value={impersonationReason}
+                                        onChange={e => setImpersonationReason(e.target.value)}
+                                        placeholder="Ej: Resolución de incidencia en pasarela de pagos / Diagnóstico técnico..."
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-all resize-none text-xs font-medium"
+                                        required
+                                    />
+                                    <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest leading-none mt-1">
+                                        * Esta justificación será guardada de forma inmutable en el historial de auditoría global.
+                                    </p>
+                                </div>
+
+                                <div className="flex gap-4 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setImpersonationTarget(null)}
+                                        disabled={isImpersonatingApi}
+                                        className="flex-1 px-6 py-4 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-white/10 transition-all border border-white/5 disabled:opacity-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={executeImpersonation}
+                                        disabled={isImpersonatingApi}
+                                        className="flex-1 px-6 py-4 bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+                                    >
+                                        {isImpersonatingApi ? 'Iniciando Enlace...' : 'Conectar Entorno'}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
