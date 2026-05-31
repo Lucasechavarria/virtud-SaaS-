@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { NotificationService } from '@/services/notification.service';
 
 /**
  * POST /api/challenges/complete
@@ -53,28 +54,18 @@ export async function POST(req: Request) {
         try {
             const judgeId = participant.desafios.creado_por;
             if (judgeId) {
-                // Registrar notificación persistente
-                await supabase.from('historial_notificaciones').insert({
-                    usuario_id: judgeId,
+                const notifService = new NotificationService(supabase);
+                await notifService.sendToUser(judgeId, {
                     tipo: 'sistema',
                     titulo: '🏆 Objetivo completado (Pendiente)',
-                    cuerpo: `${user.user_metadata.full_name || 'Un alumno'} marcó como completado el desafío: ${participant.desafios.titulo}. Validalo ahora.`,
-                    datos: { challengeId, studentId: user.id, type: 'challenge_complete_request' },
-                    enviada: false
-                });
-
-                // Enviar push
-                const pushBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-                fetch(`${pushBaseUrl}/api/push/send`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        recipientId: judgeId,
-                        title: '🏆 Objetivo para validar',
-                        body: `${user.user_metadata.full_name || 'Un alumno'} terminó el desafío: ${participant.desafios.titulo}`,
+                    cuerpo: `${user.user_metadata?.nombre_completo || user.user_metadata?.full_name || 'Un alumno'} marcó como completado el desafío: ${participant.desafios.titulo}. Validalo ahora.`,
+                    datos: { 
+                        challengeId, 
+                        studentId: user.id, 
+                        type: 'challenge_complete_request',
                         url: `/admin/challenges`
-                    })
-                }).catch(e => console.error('Error sending push:', e));
+                    }
+                });
             }
         } catch (notifError) {
             console.error('Error creating notification for challenge completion:', notifError);

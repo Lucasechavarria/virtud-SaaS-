@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { NotificationService } from '@/services/notification.service';
 
 /**
  * PUT /api/admin/challenges/[id]/judge
@@ -75,32 +76,23 @@ export async function PUT(
 
             // 6. Notificar al alumno
             try {
-                const { data: challenge } = await supabase!
+                const { data: challengeData } = await supabase!
                     .from('desafios')
                     .select('titulo')
                     .eq('id', challengeId)
                     .single();
 
-                await supabase!.from('historial_notificaciones').insert({
-                    usuario_id: winnerId,
+                const notifService = new NotificationService(supabase!);
+                await notifService.sendToUser(winnerId, {
                     tipo: 'logro',
                     titulo: '🏆 ¡Objetivo cumplido!',
-                    cuerpo: `El profesor ha validado tu cumplimiento en el desafío "${challenge?.titulo || 'Desafío'}". ¡Has sumado puntos!`,
-                    datos: { challengeId, type: 'challenge_approved' },
-                    enviada: false
-                });
-
-                const pushBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-                fetch(`${pushBaseUrl}/api/push/send`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        recipientId: winnerId,
-                        title: '🏆 ¡Objetivo Aprobado!',
-                        body: `¡Felicidades! Se validó tu objetivo en: ${challenge?.titulo || 'el desafío'}`,
+                    cuerpo: `El profesor ha validado tu cumplimiento en el desafío "${challengeData?.titulo || 'Desafío'}". ¡Has sumado puntos!`,
+                    datos: { 
+                        challengeId, 
+                        type: 'challenge_approved',
                         url: `/dashboard`
-                    })
-                }).catch(e => console.error('Error sending push:', e));
+                    }
+                });
             } catch (notifError) {
                 console.error('Error notifying student of approval:', notifError);
             }

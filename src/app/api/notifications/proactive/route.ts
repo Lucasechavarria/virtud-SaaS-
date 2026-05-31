@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { NotificationService } from '@/services/notification.service';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
     try {
@@ -38,6 +41,8 @@ export async function POST(req: NextRequest) {
         const studentProfile = await supabase.from('perfiles').select('nombre_completo').eq('id', studentId).single();
         const studentName = studentProfile.data?.nombre_completo || 'Un alumno';
 
+        const notifService = new NotificationService(supabase);
+
         const notificationPromises = assignments.map(async (rel: any) => {
             let title = '⚠️ Alerta de Rendimiento';
             let message = '';
@@ -53,17 +58,12 @@ export async function POST(req: NextRequest) {
                 message = `${studentName} ha caído por debajo del 70% de adherencia técnica/nutricional.`;
             }
 
-            // Llamar al endpoint de push existente
-            const pushBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-            return fetch(`${pushBaseUrl}/api/push/send`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    recipientId: rel.entrenador_id,
-                    title,
-                    body: message,
-                    url: `/coach/students/${studentId}/bio-logs`
-                })
+            // Llamar directamente al servicio de notificaciones sin HTTP Fetch local redundante
+            return notifService.sendToUser(rel.entrenador_id, {
+                tipo: 'sistema',
+                titulo: title,
+                cuerpo: message,
+                datos: { url: `/coach/students/${studentId}/bio-logs` }
             });
         });
 

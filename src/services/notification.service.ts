@@ -33,7 +33,7 @@ export class NotificationService {
      * Envía una notificación push a un usuario específico
      * Respeta las preferencias del usuario y registra en historial
      */
-    async sendToUser(userId: string, notification: NotificationPayload): Promise<SendResult> {
+    async sendToUser(userId: string, notification: NotificationPayload, existingHistoryId?: string): Promise<SendResult> {
         try {
             // 1. Verificar preferencias del usuario
             const { data: prefs } = await this.supabase
@@ -44,6 +44,12 @@ export class NotificationService {
 
             if (!this.shouldSend(notification.tipo, prefs)) {
                 logger.info(`[NotificationService] Notificación omitida por preferencias del usuario: ${userId}`);
+                if (existingHistoryId) {
+                    await this.supabase.from('historial_notificaciones').update({
+                        enviada: false,
+                        error: 'Omitida por preferencias del usuario'
+                    }).eq('id', existingHistoryId);
+                }
                 return { skipped: true, reason: 'user_preferences' };
             }
 
@@ -55,6 +61,12 @@ export class NotificationService {
 
             if (!subscriptions || subscriptions.length === 0) {
                 logger.info(`[NotificationService] Usuario sin suscripciones: ${userId}`);
+                if (existingHistoryId) {
+                    await this.supabase.from('historial_notificaciones').update({
+                        enviada: false,
+                        error: 'Usuario sin suscripciones push activas'
+                    }).eq('id', existingHistoryId);
+                }
                 return { skipped: true, reason: 'no_subscriptions' };
             }
 
@@ -87,17 +99,25 @@ export class NotificationService {
             const successCount = results.filter(r => r.status === 'fulfilled').length;
             const enviada = successCount > 0;
 
-            // 6. Registrar en historial
-            await this.supabase.from('historial_notificaciones').insert({
+            // 6. Registrar en historial (o actualizar si existe)
+            const historyData = {
                 usuario_id: userId,
                 tipo: notification.tipo,
                 titulo: notification.titulo,
                 cuerpo: notification.cuerpo,
-                datos: notification.datos,
+                datos: notification.datos as any,
                 enviada,
                 enviada_en: enviada ? new Date().toISOString() : null,
                 error: enviada ? null : 'No se pudo enviar a ninguna suscripción',
-            } as any);
+            };
+
+            if (existingHistoryId) {
+                await this.supabase.from('historial_notificaciones')
+                    .update(historyData as any)
+                    .eq('id', existingHistoryId);
+            } else {
+                await this.supabase.from('historial_notificaciones').insert(historyData as any);
+            }
 
             logger.info(`[NotificationService] Notificación enviada a ${successCount}/${subscriptions.length} suscripciones`);
 
@@ -106,15 +126,23 @@ export class NotificationService {
             logger.error('[NotificationService] Error al enviar notificación:', { error: error instanceof Error ? error.message : error });
 
             // Registrar error en historial
-            await this.supabase.from('historial_notificaciones').insert({
+            const errorData = {
                 usuario_id: userId,
                 tipo: notification.tipo,
                 titulo: notification.titulo,
                 cuerpo: notification.cuerpo,
-                datos: notification.datos,
+                datos: notification.datos as any,
                 enviada: false,
                 error: error instanceof Error ? error.message : 'Error desconocido',
-            } as any);
+            };
+
+            if (existingHistoryId) {
+                await this.supabase.from('historial_notificaciones')
+                    .update(errorData as any)
+                    .eq('id', existingHistoryId);
+            } else {
+                await this.supabase.from('historial_notificaciones').insert(errorData as any);
+            }
 
             throw error;
         }
@@ -136,32 +164,22 @@ export class NotificationService {
             return;
         }
 
-        logger.info(`[NotificationService] Procesando ${pending.length} notificaciones pendientes`);
+        logger.info(`[NotificationService] Procesando ${pending.length} notificaciones pendientes en paralelo`);
 
-        for (const notif of pending) {
-            try {
-                await this.sendToUser(notif.usuario_id, {
-                    tipo: notif.tipo as NotificationPayload['tipo'],
-                    titulo: notif.titulo,
-                    cuerpo: notif.cuerpo,
-                    datos: notif.datos as Record<string, unknown>,
-                });
-
-                // Marcar como enviada
-                await this.supabase
-                    .from('historial_notificaciones')
-                    .update({ enviada: true, enviada_en: new Date().toISOString() })
-                    .eq('id', notif.id);
-            } catch (error) {
-                logger.error(`[NotificationService] Error procesando notificación ${notif.id}:`, { error: error instanceof Error ? error.message : error });
-
-                // Registrar error
-                await this.supabase
-                    .from('historial_notificaciones')
-                    .update({ error: error instanceof Error ? error.message : 'Error desconocido' })
-                    .eq('id', notif.id);
-            }
-        }
+        await Promise.allSettled(
+            pending.map(async (notif) => {
+                try {
+                    await this.sendToUser(notif.usuario_id, {
+                        tipo: notif.tipo as NotificationPayload['tipo'],
+                        titulo: notif.titulo,
+                        cuerpo: notif.cuerpo,
+                        datos: notif.datos as Record<string, unknown>,
+                    }, notif.id);
+                } catch (error) {
+                    logger.error(`[NotificationService] Error en cola procesando notificación ${notif.id}:`, { error: error instanceof Error ? error.message : error });
+                }
+            })
+        );
     }
 
     /**

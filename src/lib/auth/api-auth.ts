@@ -3,6 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 
+// Diccionario de traducción estático para evitar la reinicialización en la pila local en cada petición
+const ROLE_MAPPING: Record<string, string> = {
+    'profesor': 'coach',
+    'miembro': 'member',
+    'administrador': 'admin',
+    'dueño': 'superadmin'
+};
+
 /**
  * Authenticate a request using Supabase Auth
  * 
@@ -13,10 +21,30 @@ import { logger } from '@/lib/logger';
  * const { user, supabase, error } = await authenticateRequest(request);
  * if (error) return error;
  */
-export async function authenticateRequest(_request: Request) {
+export async function authenticateRequest(request: Request) {
     try {
         const supabase = await createClient();
-        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        // 1. Intentar obtener el usuario por la sesión de cookies estándar
+        let { data: { user }, error } = await supabase.auth.getUser();
+
+        // 2. Si no hay usuario, intentar extraer el token de la cabecera Authorization (Híbrido Bearer)
+        if ((error || !user) && request) {
+            const authHeader = request.headers.get('Authorization');
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.substring(7);
+                // Establecer la sesión en el cliente de Supabase usando el token Bearer de forma atómica
+                const sessionResult = await supabase.auth.setSession({
+                    access_token: token,
+                    refresh_token: ''
+                });
+                
+                if (!sessionResult.error && sessionResult.data.user) {
+                    user = sessionResult.data.user;
+                    error = null;
+                }
+            }
+        }
 
         if (error || !user) {
             return {
@@ -57,11 +85,12 @@ export async function authenticateRequest(_request: Request) {
 export async function requireRole(
     supabase: SupabaseClient,
     userId: string,
-    allowedRoles: string[]
+    allowedRoles: string[],
+    preloadedUser?: any
 ) {
     try {
-        // 1. Priorizar metadata del JWT (app_metadata es seteado por el sistema/trigger)
-        const { data: { user } } = await supabase.auth.getUser();
+        // 1. Priorizar metadata del JWT (evitando llamarlo de nuevo si ya fue precargado)
+        const user = preloadedUser || (await supabase.auth.getUser()).data.user;
 
         // El rol puede estar en 'rol' o 'role' (por compatibilidad)
         // app_metadata es más confiable que user_metadata (que puede ser editado por el usuario)
@@ -111,15 +140,8 @@ export async function requireRole(
         }
 
         // 3. Verificación de permisos (Insensible a mayúsculas y soporte español)
-        const roleMapping: Record<string, string> = {
-            'profesor': 'coach',
-            'miembro': 'member',
-            'administrador': 'admin',
-            'dueño': 'superadmin'
-        };
-
         const rawRole = (role || '').toLowerCase();
-        const normalizedUserRole = roleMapping[rawRole] || rawRole;
+        const normalizedUserRole = ROLE_MAPPING[rawRole] || rawRole;
         const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
 
         if (!normalizedAllowedRoles.includes(normalizedUserRole) && normalizedUserRole !== 'superadmin') {
@@ -137,17 +159,27 @@ export async function requireRole(
             };
         }
 
-        // 4. Obtener/Retornar perfil completo enriquecido
-        const { data: fullProfile } = await supabase
-            .from('perfiles')
-            .select('rol, gimnasio_id')
-            .eq('id', userId)
-            .single();
+        // 4. Obtener/Retornar perfil completo enriquecido sin viajes de red redundantes (JWT Hydration)
+        let gimnasio_id = user?.app_metadata?.gimnasio_id ||
+            user?.app_metadata?.gimnasioId ||
+            user?.user_metadata?.gimnasio_id ||
+            user?.user_metadata?.gimnasioId;
+
+        // Fallback a base de datos únicamente ante la ausencia de metadatos de sesión
+        if (!gimnasio_id) {
+            logger.info(`requireRole: gimnasio_id no encontrado en metadata de sesión para ${userId}. Consultando DB...`);
+            const { data: fullProfile } = await supabase
+                .from('perfiles')
+                .select('gimnasio_id')
+                .eq('id', userId)
+                .single();
+            gimnasio_id = fullProfile?.gimnasio_id;
+        }
 
         return {
             profile: {
                 role: normalizedUserRole,
-                gimnasio_id: fullProfile?.gimnasio_id
+                gimnasio_id
             },
             error: null
         };
@@ -184,7 +216,7 @@ export async function authenticateAndRequireRole(
         return { user: null, profile: null, supabase: null, error: authError };
     }
 
-    const { profile, error: roleError } = await requireRole(supabase!, user!.id, allowedRoles);
+    const { profile, error: roleError } = await requireRole(supabase!, user!.id, allowedRoles, user);
 
     if (roleError) {
         return { user, profile: null, supabase, error: roleError };

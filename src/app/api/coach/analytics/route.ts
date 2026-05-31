@@ -1,137 +1,146 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import type { ClassBooking, Routine, RoutineExercise, MonthlyAttendance } from '@/types/analytics';
+import type { ClassBooking, MonthlyAttendance } from '@/types/analytics';
+
+// ==========================================
+// 1. HELPERS COMPUTACIONALES PUROS (SRP)
+// ==========================================
+
+/**
+ * Parseador matemático de repeticiones de series de ejercicios.
+ * Soporta de forma robusta números simples, rangos de repeticiones ("8-12") y texto como "AMRAP".
+ */
+export function parseRepetitions(repeticiones: string | number | undefined): number {
+    if (!repeticiones) return 10; // Valor por defecto
+    
+    const repsStr = String(repeticiones).trim();
+    
+    // Caso de rango: "8-12" -> tomar el promedio
+    if (repsStr.includes('-')) {
+        const [min, max] = repsStr.split('-').map(r => parseInt(r.trim(), 10));
+        if (!isNaN(min) && !isNaN(max)) {
+            return Math.round((min + max) / 2);
+        }
+    } 
+    
+    // Caso de AMRAP o texto no numérico de entrenamiento
+    if (repsStr.toLowerCase() === 'amrap' || isNaN(Number(repsStr))) {
+        return 10; // Valor de esfuerzo por defecto
+    }
+
+    // Caso de número simple
+    const parsedReps = parseInt(repsStr, 10);
+    return !isNaN(parsedReps) && parsedReps > 0 ? parsedReps : 10;
+}
+
+/**
+ * Calcula el volumen prescrito acumulado en base a ejercicios de rutinas activas
+ */
+function calculateRoutinesVolume(routines: any[]): number {
+    if (!Array.isArray(routines)) return 0;
+
+    return routines.reduce((totalVolume, routine) => {
+        if (!routine || !Array.isArray(routine.ejercicios)) return totalVolume;
+
+        const routineVolume = routine.ejercicios.reduce((exAcc: number, ex: any) => {
+            const series = Number(ex.series);
+            if (isNaN(series) || series <= 0) return exAcc;
+
+            const reps = parseRepetitions(ex.repeticiones);
+            return exAcc + (series * reps);
+        }, 0);
+
+        return totalVolume + routineVolume;
+    }, 0);
+}
+
+// ==========================================
+// 2. ORQUESTADOR PRINCIPAL (GET Request)
+// ==========================================
 
 export async function GET(req: Request) {
     try {
         const supabase = await createClient();
         const { searchParams } = new URL(req.url);
         const studentId = searchParams.get('studentId');
-        const viewMode = searchParams.get('mode') || 'individual'; // individual, group
+        const viewMode = searchParams.get('mode') || 'individual';
 
-        // 1. Auth & Verify Coach
+        // 1. AUTENTICACIÓN Y VERIFICACIÓN DE ROL DE COACH (Fase Síncrona de Seguridad)
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const { data: profileData } = await supabase.from('perfiles').select('rol').eq('id', user.id).single();
+        const { data: profileData } = await supabase
+            .from('perfiles')
+            .select('rol')
+            .eq('id', user.id)
+            .single();
+
         const profile = profileData as { rol: string } | null;
         if (!profile || (profile.rol !== 'coach' && profile.rol !== 'admin')) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        // 2. Fetch Attendance Data
+        // 2. PARALELIZACIÓN MASIVA DE DATOS (Promise.all - Resuelve el Waterfall de Red)
+        const isIndividual = studentId && viewMode === 'individual';
+
+        // Preparar consultas de forma diferida (lazy evaluation)
         let attendanceQuery = supabase
             .from('reservas_de_clase')
             .select('fecha, estado')
             .in('estado', ['attended', 'confirmed', 'no_show']);
 
-        if (studentId && viewMode === 'individual') {
+        if (isIndividual) {
             attendanceQuery = attendanceQuery.eq('usuario_id', studentId);
         }
 
-        const { data: bookings } = await attendanceQuery;
-
-        // Convertir a tipo compatible (solo tenemos fecha y estado del query)
-        const bookingsData = (bookings || []).map((b: { fecha: string; estado: string }) => ({
-            fecha: b.fecha,
-            estado: b.estado as any // Force cast if strict check fails or use 'as ClassBooking["estado"]'
-        }));
-        const attendanceMetrics = processAttendance(bookingsData as Pick<ClassBooking, 'fecha' | 'estado'>[]);
-
-        // 3. Fetch Measurements / Physical Progress
-        let measurementsData = [];
-        if (studentId && viewMode === 'individual') {
-            const { data } = await (supabase as any)
-                .from('mediciones')
+        const measurementsPromise = isIndividual
+            ? supabase.from('mediciones')
                 .select('*')
                 .eq('user_id', studentId)
-                .order('registrado_en', { ascending: true });
-            measurementsData = data || [];
-        } else {
-            // Global averages or summary if needed
-        }
+                .order('registrado_en', { ascending: true })
+            : Promise.resolve({ data: [] });
 
-        // 4. Fetch Training Volume (Prescribed)
-        let volumeData = [];
-        // The following block was removed as it was not used and seemed to be an accidental inclusion
-        // const { data: upcomingClasses } = await supabase
-        //     .from('horarios_de_clase')
-        //     .select(`
-        //         *,
-        //         actividades (nombre, url_imagen),
-        //         reservas_de_clase (count)
-        //     `);
-        const { data: rutinasRecientes, error: rutinasError } = await (supabase as any)
-            .from('rutinas')
-            .select('*, ejercicios:ejercicios_rutina(series, repeticiones)')
-            .eq('user_id', studentId) // Assuming studentId is the user_id for routines
-            .order('creado_en', { ascending: false })
-            .limit(5);
+        const recentRoutinesPromise = isIndividual
+            ? (supabase.from('rutinas') as any)
+                .select('*, ejercicios:ejercicios_rutina(series, repeticiones)')
+                .eq('user_id', studentId)
+                .order('creado_en', { ascending: false })
+                .limit(5)
+            : Promise.resolve({ data: [] });
 
-        if (rutinasError) throw rutinasError;
-
-        let routinesQuery = (supabase as any)
-            .from('rutinas')
-            .select(`
-                id,
-                nombre,
-                user_id,
-                ejercicios:ejercicios_rutina (series, repeticiones)
-            `)
+        const activeRoutinesQuery = (supabase.from('rutinas') as any)
+            .select('id, nombre, user_id, ejercicios:ejercicios_rutina(series, repeticiones)')
             .eq('esta_activa', true);
 
-        if (studentId && viewMode === 'individual') {
-            routinesQuery = routinesQuery.eq('user_id', studentId);
-        }
+        const activeRoutinesPromise = isIndividual
+            ? activeRoutinesQuery.eq('user_id', studentId)
+            : activeRoutinesQuery;
 
-        const { data: routines } = await routinesQuery;
+        // Ejecutar paralelamente en un solo viaje de red concurrente
+        const [
+            bookingsResult,
+            measurementsResult,
+            recentRoutinesResult,
+            activeRoutinesResult
+        ] = await Promise.all([
+            attendanceQuery,
+            measurementsPromise,
+            recentRoutinesPromise,
+            activeRoutinesPromise
+        ]);
 
-        // Cálculo de volumen con validaciones robustas
-        const totalPrescribedVolume = (routines as { ejercicios: { series: number; repeticiones: string | number }[] }[])?.reduce((acc, routine) => {
-            // Validar que routine tenga la estructura esperada
-            if (!routine || !Array.isArray(routine.ejercicios)) {
-                // console.warn('⚠️ Rutina sin ejercicios válidos:', routine?.id);
-                return acc;
-            }
+        const bookings = bookingsResult.data || [];
+        const measurementsData = measurementsResult.data || [];
+        const activeRoutines = activeRoutinesResult.data || [];
 
-            const routineVolume = routine.ejercicios.reduce((sAcc: number, ex: { series: number; repeticiones: string | number }) => {
-                // Validar series
-                if (!ex.series || ex.series <= 0) {
-                    // console.warn('⚠️ Ejercicio sin series válidos:', ex);
-                    return sAcc;
-                }
+        // 3. PROCESAMIENTO OPTIMIZADO EN CPU (O(N) lineal y modular)
+        const bookingsData = bookings.map((b: any) => ({
+            fecha: b.fecha,
+            estado: b.estado
+        }));
 
-                // Parsear repeticiones de forma segura (puede ser "10", "8-12", "AMRAP")
-                let reps = 10; // Valor por defecto
-                if (ex.repeticiones) {
-                    const repsStr = String(ex.repeticiones);
-                    // Si es un rango como "8-12", tomar el promedio
-                    if (repsStr.includes('-')) {
-                        const [min, max] = repsStr.split('-').map((r: string) => parseInt(r.trim()));
-                        if (!isNaN(min) && !isNaN(max)) {
-                            reps = Math.round((min + max) / 2);
-                        }
-                    } else if (repsStr.toLowerCase() !== 'amrap') {
-                        // Si es un número simple
-                        const parsedReps = parseInt(repsStr);
-                        if (!isNaN(parsedReps) && parsedReps > 0) {
-                            reps = parsedReps;
-                        }
-                    }
-                }
-
-                return sAcc + (ex.series * reps);
-            }, 0);
-
-            return acc + routineVolume;
-        }, 0) || 0;
-
-        console.log('📊 Analytics calculados:', {
-            studentId,
-            viewMode,
-            totalPrescribedVolume,
-            attendanceRate: calculateAttendanceRate(bookingsData)
-        });
+        const attendanceMetrics = processAttendance(bookingsData);
+        const totalPrescribedVolume = calculateRoutinesVolume(activeRoutines);
 
         return NextResponse.json({
             success: true,
@@ -140,8 +149,8 @@ export async function GET(req: Request) {
                 measurements: measurementsData,
                 prescribedVolume: totalPrescribedVolume,
                 summary: {
-                    attendanceRate: calculateAttendanceRate(bookingsData as any),
-                    totalAttended: bookingsData?.filter(b => b.estado === 'attended' || b.estado === 'asistida').length || 0,
+                    attendanceRate: calculateAttendanceRate(bookingsData),
+                    totalAttended: bookingsData.filter(b => b.estado === 'attended').length,
                 }
             }
         });
@@ -149,74 +158,58 @@ export async function GET(req: Request) {
     } catch (_error) {
         const err = _error as Error;
         console.error('❌ Analytics API Error:', err);
-        const errorMessage = err.message || 'Error al calcular analytics';
-
-        // Logging mejorado para debugging
+        
+        // Log contextual
         const { searchParams } = new URL(req.url);
-        console.error('Context:', {
-            studentId: searchParams.get('studentId'),
-            mode: searchParams.get('mode'),
-            error: errorMessage
-        });
-
-        // Opcional: Integración con Sentry si está disponible
+        const studentId = searchParams.get('studentId');
+        
+        // Degradación con gracia mediante envío opcional a Sentry
         try {
             const Sentry = require('@sentry/nextjs');
             Sentry.captureException(err, {
-                extra: {
-                    studentId: searchParams.get('studentId'),
-                    mode: searchParams.get('mode')
-                }
+                extra: { studentId, mode: searchParams.get('mode') }
             });
-        } catch (_sentryError) {
-            // Sentry no disponible, continuar sin él
+        } catch (_) {
+            // Sentry opcional: ignorar errores de carga si no está instalado
         }
 
         return NextResponse.json({
             error: 'Internal Server Error',
-            message: errorMessage
+            message: err.message || 'Error al calcular analytics'
         }, { status: 500 });
     }
 }
 
-/**
- * Procesa datos de asistencia y calcula métricas por mes
- * @param bookings - Array de bookings de clases (solo necesita fecha y estado)
- * @returns Array de métricas mensuales de asistencia
- */
+// ==========================================
+// HELPERS DE PROCESAMIENTO (CPU Optimizados)
+// ==========================================
+
 function processAttendance(bookings: Pick<ClassBooking, 'fecha' | 'estado'>[]): MonthlyAttendance[] {
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     const currentYear = new Date().getFullYear();
 
-    // Validación de entrada
     if (!Array.isArray(bookings)) {
-        console.warn('⚠️ processAttendance recibió datos inválidos');
         return months.map(m => ({ month: m, rate: 0, attended: 0, total: 0 }));
     }
 
+    // Acumular asistencias del año en curso en un solo paso
     const result = bookings.reduce((acc: Record<string, { month: string; attended: number; total: number }>, booking) => {
-        // Validar estructura del booking
-        if (!booking || !booking.fecha) {
-            console.warn('⚠️ Booking sin fecha:', booking);
-            return acc;
-        }
+        if (!booking || !booking.fecha) return acc;
+
+        // Optimización CPU: Evitar instanciar objeto Date si el año no coincide (Substring ultra rápido)
+        const bookingYear = booking.fecha.substring(0, 4);
+        if (bookingYear !== String(currentYear)) return acc;
 
         const date = new Date(booking.fecha);
-
-        // Validar fecha válida
-        if (isNaN(date.getTime())) {
-            console.warn('⚠️ Fecha inválida en booking:', booking.fecha);
-            return acc;
-        }
-
-        // Solo procesar bookings del año actual
-        if (date.getFullYear() !== currentYear) return acc;
+        if (isNaN(date.getTime())) return acc;
 
         const month = months[date.getMonth()];
         if (!acc[month]) acc[month] = { month, attended: 0, total: 0 };
 
         acc[month].total++;
-        if (booking.estado === 'attended' || booking.estado === 'asistida') acc[month].attended++;
+        if (booking.estado === 'attended') {
+            acc[month].attended++;
+        }
         return acc;
     }, {});
 
@@ -231,21 +224,9 @@ function processAttendance(bookings: Pick<ClassBooking, 'fecha' | 'estado'>[]): 
     });
 }
 
-/**
- * Calcula la tasa de asistencia general
- * @param bookings - Array de bookings de clases (solo necesita estado)
- * @returns Porcentaje de asistencia (0-100)
- */
 function calculateAttendanceRate(bookings: Pick<ClassBooking, 'estado'>[]): number {
-    // Validación de entrada
-    if (!Array.isArray(bookings) || bookings.length === 0) {
-        return 0;
-    }
-
-    const attended = bookings.filter(b => b && (b.estado === 'attended' || b.estado === 'asistida')).length;
-
-    // Prevenir división por cero
-    if (bookings.length === 0) return 0;
-
+    if (!Array.isArray(bookings) || bookings.length === 0) return 0;
+    
+    const attended = bookings.filter(b => b && b.estado === 'attended').length;
     return Math.round((attended / bookings.length) * 100);
 }
