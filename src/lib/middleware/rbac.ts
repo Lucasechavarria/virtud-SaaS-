@@ -409,10 +409,118 @@ export async function handleRBAC(
         moduleGateGuard
     ];
 
+<<<<<<< HEAD
     for (const guard of pipeline) {
         const redirectResponse = guard(context);
         if (redirectResponse) {
             return redirectResponse; // Cortocircuito inmediato al primer guardián que retorne redirección
+=======
+    // CASO B: Logueado tratando de ir a Landing/Login/Signup -> Dashboard correspondiente
+    if (user && isPublic) {
+        let dest = '/';
+        
+        if (isSubdomain) {
+            // A. Redirección LOCAL y limpia si ya navega bajo un subdominio
+            switch (userRole) {
+                case 'superadmin': dest = '/saas-admin'; break;
+                case 'admin': dest = '/admin'; break;
+                case 'recepcion': dest = '/admin/recepcion/pos'; break;
+                case 'coach': dest = '/coach'; break;
+                default: dest = '/member/dashboard'; break;
+            }
+            
+            console.warn(`[Subdomain Redirect] User: ${user.email} | Role: ${userRole} | Pathname: ${pathname} -> Local: ${dest}`);
+            if (dest !== pathname) {
+                return NextResponse.redirect(new URL(dest, request.url));
+            }
+        } else {
+            // B. Redirección al gimnasio si navega en el dominio centralizado
+            const gymPrefix = gymSlug || gymId;
+            
+            if (userRole === 'superadmin') {
+                dest = '/saas-admin';
+            } else if (gymPrefix) {
+                if (isLocalhost) {
+                    // En localhost, para evitar problemas de cookies inter-subdominio en Cypress y desarrollo,
+                    // usamos redirecciones basadas en rutas (path-based), ej: /virtud-central/member/dashboard
+                    switch (userRole) {
+                        case 'admin': dest = `/${gymPrefix}/admin`; break;
+                        case 'recepcion': dest = `/${gymPrefix}/admin/recepcion/pos`; break;
+                        case 'coach': dest = `/${gymPrefix}/coach`; break;
+                        default: dest = `/${gymPrefix}/member/dashboard`; break;
+                    }
+                } else {
+                    const protocol = request.nextUrl.protocol; // http: o https:
+                    switch (userRole) {
+                        case 'admin': dest = `${protocol}//${gymPrefix}.${baseDomain}/admin`; break;
+                        case 'recepcion': dest = `${protocol}//${gymPrefix}.${baseDomain}/admin/recepcion/pos`; break;
+                        case 'coach': dest = `${protocol}//${gymPrefix}.${baseDomain}/coach`; break;
+                        default: dest = `${protocol}//${gymPrefix}.${baseDomain}/member/dashboard`; break;
+                    }
+                }
+            } else {
+                dest = '/';
+            }
+
+            console.warn(`[Global Redirect] User: ${user.email} | Role: ${userRole} | GymPrefix: ${gymPrefix} | Pathname: ${pathname} -> dest: ${dest}`);
+            
+            if (dest !== pathname && dest !== '/') {
+                if (isLocalhost) {
+                    return NextResponse.redirect(new URL(dest, request.url));
+                } else {
+                    return NextResponse.redirect(new URL(dest));
+                }
+            }
+        }
+    }
+
+    // 4. Guards de Ruta (RBAC Profundo)
+    
+    // Protección SaaS Admin
+    if (pathname.startsWith('/saas-admin') && userRole !== 'superadmin') {
+        const dest = isSubdomain ? '/' : (gymSlug ? `/${gymSlug}` : (gymId ? `/${gymId}` : '/'));
+        return NextResponse.redirect(new URL(dest, request.url));
+    }
+
+    // Protección de Tenancy [gymId] (Para paths legacy o path-based en desarrollo)
+    const pathSegments = pathname.split('/').filter(Boolean);
+    const currentGymIdParam = pathSegments[0];
+
+    if (currentGymIdParam && !['saas-admin', 'api', 'auth', 'g', 'inscripcion', 'tenants', 'dashboard', 'saas', 'debug'].includes(currentGymIdParam)) {
+        if (!isSubdomain) {
+            // Un usuario normal no puede entrar a otro gimnasio
+            const expectedTenant = gymSlug || gymId;
+            if (userRole !== 'superadmin' && expectedTenant && currentGymIdParam !== expectedTenant) {
+                if (isLocalhost) {
+                    const dest = `/${expectedTenant}/member/dashboard`;
+                    return NextResponse.redirect(new URL(dest, request.url));
+                } else {
+                    const protocol = request.nextUrl.protocol;
+                    const dest = `${protocol}//${expectedTenant}.${baseDomain}/member/dashboard`;
+                    return NextResponse.redirect(new URL(dest));
+                }
+            }
+        }
+    }
+
+    // RBAC para rutas de administración (/admin)
+    if (pathname.startsWith('/admin') || (isSubdomain && pathname === '/admin')) {
+        if (!['admin', 'superadmin', 'recepcion'].includes(userRole ?? '')) {
+            const dest = isSubdomain ? '/member/dashboard' : (gymSlug ? `/${gymSlug}/member/dashboard` : '/');
+            return NextResponse.redirect(new URL(dest, request.url));
+        }
+    }
+
+    // 5. Module Gating local con Claims (Bitmask e Híbrido)
+    const requiredModule = Object.entries(MODULE_ROUTES).find(([route]) => pathname.includes(route))?.[1];
+    if (requiredModule && userRole !== 'superadmin' && gymId) {
+        const isEnabled = hasModuleAccess(activeModules, requiredModule);
+
+        if (!isEnabled) {
+            console.warn(`[Module Gate] Bloqueado acceso a ${pathname}. Módulo requerido: ${requiredModule} inactivo.`);
+            const dest = isSubdomain ? '/member/dashboard' : (gymSlug ? `/${gymSlug}/member/dashboard` : '/');
+            return NextResponse.redirect(new URL(dest, request.url));
+>>>>>>> origin/main
         }
     }
 
