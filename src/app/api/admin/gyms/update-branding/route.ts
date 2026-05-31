@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { revalidateTag } from 'next/cache';
 
 /**
  * POST /api/admin/gyms/update-branding
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'No se encontró el gimnasio asociado' }, { status: 404 });
         }
 
-        const { error } = await adminClient
+        const { data: updatedGym, error } = await adminClient
             .from('gimnasios')
             .update({
                 color_primario,
@@ -35,9 +36,16 @@ export async function POST(request: Request) {
                 config_visual,
                 actualizado_en: new Date().toISOString()
             })
-            .eq('id', profileData.gimnasio_id);
+            .eq('id', profileData.gimnasio_id)
+            .select('slug')
+            .single();
 
         if (error) throw error;
+
+        if (updatedGym?.slug) {
+            (revalidateTag as any)(`gym-brand-${updatedGym.slug}`);
+            console.warn(`[Branding Purge] Caché purgada para el gimnasio con slug: ${updatedGym.slug}`);
+        }
 
         return NextResponse.json({ success: true });
 

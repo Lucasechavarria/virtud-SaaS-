@@ -1,6 +1,5 @@
 import React from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import SuperAdminTabs from '@/features/admin/components/SuperAdminTabs';
 import GymAdminDashboard from '@/features/admin/components/GymAdminDashboard';
 import { redirect } from 'next/navigation';
@@ -20,10 +19,8 @@ export default async function AdminDashboard({
         redirect('/login');
     }
 
-    // Usar el admin client para leer el perfil — evita problemas de RLS recursiva
-    // La validación de la sesión ya se hizo arriba con createClient()
-    const adminClient = createAdminClient();
-    const { data: profile } = await adminClient
+    // Leer el perfil de forma segura con el cliente autenticado y RLS activo
+    const { data: profile } = await supabase
         .from('perfiles')
         .select('rol, gimnasio_id, nombre_completo, onboarding_completado')
         .eq('id', user.id)

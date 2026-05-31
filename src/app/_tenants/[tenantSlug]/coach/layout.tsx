@@ -1,41 +1,25 @@
 import React from 'react';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
 import { redirect } from 'next/navigation';
 import { ROLES } from '@/lib/constants/app';
 import { UniversalLayoutWrapper } from '@/components/layout/UniversalLayoutWrapper';
 import { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import SaaSGuard from '@/components/auth/SaaSGuard';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 export default async function CoachLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const cookieStore = await cookies();
-
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name: string) {
-                    return cookieStore.get(name)?.value;
-                },
-            },
-        }
-    );
-
+    const supabase = await createClient();
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (error || !user) {
         redirect('/login');
     }
 
-    const adminSupabase = createAdminClient();
-    const { data: profile } = await adminSupabase
+    const { data: profile } = await supabase
         .from('perfiles')
         .select('*')
         .eq('id', user.id)

@@ -4,37 +4,108 @@ import { handleRateLimit } from './lib/middleware/ratelimit';
 import { handleRBAC } from './lib/middleware/rbac';
 
 /**
- * MAIN MIDDLEWARE (PROXY) - Next.js 16 Standard
- * This file coordinates the modular security system.
+ * MAIN MIDDLEWARE (PROXY) - Next.js Standard Multi-Tenant Router
+ * This file coordinates traffic routing, subdomains, and security controls.
  */
 export async function middleware(request: NextRequest) {
-    // 1. Crear respuesta inicial
-    const response = NextResponse.next({
+    // 1. Control de Tráfico (Rate Limit) - Fail Open
+    const initialResponse = NextResponse.next({
         request: {
             headers: request.headers,
         },
     });
+    const rateLimitRes = await handleRateLimit(request, initialResponse);
+    if (rateLimitRes) return rateLimitRes;
 
     try {
-        // 2. Control de Tráfico (Rate Limit) - Fail Open
-        const rateLimitRes = await handleRateLimit(request, response);
-        if (rateLimitRes) return rateLimitRes;
+        // 2. Resolver Subdominios y Tenants de forma Dinámica
+        const url = request.nextUrl.clone();
+        const host = request.headers.get('host') || 'localhost:3000';
+        
+        // Detección automática del puerto y host base (ej. localhost:3000, localhost:3001, etc.)
+        const hostWithoutPort = host.split(':')[0];
+        const port = host.split(':')[1] ? `:${host.split(':')[1]}` : '';
+        const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
+        const baseDomain = isLocalhost ? `${hostWithoutPort}${port}` : 'virtud.fit';
+        
+        let tenantSlug: string | null = null;
+        
+        if (host !== baseDomain && host !== `www.${baseDomain}`) {
+            // Extraer el subdominio (lo que está a la izquierda del dominio base)
+            const parts = host.replace(`.${baseDomain}`, '').split('.');
+            tenantSlug = parts[0];
+        }
 
-        // 3. Autenticación (Supabase Session)
+        // 3. Autenticación (Supabase Session en Edge)
+        const response = NextResponse.next();
         const { user, supabase } = await handleAuth(request, response);
 
-        // 4. Autorización y Ruteo Dinámico (RBAC)
+        // 4. Autorización y RBAC
         const rbacRes = await handleRBAC(request, response, user, supabase);
         
         // --- BLINDAJE DE SESIÓN: Sincronizar cookies antes de cualquier retorno ---
+        const finalResponse = rbacRes || response;
         if (rbacRes) {
             response.cookies.getAll().forEach(c => {
                 rbacRes.cookies.set(c.name, c.value, c);
             });
-            return rbacRes;
         }
 
-        return response;
+        // 5. REESCRITURA INTERNA PARA SUBDOMINIOS (MULTITENANCY)
+        const { pathname } = url;
+        const systemPaths = [
+            '/_next', '/api', '/auth', '/static', '/favicon.ico', '/manifest.json', '/manifest.webmanifest',
+            '/login', '/signup', '/forgot-password', '/reset-password'
+        ];
+        const isSystemPath = systemPaths.some(p => pathname.startsWith(p)) || pathname.match(/\.(?:svg|png|jpg|jpeg|gif|webp|css|js|pdf|txt|ico|json|webmanifest|woff|woff2|ttf)$/);
+
+        if (tenantSlug && !isSystemPath) {
+            // Redirección raíz del subdominio para usuarios logueados (UX limpia)
+            if (pathname === '/' && user) {
+                const userRole = (user.app_metadata?.rol || user.app_metadata?.role)?.toLowerCase();
+                let dest = '/member/dashboard';
+                if (['admin', 'recepcion'].includes(userRole)) dest = '/admin';
+                else if (userRole === 'coach') dest = '/coach';
+                
+                url.pathname = dest;
+                return NextResponse.redirect(url);
+            }
+
+            // Inyectar claims y slug en los headers para el RootLayout
+            const requestHeaders = new Headers(request.headers);
+            requestHeaders.set('x-gym-slug', tenantSlug);
+            requestHeaders.set('x-tenant-slug', tenantSlug);
+
+            // Reescribir silenciosamente la petición al App Router de _tenants
+            // ej: olimpia.virtud.fit/member/dashboard -> virtud.fit/_tenants/olimpia/member/dashboard
+            url.pathname = `/_tenants/${tenantSlug}${pathname}`;
+            const rewriteResponse = NextResponse.rewrite(url, {
+                request: {
+                    headers: requestHeaders
+                }
+            });
+            
+            // Conservar cookies sincronizadas en la reescritura
+            finalResponse.cookies.getAll().forEach(c => {
+                rewriteResponse.cookies.set(c.name, c.value, c);
+            });
+            return rewriteResponse;
+        }
+
+        // 6. Redirección para URLs heredadas basadas en path (virtud.fit/[gymId] -> [gymId].virtud.fit)
+        const pathSegments = pathname.split('/').filter(Boolean);
+        const legacyTenant = pathSegments[0];
+        const ignoredPaths = ['saas-admin', 'api', 'auth', 'g', 'inscripcion', '_tenants'];
+
+        if (legacyTenant && !ignoredPaths.includes(legacyTenant) && !tenantSlug && !isSystemPath) {
+            const remainingPath = '/' + pathSegments.slice(1).join('/');
+            const redirectUrl = new URL(
+                `${request.nextUrl.protocol}//${legacyTenant}.${baseDomain}${remainingPath}${url.search}`
+            );
+            return NextResponse.redirect(redirectUrl);
+        }
+
+        return finalResponse;
 
     } catch (error) {
         console.error('[Proxy Orchestrator] Critical error:', error);
@@ -60,5 +131,7 @@ export const config = {
     ],
 };
 
-// Alias para compatibilidad con la convención "proxy" de Next.js 16
+// Alias para compatibilidad con la convención "proxy" de Next.js
 export const proxy = middleware;
+
+

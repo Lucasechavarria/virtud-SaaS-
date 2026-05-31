@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase/client';
+import { hasModuleAccess } from '@/lib/saas/modules';
 
 /**
  * Hook to check if a specific module is active for the current gym.
@@ -31,12 +32,11 @@ export function useModuleAccess(moduleName: string, redirectIfDenied = false) {
                     .eq('id', gymId)
                     .single();
 
-                const hasModule = Array.isArray(data?.modulos_activos) && data.modulos_activos.includes(moduleName);
+                const hasModule = hasModuleAccess(data?.modulos_activos, moduleName);
                 setIsAllowed(hasModule);
 
                 if (!hasModule && redirectIfDenied) {
-                    toast.error('Este módulo no está incluido en tu plan actual');
-                    router.push(`/${gymId}/dashboard`);
+                    router.push('/modulo-bloqueado');
                 }
             } catch (err) {
                 console.error("Error verifying module access", err);
