@@ -19,8 +19,10 @@ export async function handleRBAC(
     const hostWithoutPort = host.split(':')[0];
     const port = host.split(':')[1] ? `:${host.split(':')[1]}` : '';
     const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
-    const baseDomain = isLocalhost ? `${hostWithoutPort}${port}` : 'virtud.fit';
-    const isSubdomain = hostWithoutPort !== baseDomain && hostWithoutPort !== `www.${baseDomain}`;
+    
+    const baseDomainWithoutPort = isLocalhost ? 'localhost' : 'virtud.fit';
+    const baseDomain = `${baseDomainWithoutPort}${port}`;
+    const isSubdomain = hostWithoutPort !== baseDomainWithoutPort && hostWithoutPort !== `www.${baseDomainWithoutPort}`;
     
     // 2. Obtener Metadatos directamente de los Claims de Identidad del JWT
     let userRole: string | undefined;
@@ -82,28 +84,42 @@ export async function handleRBAC(
                 return NextResponse.redirect(new URL(dest, request.url));
             }
         } else {
-            // B. Redirección ABSOLUTA al subdominio del gimnasio si navega en el dominio centralizado
+            // B. Redirección al gimnasio si navega en el dominio centralizado
             const gymPrefix = gymSlug || gymId;
             
             if (userRole === 'superadmin') {
                 dest = '/saas-admin';
             } else if (gymPrefix) {
-                const protocol = request.nextUrl.protocol; // http: o https:
-                
-                switch (userRole) {
-                    case 'admin': dest = `${protocol}//${gymPrefix}.${baseDomain}/admin`; break;
-                    case 'recepcion': dest = `${protocol}//${gymPrefix}.${baseDomain}/admin/recepcion/pos`; break;
-                    case 'coach': dest = `${protocol}//${gymPrefix}.${baseDomain}/coach`; break;
-                    default: dest = `${protocol}//${gymPrefix}.${baseDomain}/member/dashboard`; break;
+                if (isLocalhost) {
+                    // En localhost, para evitar problemas de cookies inter-subdominio en Cypress y desarrollo,
+                    // usamos redirecciones basadas en rutas (path-based), ej: /virtud-central/member/dashboard
+                    switch (userRole) {
+                        case 'admin': dest = `/${gymPrefix}/admin`; break;
+                        case 'recepcion': dest = `/${gymPrefix}/admin/recepcion/pos`; break;
+                        case 'coach': dest = `/${gymPrefix}/coach`; break;
+                        default: dest = `/${gymPrefix}/member/dashboard`; break;
+                    }
+                } else {
+                    const protocol = request.nextUrl.protocol; // http: o https:
+                    switch (userRole) {
+                        case 'admin': dest = `${protocol}//${gymPrefix}.${baseDomain}/admin`; break;
+                        case 'recepcion': dest = `${protocol}//${gymPrefix}.${baseDomain}/admin/recepcion/pos`; break;
+                        case 'coach': dest = `${protocol}//${gymPrefix}.${baseDomain}/coach`; break;
+                        default: dest = `${protocol}//${gymPrefix}.${baseDomain}/member/dashboard`; break;
+                    }
                 }
             } else {
                 dest = '/';
             }
 
-            console.warn(`[Global Redirect] User: ${user.email} | Role: ${userRole} | GymPrefix: ${gymPrefix} | Pathname: ${pathname} -> External: ${dest}`);
+            console.warn(`[Global Redirect] User: ${user.email} | Role: ${userRole} | GymPrefix: ${gymPrefix} | Pathname: ${pathname} -> dest: ${dest}`);
             
             if (dest !== pathname && dest !== '/') {
-                return NextResponse.redirect(new URL(dest));
+                if (isLocalhost) {
+                    return NextResponse.redirect(new URL(dest, request.url));
+                } else {
+                    return NextResponse.redirect(new URL(dest));
+                }
             }
         }
     }
@@ -116,18 +132,23 @@ export async function handleRBAC(
         return NextResponse.redirect(new URL(dest, request.url));
     }
 
-    // Protección de Tenancy [gymId] (Para paths legacy)
+    // Protección de Tenancy [gymId] (Para paths legacy o path-based en desarrollo)
     const pathSegments = pathname.split('/').filter(Boolean);
     const currentGymIdParam = pathSegments[0];
 
-    if (currentGymIdParam && !['saas-admin', 'api', 'auth', 'g', 'inscripcion'].includes(currentGymIdParam)) {
+    if (currentGymIdParam && !['saas-admin', 'api', 'auth', 'g', 'inscripcion', '_tenants'].includes(currentGymIdParam)) {
         if (!isSubdomain) {
             // Un usuario normal no puede entrar a otro gimnasio
             const expectedTenant = gymSlug || gymId;
             if (userRole !== 'superadmin' && expectedTenant && currentGymIdParam !== expectedTenant) {
-                const protocol = request.nextUrl.protocol;
-                const dest = `${protocol}//${expectedTenant}.${baseDomain}/member/dashboard`;
-                return NextResponse.redirect(new URL(dest));
+                if (isLocalhost) {
+                    const dest = `/${expectedTenant}/member/dashboard`;
+                    return NextResponse.redirect(new URL(dest, request.url));
+                } else {
+                    const protocol = request.nextUrl.protocol;
+                    const dest = `${protocol}//${expectedTenant}.${baseDomain}/member/dashboard`;
+                    return NextResponse.redirect(new URL(dest));
+                }
             }
         }
     }

@@ -26,14 +26,19 @@ export async function middleware(request: NextRequest) {
         const hostWithoutPort = host.split(':')[0];
         const port = host.split(':')[1] ? `:${host.split(':')[1]}` : '';
         const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
-        const baseDomain = isLocalhost ? `${hostWithoutPort}${port}` : 'virtud.fit';
+        
+        const baseDomainWithoutPort = isLocalhost ? 'localhost' : 'virtud.fit';
+        const baseDomain = `${baseDomainWithoutPort}${port}`;
+        const isSubdomain = hostWithoutPort !== baseDomainWithoutPort && hostWithoutPort !== `www.${baseDomainWithoutPort}`;
         
         let tenantSlug: string | null = null;
         
-        if (host !== baseDomain && host !== `www.${baseDomain}`) {
+        if (isSubdomain) {
             // Extraer el subdominio (lo que está a la izquierda del dominio base)
-            const parts = host.replace(`.${baseDomain}`, '').split('.');
-            tenantSlug = parts[0];
+            tenantSlug = hostWithoutPort.replace(`.${baseDomainWithoutPort}`, '');
+            if (tenantSlug === 'www') {
+                tenantSlug = null;
+            }
         }
 
         // 3. Autenticación (Supabase Session en Edge)
@@ -92,17 +97,39 @@ export async function middleware(request: NextRequest) {
             return rewriteResponse;
         }
 
-        // 6. Redirección para URLs heredadas basadas en path (virtud.fit/[gymId] -> [gymId].virtud.fit)
+        // 6. Redirección o Reescritura para URLs heredadas basadas en path
         const pathSegments = pathname.split('/').filter(Boolean);
         const legacyTenant = pathSegments[0];
         const ignoredPaths = ['saas-admin', 'api', 'auth', 'g', 'inscripcion', '_tenants'];
 
         if (legacyTenant && !ignoredPaths.includes(legacyTenant) && !tenantSlug && !isSystemPath) {
             const remainingPath = '/' + pathSegments.slice(1).join('/');
-            const redirectUrl = new URL(
-                `${request.nextUrl.protocol}//${legacyTenant}.${baseDomain}${remainingPath}${url.search}`
-            );
-            return NextResponse.redirect(redirectUrl);
+            
+            if (isLocalhost) {
+                // En localhost, para evitar problemas de cookies inter-subdominio en Cypress y desarrollo,
+                // reescribimos internamente manteniendo la misma sesión y cookies en localhost:3000
+                const requestHeaders = new Headers(request.headers);
+                requestHeaders.set('x-gym-slug', legacyTenant);
+                requestHeaders.set('x-tenant-slug', legacyTenant);
+
+                url.pathname = `/_tenants/${legacyTenant}${remainingPath}`;
+                const rewriteResponse = NextResponse.rewrite(url, {
+                    request: {
+                        headers: requestHeaders
+                    }
+                });
+                
+                finalResponse.cookies.getAll().forEach(c => {
+                    rewriteResponse.cookies.set(c.name, c.value, c);
+                });
+                return rewriteResponse;
+            } else {
+                // En producción, redirigimos al subdominio del gimnasio
+                const redirectUrl = new URL(
+                    `${request.nextUrl.protocol}//${legacyTenant}.${baseDomain}${remainingPath}${url.search}`
+                );
+                return NextResponse.redirect(redirectUrl);
+            }
         }
 
         return finalResponse;
