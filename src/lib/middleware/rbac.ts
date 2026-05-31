@@ -136,7 +136,7 @@ export async function handleRBAC(
     const pathSegments = pathname.split('/').filter(Boolean);
     const currentGymIdParam = pathSegments[0];
 
-    if (currentGymIdParam && !['saas-admin', 'api', 'auth', 'g', 'inscripcion', '_tenants'].includes(currentGymIdParam)) {
+    if (currentGymIdParam && !['saas-admin', 'api', 'auth', 'g', 'inscripcion', 'tenants', 'dashboard', 'saas', 'debug'].includes(currentGymIdParam)) {
         if (!isSubdomain) {
             // Un usuario normal no puede entrar a otro gimnasio
             const expectedTenant = gymSlug || gymId;
