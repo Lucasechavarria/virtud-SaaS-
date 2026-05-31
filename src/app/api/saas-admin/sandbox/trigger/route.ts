@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { calculateGymMonthlyBill } from '@/lib/saas/billing-calculator';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,9 +47,46 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Missing gymId for payment simulation' }, { status: 400 });
             }
 
-            const amount = Math.floor(Math.random() * 50) + 49; // Entre 49 y 99 USD
-            const discount = Math.random() > 0.7 ? 10 : 0;
-            const finalAmount = amount - (amount * discount / 100);
+            let amount = 0;
+            let finalAmount = 0;
+            let discount = 0;
+
+            try {
+                const bill = await calculateGymMonthlyBill(gymId);
+                amount = bill.basePrice;
+                discount = bill.discountPercent;
+                finalAmount = bill.totalAmount;
+
+                // Si cobra excedentes postpago y se debitaron créditos al final de mes, persistir en base de datos
+                if (bill.pagadoConCreditos && bill.pagadoConCreditos > 0 && bill.metodoCobroExcedentes === 'postpago') {
+                    const { data: gymData } = await supabase
+                        .from('gimnasios')
+                        .select('configuracion')
+                        .eq('id', gymId)
+                        .single();
+
+                    if (gymData) {
+                        const config = (gymData.configuracion || {}) as Record<string, any>;
+                        config.saldo_creditos = Number(Math.max(0, Number(config.saldo_creditos ?? 0) - bill.pagadoConCreditos).toFixed(2));
+                        
+                        if (!config.historial_recargas) config.historial_recargas = [];
+                        config.historial_recargas.push({
+                            fecha: new Date().toISOString(),
+                            monto: -bill.pagadoConCreditos,
+                            metodo: 'Débito Automático IA'
+                        });
+
+                        await supabase
+                            .from('gimnasios')
+                            .update({ configuracion: config })
+                            .eq('id', gymId);
+                    }
+                }
+            } catch (_err) {
+                amount = Math.floor(Math.random() * 50) + 49;
+                discount = Math.random() > 0.7 ? 10 : 0;
+                finalAmount = amount - (amount * discount / 100);
+            }
 
             let payment = null;
 

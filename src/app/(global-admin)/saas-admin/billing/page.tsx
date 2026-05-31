@@ -50,6 +50,7 @@ export default function AdminBillingPage() {
     // CRUD Plan States
     const [showPlanModal, setShowPlanModal] = useState(false);
     const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
+    const [planToDelete, setPlanToDelete] = useState<{ id: string; nombre: string } | null>(null);
     const [planForm, setPlanForm] = useState({
         nombre: '',
         precio_mensual: 0,
@@ -241,8 +242,7 @@ export default function AdminBillingPage() {
         }
     };
 
-    const handleDeletePlan = async (planId: string, planName: string) => {
-        if (!confirm(`¿Estás completamente seguro de eliminar el plan "${planName}"?\nEsta acción retirará el plan del catálogo y no se podrá deshacer.`)) return;
+    const executeDeletePlan = async (planId: string) => {
         setUpdating(true);
         try {
             const res = await fetch(`/api/admin/plans/${planId}`, {
@@ -500,7 +500,7 @@ export default function AdminBillingPage() {
                                                 <Edit3 size={14} />
                                             </button>
                                             <button
-                                                onClick={() => handleDeletePlan(plan.id, plan.nombre)}
+                                                onClick={() => setPlanToDelete({ id: plan.id, nombre: plan.nombre })}
                                                 className="p-2 bg-white/5 hover:bg-red-600/20 text-zinc-400 hover:text-red-400 rounded-xl border border-white/5 transition-colors"
                                                 title="Eliminar Plan"
                                             >
@@ -683,6 +683,59 @@ export default function AdminBillingPage() {
                     </motion.div>
                 </div>
             )}
+            {/* Modal de Confirmación de Eliminación de Plan */}
+            <AnimatePresence>
+                {planToDelete && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-zinc-950 border border-red-500/30 rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl flex flex-col relative"
+                        >
+                            <div className="absolute top-0 left-0 w-full h-1 bg-red-600" />
+                            
+                            <div className="p-8 space-y-6">
+                                <div className="flex items-center gap-4 text-red-500">
+                                    <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 shadow-lg">
+                                        <AlertCircle size={24} className="animate-bounce" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black italic uppercase tracking-tight">¿Eliminar Plan?</h3>
+                                        <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-0.5">Esta acción es irreversible</p>
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-zinc-400 font-medium leading-relaxed bg-white/2 border border-white/5 rounded-2xl p-4">
+                                    ¿Estás completamente seguro de eliminar el plan comercial <strong className="text-white italic uppercase">"{planToDelete.nombre}"</strong>?<br/>
+                                    Esta acción lo retirará definitivamente del catálogo oficial de ofertas del SaaS.
+                                </p>
+
+                                <div className="flex gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPlanToDelete(null)}
+                                        className="flex-1 px-4 py-3 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white/10 transition-all border border-white/5"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const id = planToDelete.id;
+                                            setPlanToDelete(null);
+                                            await executeDeletePlan(id);
+                                        }}
+                                        className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-600/20 active:scale-95 transition-all"
+                                    >
+                                        Sí, Eliminar
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

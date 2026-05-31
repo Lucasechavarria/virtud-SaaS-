@@ -19,6 +19,14 @@ interface User {
     rol: RoleId | string;
 }
 
+// Función auxiliar para normalizar los nombres de roles procedentes de la BBDD
+const getNormalizedRole = (rawRole: string): RoleId => {
+    const roleLower = (rawRole || '').toLowerCase();
+    if (['coach', 'profesor', 'entrenador'].includes(roleLower)) return 'coach';
+    if (['admin', 'administrador'].includes(roleLower)) return 'admin';
+    return 'member';
+};
+
 export function RoleManagement() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
@@ -42,9 +50,9 @@ export function RoleManagement() {
             toast.error('Error al cargar usuarios');
             // Mock data fallback
             setUsers([
-                { id: '1', nombre_completo: 'Juan Pérez', correo: 'juan@demo.com', rol: 'user' },
+                { id: '1', nombre_completo: 'Juan Pérez', correo: 'juan@demo.com', rol: 'member' },
                 { id: '2', nombre_completo: 'María García', correo: 'maria@demo.com', rol: 'coach' },
-                { id: '3', nombre_completo: 'Carlos López', correo: 'carlos@demo.com', rol: 'user' },
+                { id: '3', nombre_completo: 'Carlos López', correo: 'carlos@demo.com', rol: 'member' },
             ]);
         } finally {
             setLoading(false);
@@ -54,25 +62,33 @@ export function RoleManagement() {
     const handleRoleChange = async (newRole: string) => {
         if (!selectedUser) return;
 
+        const loadingToast = toast.loading('Actualizando rol del usuario...');
         try {
-            // TODO: Conectar con API real
-            // const res = await fetch('/api/admin/users/update-role', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ userId: selectedUser.id, newRole }),
-            // });
+            const res = await fetch(`/api/admin/users/${selectedUser.id}/role`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole }),
+            });
 
-            // Simular cambio
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al actualizar el rol');
+            }
+
+            // Actualizar localmente si la API responde éxito
             setUsers(users.map(u =>
                 u.id === selectedUser.id ? { ...u, rol: newRole } : u
             ));
 
-            toast.success(`Rol cambiado a ${AVAILABLE_ROLES.find(r => r.id === newRole)?.label}`);
+            toast.dismiss(loadingToast);
+            toast.success(data.message || `Rol cambiado a ${AVAILABLE_ROLES.find(r => r.id === newRole)?.label}`);
             setShowRoleModal(false);
             setSelectedUser(null);
         } catch (err) {
+            toast.dismiss(loadingToast);
             console.error('Error changing role:', err);
-            toast.error('Error al cambiar rol');
+            toast.error(err instanceof Error ? err.message : 'Error al cambiar rol');
         }
     };
 
@@ -105,7 +121,8 @@ export function RoleManagement() {
                     </thead>
                     <tbody className="divide-y divide-white/5">
                         {users.map((user) => {
-                            const roleInfo = AVAILABLE_ROLES.find(r => r.id === user.rol);
+                            const normalizedRole = getNormalizedRole(user.rol);
+                            const roleInfo = AVAILABLE_ROLES.find(r => r.id === normalizedRole);
                             return (
                                 <tr key={user.id} className="hover:bg-white/5 transition-colors">
                                     <td className="p-3">
@@ -172,27 +189,31 @@ export function RoleManagement() {
 
                             <div className="space-y-3 mb-6">
                                 <p className="text-gray-400 font-bold text-sm">Selecciona nuevo rol:</p>
-                                {AVAILABLE_ROLES.map((role) => (
-                                    <button
-                                        key={role.id}
-                                        onClick={() => handleRoleChange(role.id)}
-                                        disabled={role.id === selectedUser.rol}
-                                        className={`w-full p-4 rounded-xl border-2 transition-all text-left ${role.id === selectedUser.rol
-                                            ? 'bg-white/5 border-white/10 cursor-not-allowed opacity-50'
-                                            : 'bg-white/5 border-white/10 hover:border-purple-500 hover:bg-purple-500/10'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-2xl">{role.icon}</span>
-                                            <div>
-                                                <p className={`font-bold ${role.color}`}>{role.label}</p>
-                                                {role.id === selectedUser.rol && (
-                                                    <p className="text-xs text-gray-500">Rol actual</p>
-                                                )}
+                                {AVAILABLE_ROLES.map((role) => {
+                                    const userNormalizedRole = getNormalizedRole(selectedUser.rol);
+                                    const isCurrentRole = role.id === userNormalizedRole;
+                                    return (
+                                        <button
+                                            key={role.id}
+                                            onClick={() => handleRoleChange(role.id)}
+                                            disabled={isCurrentRole}
+                                            className={`w-full p-4 rounded-xl border-2 transition-all text-left ${isCurrentRole
+                                                ? 'bg-white/5 border-white/10 cursor-not-allowed opacity-50'
+                                                : 'bg-white/5 border-white/10 hover:border-purple-500 hover:bg-purple-500/10'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-2xl">{role.icon}</span>
+                                                <div>
+                                                    <p className={`font-bold ${role.color}`}>{role.label}</p>
+                                                    {isCurrentRole && (
+                                                        <p className="text-xs text-gray-500">Rol actual</p>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </button>
-                                ))}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">

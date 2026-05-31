@@ -16,7 +16,8 @@ import {
     Zap,
     Users,
     Video,
-    Sparkles
+    Sparkles,
+    Wallet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -44,6 +45,10 @@ interface SystemSettings {
     costo_alojamiento_fijo: number;
     costo_por_video_ia: number;
     costo_por_rutina_ia: number;
+    costo_por_video_ia_real?: number;
+    ganancia_por_video_ia_saas?: number;
+    costo_por_rutina_ia_real?: number;
+    ganancia_por_rutina_ia_saas?: number;
 }
 
 export default function SaaSAdminSettingsPage() {
@@ -51,7 +56,7 @@ export default function SaaSAdminSettingsPage() {
     const [gyms, setGyms] = useState<Gym[]>([]);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
-    const [activeTab, setActiveTab] = useState<'system' | 'ai' | 'gateway' | 'quotas' | 'sandbox'>('system');
+    const [activeTab, setActiveTab] = useState<'system' | 'ai' | 'gateway' | 'quotas' | 'sandbox' | 'simulator'>('system');
 
     // Quotas Override States
     const [selectedGymId, setSelectedGymId] = useState<string>('');
@@ -62,12 +67,24 @@ export default function SaaSAdminSettingsPage() {
         rutinas_ia: true,
         max_videos_mensual: 100,
         max_alumnos: 500,
-        estado_pago: 'active'
+        estado_pago: 'active',
+        modelo_facturacion: 'membresia',
+        saldo_creditos: 0,
+        metodo_cobro_excedentes: 'postpago',
+        limite_alerta_saldo: 10.0,
+        limite_videos_hibrido: 50,
+        limite_rutinas_hibrido: 100
     });
 
     // Sandbox States
     const [sandboxGymId, setSandboxGymId] = useState<string>('');
     const [simulating, setSimulating] = useState(false);
+
+    // Simulator States
+    const [simAlumnos, setSimAlumnos] = useState(220);
+    const [simVideos, setSimVideos] = useState(650);
+    const [simRutinas, setSimRutinas] = useState(480);
+    const [simPOS, setSimPOS] = useState(8500);
 
     useEffect(() => {
         fetchSettings();
@@ -85,7 +102,13 @@ export default function SaaSAdminSettingsPage() {
                     rutinas_ia: gym.modulos_activos?.rutinas_ia ?? true,
                     max_videos_mensual: gym.configuracion?.limites?.max_videos_mensual ?? 100,
                     max_alumnos: gym.configuracion?.limites?.max_alumnos ?? 500,
-                    estado_pago: gym.estado_pago_saas ?? 'active'
+                    estado_pago: gym.estado_pago_saas ?? 'active',
+                    modelo_facturacion: gym.configuracion?.modelo_facturacion ?? 'membresia',
+                    saldo_creditos: gym.configuracion?.saldo_creditos ?? 0,
+                    metodo_cobro_excedentes: gym.configuracion?.metodo_cobro_excedentes ?? 'postpago',
+                    limite_alerta_saldo: gym.configuracion?.limite_alerta_saldo ?? 10.0,
+                    limite_videos_hibrido: gym.configuracion?.limite_videos_hibrido ?? 50,
+                    limite_rutinas_hibrido: gym.configuracion?.limite_rutinas_hibrido ?? 100
                 });
             }
         } else {
@@ -168,7 +191,14 @@ export default function SaaSAdminSettingsPage() {
                     },
                     configuracion: {
                         ...selectedGym.configuracion,
+                        modelo_facturacion: gymQuotaForm.modelo_facturacion,
+                        saldo_creditos: Number(gymQuotaForm.saldo_creditos),
+                        metodo_cobro_excedentes: gymQuotaForm.metodo_cobro_excedentes,
+                        limite_alerta_saldo: Number(gymQuotaForm.limite_alerta_saldo),
+                        limite_videos_hibrido: Number(gymQuotaForm.limite_videos_hibrido),
+                        limite_rutinas_hibrido: Number(gymQuotaForm.limite_rutinas_hibrido),
                         limites: {
+                            ...selectedGym.configuracion?.limites,
                             max_videos_mensual: Number(gymQuotaForm.max_videos_mensual),
                             max_alumnos: Number(gymQuotaForm.max_alumnos)
                         }
@@ -178,7 +208,7 @@ export default function SaaSAdminSettingsPage() {
 
             if (res.ok) {
                 toast.success(`Cuotas de "${selectedGym.nombre}" actualizadas correctamente.`);
-                fetchGyms(); // Recargar listado
+                fetchGyms();
             } else {
                 const data = await res.json();
                 toast.error(data.error || 'Error al actualizar cuotas del gimnasio');
@@ -222,11 +252,9 @@ export default function SaaSAdminSettingsPage() {
 
     return (
         <div className="space-y-8 p-4 md:p-8 font-rajdhani relative overflow-hidden">
-            {/* Background design elements */}
             <div className="absolute top-0 right-0 w-80 h-80 bg-tactical-cyan/5 rounded-full blur-3xl -mr-40 -mt-40 z-0" />
             <div className="absolute bottom-0 left-0 w-80 h-80 bg-tactical-magenta/5 rounded-full blur-3xl -ml-40 -mb-40 z-0" />
 
-            {/* Header section */}
             <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                 <div>
                     <h1 className="text-4xl font-black text-transparent bg-clip-text bg-linear-to-r from-white via-white to-tactical-cyan italic uppercase tracking-tighter leading-none flex items-center gap-3">
@@ -237,13 +265,13 @@ export default function SaaSAdminSettingsPage() {
                     </p>
                 </div>
 
-                {/* Switcher Tabs */}
                 <div className="flex bg-zinc-950/80 p-1.5 rounded-2xl border border-white/5 shadow-inner flex-wrap gap-1">
                     {[
                         { id: 'system', label: 'Sistema', icon: <Settings size={14} /> },
                         { id: 'ai', label: 'IA & GPU', icon: <Cpu size={14} /> },
                         { id: 'gateway', label: 'Pasarelas', icon: <CreditCard size={14} /> },
                         { id: 'quotas', label: 'Cuotas Red', icon: <Sliders size={14} /> },
+                        { id: 'simulator', label: 'Simulador de Costos', icon: <Sparkles size={14} /> },
                         { id: 'sandbox', label: 'Developer Sandbox', icon: <Terminal size={14} /> }
                     ].map(t => (
                         <button
@@ -262,7 +290,6 @@ export default function SaaSAdminSettingsPage() {
                 </div>
             </div>
 
-            {/* Banner Mantenimiento Táctico (Visualización de prueba para el superadmin en tiempo real) */}
             {settings.modo_mantenimiento && (
                 <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -277,10 +304,8 @@ export default function SaaSAdminSettingsPage() {
                 </motion.div>
             )}
 
-            {/* Main Tabs Container */}
             <div className="relative z-10">
                 <AnimatePresence mode="wait">
-                    {/* Tab 1: System Settings */}
                     {activeTab === 'system' && (
                         <motion.form
                             key="system"
@@ -377,7 +402,6 @@ export default function SaaSAdminSettingsPage() {
                         </motion.form>
                     )}
 
-                    {/* Tab 2: AI & GPU Control */}
                     {activeTab === 'ai' && (
                         <motion.form
                             key="ai"
@@ -499,7 +523,6 @@ export default function SaaSAdminSettingsPage() {
                         </motion.form>
                     )}
 
-                    {/* Tab 3: Gateway & Fees */}
                     {activeTab === 'gateway' && (
                         <motion.form
                             key="gateway"
@@ -516,12 +539,14 @@ export default function SaaSAdminSettingsPage() {
                                 <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-1">Configuración del procesador MercadoPago e ingresos directos del POS</p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="space-y-6">
+                                    <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-white/5 pb-1">1. Pasarela de Pagos & POS</h4>
+                                    
                                     <div className="p-5 bg-white/2 border border-white/5 rounded-2xl flex items-center justify-between group hover:border-tactical-cyan/20 transition-all">
                                         <div>
                                             <p className="text-sm font-black text-white uppercase italic">Modo Sandbox de MercadoPago</p>
-                                            <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 leading-tight max-w-sm">
+                                            <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 leading-tight max-w-xs">
                                                 Activa credenciales de simulación sandbox globales para la red de gimnasios del SaaS.
                                             </p>
                                         </div>
@@ -539,9 +564,7 @@ export default function SaaSAdminSettingsPage() {
                                             />
                                         </button>
                                     </div>
-                                </div>
 
-                                <div className="space-y-4">
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Comisión del SaaS por Pago POS (%)</label>
                                         <input
@@ -552,6 +575,72 @@ export default function SaaSAdminSettingsPage() {
                                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
                                             required
                                         />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-white/5 pb-1">2. Estructura de Costos & Márgenes de IA (Pago por Consumo)</h4>
+                                    
+                                    <div className="p-5 bg-white/2 border border-white/5 rounded-2xl space-y-4">
+                                        <p className="text-[10px] font-black text-tactical-cyan uppercase tracking-widest leading-none flex items-center gap-1">🎥 Análisis Biomecánico de Video</p>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Costo Real Base ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={settings.costo_por_video_ia_real ?? 0.05}
+                                                    onChange={e => setSettings({ ...settings, costo_por_video_ia_real: Number(e.target.value) })}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Ganancia SaaS ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={settings.ganancia_por_video_ia_saas ?? 0.02}
+                                                    onChange={e => setSettings({ ...settings, ganancia_por_video_ia_saas: Number(e.target.value) })}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-[9px] font-medium text-zinc-400 leading-none">
+                                            Cobro facturado total al gimnasio: <strong className="text-white">${((settings.costo_por_video_ia_real ?? 0.05) + (settings.ganancia_por_video_ia_saas ?? 0.02)).toFixed(3)} USD</strong> por video.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-5 bg-white/2 border border-white/5 rounded-2xl space-y-4">
+                                        <p className="text-[10px] font-black text-tactical-magenta uppercase tracking-widest leading-none flex items-center gap-1">✨ Generación de Rutinas por LLM</p>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Costo Real Base ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={settings.costo_por_rutina_ia_real ?? 0.01}
+                                                    onChange={e => setSettings({ ...settings, costo_por_rutina_ia_real: Number(e.target.value) })}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Ganancia SaaS ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={settings.ganancia_por_rutina_ia_saas ?? 0.005}
+                                                    onChange={e => setSettings({ ...settings, ganancia_por_rutina_ia_saas: Number(e.target.value) })}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-[9px] font-medium text-zinc-400 leading-none">
+                                            Cobro facturado total al gimnasio: <strong className="text-white">${((settings.costo_por_rutina_ia_real ?? 0.01) + (settings.ganancia_por_rutina_ia_saas ?? 0.005)).toFixed(3)} USD</strong> por rutina.
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -568,7 +657,6 @@ export default function SaaSAdminSettingsPage() {
                         </motion.form>
                     )}
 
-                    {/* Tab 4: Quotas Red (Overrides por gimnasio) */}
                     {activeTab === 'quotas' && (
                         <motion.div
                             key="quotas"
@@ -577,7 +665,6 @@ export default function SaaSAdminSettingsPage() {
                             exit={{ opacity: 0 }}
                             className="grid grid-cols-1 lg:grid-cols-3 gap-8"
                         >
-                            {/* Gym Selector Panel */}
                             <div className="bg-zinc-950 p-6 rounded-[2rem] border border-white/5 space-y-4 shadow-xl lg:col-span-1">
                                 <h3 className="text-md font-black text-white italic uppercase tracking-tight flex items-center gap-2">
                                     <Building2 className="text-tactical-cyan" size={16} /> Sedes en Red
@@ -611,7 +698,6 @@ export default function SaaSAdminSettingsPage() {
                                 </div>
                             </div>
 
-                            {/* Quota Config Form Panel */}
                             <div className="bg-zinc-950 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl lg:col-span-2">
                                 <AnimatePresence mode="wait">
                                     {selectedGym ? (
@@ -721,6 +807,37 @@ export default function SaaSAdminSettingsPage() {
                                                             required
                                                         />
                                                     </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                                                            <CreditCard size={12} className="text-tactical-cyan" /> Modelo de Facturación
+                                                        </label>
+                                                        <select
+                                                            value={gymQuotaForm.modelo_facturacion}
+                                                            onChange={e => setGymQuotaForm({ ...gymQuotaForm, modelo_facturacion: e.target.value })}
+                                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all appearance-none"
+                                                            required
+                                                        >
+                                                            <option value="membresia" className="bg-zinc-950 text-white">Membresía (Plan Fijo)</option>
+                                                            <option value="consumo" className="bg-zinc-950 text-white">Por Consumo (Pago por Uso)</option>
+                                                            <option value="hibrido" className="bg-zinc-950 text-white">Híbrido (Mensual + IA Extra)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                                                            <Wallet size={12} className="text-emerald-400" /> Saldo AI Wallet ($ USD)
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={gymQuotaForm.saldo_creditos}
+                                                            onChange={e => setGymQuotaForm({ ...gymQuotaForm, saldo_creditos: Number(e.target.value) })}
+                                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-bold focus:outline-none focus:border-tactical-cyan transition-all"
+                                                            placeholder="Saldo de créditos prepago de IA"
+                                                            required
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -742,6 +859,242 @@ export default function SaaSAdminSettingsPage() {
                                         </div>
                                     )}
                                 </AnimatePresence>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Tab: Business Model Simulator */}
+                    {activeTab === 'simulator' && (
+                        <motion.div
+                            key="simulator"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="bg-zinc-950 p-8 rounded-[2.5rem] border border-white/5 space-y-6 shadow-2xl relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-tactical-cyan/5 rounded-full blur-3xl -mr-16 -mt-16" />
+
+                            <div className="border-b border-white/5 pb-4 mb-6">
+                                <h3 className="text-xl font-black text-white italic uppercase flex items-center gap-2">
+                                    <Sparkles className="text-tactical-cyan" size={18} /> Simulador Interactivo de Modelos de Negocio
+                                </h3>
+                                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-1">Evalúa y compara el costo de Membresía Fija frente al Modelo por Consumo en tiempo real</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                {/* Left Side: Simulator Controls */}
+                                <div className="bg-white/2 p-6 rounded-3xl border border-white/5 space-y-6 lg:col-span-1">
+                                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest border-b border-white/5 pb-1">1. Parámetros de Simulación</h4>
+                                    
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span className="text-zinc-400 uppercase tracking-wider flex items-center gap-1"><Users size={12} className="text-tactical-cyan" /> Alumnos Activos:</span>
+                                                <span className="text-white font-black">{simAlumnos}</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="10" 
+                                                max="1200" 
+                                                step="10"
+                                                value={simAlumnos} 
+                                                onChange={e => setSimAlumnos(Number(e.target.value))}
+                                                className="w-full accent-tactical-cyan bg-zinc-900 h-1.5 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span className="text-zinc-400 uppercase tracking-wider flex items-center gap-1">🎥 Videos Analizados:</span>
+                                                <span className="text-white font-black">{simVideos} / mes</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="0" 
+                                                max="3000" 
+                                                step="50"
+                                                value={simVideos} 
+                                                onChange={e => setSimVideos(Number(e.target.value))}
+                                                className="w-full accent-tactical-cyan bg-zinc-900 h-1.5 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span className="text-zinc-400 uppercase tracking-wider flex items-center gap-1">✨ Rutinas de IA:</span>
+                                                <span className="text-white font-black">{simRutinas} / mes</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="0" 
+                                                max="2500" 
+                                                step="50"
+                                                value={simRutinas} 
+                                                onChange={e => setSimRutinas(Number(e.target.value))}
+                                                className="w-full accent-tactical-magenta bg-zinc-900 h-1.5 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span className="text-zinc-400 uppercase tracking-wider flex items-center gap-1">💳 Ventas POS Físicas:</span>
+                                                <span className="text-white font-black">${simPOS.toLocaleString()} USD</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="0" 
+                                                max="35000" 
+                                                step="250"
+                                                value={simPOS} 
+                                                onChange={e => setSimPOS(Number(e.target.value))}
+                                                className="w-full accent-tactical-cyan bg-zinc-900 h-1.5 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-tactical-cyan/5 border border-tactical-cyan/10 rounded-2xl">
+                                        <p className="text-[10px] text-zinc-500 font-bold uppercase leading-relaxed">
+                                            💡 Ajusta los sliders para proyectar la facturación del gimnasio y comparar cuál modelo genera mayor ahorro para su dueño.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Right Side: Live Comparisons */}
+                                <div className="lg:col-span-2 space-y-6 flex flex-col justify-between">
+                                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest border-b border-white/5 pb-1">2. Comparación de Costes de Red</h4>
+                                    
+                                    {/* Comparative Cards Container */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        
+                                        {/* Card 1: Membresía Fija */}
+                                        {(() => {
+                                            let planBaseName = 'Plan Standard Silver';
+                                            let basePrice = 49.00;
+                                            let limit = 150;
+                                            let extraPrice = 0.20;
+
+                                            if (simAlumnos > 500) {
+                                                planBaseName = 'Plan Elite VIP';
+                                                basePrice = 149.00;
+                                                limit = 1000;
+                                                extraPrice = 0.10;
+                                            } else if (simAlumnos > 150) {
+                                                planBaseName = 'Plan Pro Gold';
+                                                basePrice = 89.00;
+                                                limit = 500;
+                                                extraPrice = 0.15;
+                                            }
+
+                                            const extraStudents = Math.max(0, simAlumnos - limit);
+                                            const extraCost = extraStudents * extraPrice;
+                                            const totalMembresia = basePrice + extraCost;
+
+                                            // Calcular Consumo
+                                            const comisionPOS = simPOS * ((settings?.comision_pos ?? 1.5) / 100);
+                                            const costoVideoFacturado = (settings?.costo_por_video_ia_real ?? 0.05) + (settings?.ganancia_por_video_ia_saas ?? 0.02);
+                                            const costoRutinaFacturado = (settings?.costo_por_rutina_ia_real ?? 0.01) + (settings?.ganancia_por_rutina_ia_saas ?? 0.005);
+                                            
+                                            const costoVideos = simVideos * costoVideoFacturado;
+                                            const costoRutinas = simRutinas * costoRutinaFacturado;
+                                            const totalConsumo = comisionPOS + costoVideos + costoRutinas;
+
+                                            const recommendedModel = totalMembresia < totalConsumo ? 'membresia' : 'consumo';
+                                            const diffAmount = Math.abs(totalMembresia - totalConsumo).toFixed(2);
+
+                                            return (
+                                                <>
+                                                    <div className={`p-6 rounded-3xl border transition-all flex flex-col justify-between ${
+                                                        recommendedModel === 'membresia' 
+                                                            ? 'bg-tactical-cyan/5 border-tactical-cyan/30 shadow-[0_0_20px_rgba(0,245,255,0.05)]' 
+                                                            : 'bg-zinc-950 border-white/5'
+                                                    }`}>
+                                                        <div>
+                                                            <div className="flex justify-between items-center mb-4">
+                                                                <h5 className="text-sm font-black text-white uppercase italic">Membresía (Plan Fijo)</h5>
+                                                                {recommendedModel === 'membresia' && (
+                                                                    <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 bg-tactical-cyan text-black rounded-full shadow-lg">RECOMENDADO</span>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="space-y-2 text-xs font-semibold text-zinc-400">
+                                                                <div className="flex justify-between border-b border-white/5 pb-1">
+                                                                    <span>Suscripción ({planBaseName}):</span>
+                                                                    <span className="text-white">${basePrice.toFixed(2)} USD</span>
+                                                                </div>
+                                                                <div className="flex justify-between border-b border-white/5 pb-1">
+                                                                    <span>Límite de alumnos:</span>
+                                                                    <span className="text-white">{limit}</span>
+                                                                </div>
+                                                                <div className="flex justify-between border-b border-white/5 pb-1">
+                                                                    <span>Alumnos excedentes:</span>
+                                                                    <span className="text-white">{extraStudents}</span>
+                                                                </div>
+                                                                <div className="flex justify-between pb-1">
+                                                                    <span>Costo de excedentes (${extraPrice}/alumno):</span>
+                                                                    <span className="text-white">${extraCost.toFixed(2)} USD</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-6 mt-6 border-t border-white/5">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Costo total mensual</p>
+                                                            <p className="text-3xl font-black text-white italic mt-1">${totalMembresia.toFixed(2)} <span className="text-xs uppercase tracking-widest font-bold">USD</span></p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Card 2: Pago por Consumo */}
+                                                    <div className={`p-6 rounded-3xl border transition-all flex flex-col justify-between ${
+                                                        recommendedModel === 'consumo' 
+                                                            ? 'bg-tactical-magenta/5 border-tactical-magenta/30 shadow-[0_0_20px_rgba(255,0,127,0.05)]' 
+                                                            : 'bg-zinc-950 border-white/5'
+                                                    }`}>
+                                                        <div>
+                                                            <div className="flex justify-between items-center mb-4">
+                                                                <h5 className="text-sm font-black text-white uppercase italic">Por Consumo (Pago x Uso)</h5>
+                                                                {recommendedModel === 'consumo' && (
+                                                                    <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 bg-tactical-magenta text-white rounded-full shadow-lg">RECOMENDADO</span>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="space-y-2 text-xs font-semibold text-zinc-400">
+                                                                <div className="flex justify-between border-b border-white/5 pb-1">
+                                                                    <span>Comisión POS ({settings?.comision_pos ?? 1.5}%):</span>
+                                                                    <span className="text-white">${comisionPOS.toFixed(2)} USD</span>
+                                                                </div>
+                                                                <div className="flex justify-between border-b border-white/5 pb-1">
+                                                                    <span>Análisis Video IA (${costoVideoFacturado.toFixed(3)}/c.u):</span>
+                                                                    <span className="text-white">${costoVideos.toFixed(2)} USD</span>
+                                                                </div>
+                                                                <div className="flex justify-between pb-1">
+                                                                    <span>Generación Rutinas LLM (${costoRutinaFacturado.toFixed(3)}/c.u):</span>
+                                                                    <span className="text-white">${costoRutinas.toFixed(2)} USD</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-6 mt-6 border-t border-white/5">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Costo total mensual</p>
+                                                            <p className="text-3xl font-black text-white italic mt-1">${totalConsumo.toFixed(2)} <span className="text-xs uppercase tracking-widest font-bold">USD</span></p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Recomendación Final Banner */}
+                                                    <div className="col-span-1 md:col-span-2 p-5 bg-white/2 border border-white/5 rounded-3xl flex items-center justify-between gap-4 mt-2">
+                                                        <div className="flex items-center gap-3">
+                                                            <Sparkles className="text-tactical-cyan shrink-0 animate-pulse" size={20} />
+                                                            <div>
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 leading-none">Análisis de Rentabilidad Automatizado</p>
+                                                                <p className="text-xs font-medium text-white mt-1.5 leading-relaxed">
+                                                                    El gimnasio ahorrará aproximadamente <strong className="text-tactical-cyan font-black">${diffAmount} USD al mes</strong> si elige la opción por <strong className="uppercase italic">{recommendedModel === 'membresia' ? 'Membresía (Plan Fijo)' : 'Consumo (Pago por Uso)'}</strong>.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
                             </div>
                         </motion.div>
                     )}

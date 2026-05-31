@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { aiService } from '@/services/ai.service';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { checkGymLimits } from '@/lib/saas/limits';
 
 // Lazy initialization to avoid build-time errors
 const getSupabaseAdmin = () => {
@@ -22,7 +23,27 @@ export async function POST(request: Request) {
         const { user, error } = await authenticateAndRequireRole(request, ['coach', 'admin']);
         if (error) return error;
 
-        // 1. Verificar límite de uso
+        // 1a. Enforzar límites prepagos del monedero del gimnasio (AI Wallet)
+        const supabaseAdmin = getSupabaseAdmin();
+        const { data: profile } = await supabaseAdmin
+            .from('perfiles')
+            .select('gimnasio_id')
+            .eq('id', user.id)
+            .single();
+
+        let isVideoOverage = false;
+        if (profile?.gimnasio_id) {
+            const limits = await checkGymLimits(profile.gimnasio_id);
+            isVideoOverage = !!limits.nextVideoIsOverage;
+            if (limits.canProcessVideo === false) {
+                return NextResponse.json({
+                    error: limits.reason || 'Saldo prepago insuficiente en tu AI Wallet. Por favor realiza una carga de créditos.',
+                    limitReached: true
+                }, { status: 402 }); // 402 Payment Required!
+            }
+        }
+
+        // 1b. Verificar límite de uso diario estándar
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -62,6 +83,12 @@ export async function POST(request: Request) {
             user_id: user.id,
             feature: 'vision_analysis'
         });
+
+        // 4. Si el modelo es prepago y es excedente, deducir saldo en tiempo real
+        if (profile?.gimnasio_id && isVideoOverage) {
+            const { deductPrepagoQuota } = await import('@/lib/saas/limits');
+            await deductPrepagoQuota(profile.gimnasio_id, 'video');
+        }
 
         return NextResponse.json({
             success: true,

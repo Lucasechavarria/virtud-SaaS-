@@ -50,6 +50,7 @@ export default function AuditLogsPage() {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const router = useRouter();
+    const [selectedLog, setSelectedLog] = useState<SystemLog | ImpersonationLog | null>(null);
 
     useEffect(() => {
         fetchLogs();
@@ -232,17 +233,142 @@ export default function AuditLogsPage() {
                         {activeTab === 'system' ? (
                             systemLogs.length === 0 ? <EmptyState /> : (
                                 systemLogs.map((log, i) => (
-                                    <SystemLogCard key={log.id} log={log} index={i} />
+                                    <SystemLogCard key={log.id} log={log} index={i} onView={setSelectedLog} />
                                 ))
                             )
                         ) : (
                             impersonationLogs.length === 0 ? <EmptyState /> : (
                                 impersonationLogs.map((log, i) => (
-                                    <ImpersonationCard key={log.id} log={log} index={i} />
+                                    <ImpersonationCard key={log.id} log={log} index={i} onView={setSelectedLog} />
                                 ))
                             )
                         )}
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Modal de Detalle de Auditoría y Diff Avanzado */}
+            <AnimatePresence>
+                {selectedLog && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" onClick={() => setSelectedLog(null)}>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`bg-[#1c1c1e] border rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col relative z-50 ${
+                                'tabla' in selectedLog ? 'border-amber-500/20' : 'border-red-500/20'
+                            }`}
+                        >
+                            {/* Cabecera del Modal */}
+                            {'tabla' in selectedLog ? (
+                                <div className="p-8 border-b border-white/5 bg-gradient-to-r from-amber-500/10 via-orange-600/5 to-transparent flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center border border-amber-500/30">
+                                        <Database size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">
+                                            Detalle de Cambios en Sistema
+                                        </h3>
+                                        <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest mt-1">
+                                            Tabla: {selectedLog.tabla} | Operación: {selectedLog.operacion}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-8 border-b border-white/5 bg-gradient-to-r from-red-500/10 via-orange-600/5 to-transparent flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-red-600/20 text-red-500 rounded-2xl flex items-center justify-center border border-red-500/30 animate-pulse">
+                                        <ShieldAlert size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">
+                                            Auditoría de Acceso Remoto
+                                        </h3>
+                                        <p className="text-[10px] text-red-500 font-black uppercase tracking-widest mt-1">
+                                            Entorno de Cliente Conectado
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Contenido del Modal */}
+                            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto pr-4">
+                                {'tabla' in selectedLog ? (
+                                    <>
+                                        <div className="grid grid-cols-2 gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl text-xs">
+                                            <div>
+                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Usuario Responsable</p>
+                                                <p className="text-white font-bold mt-1">{selectedLog.perfiles?.nombre_completo || 'Sistema Automático'}</p>
+                                                <p className="text-gray-500 text-[10px]">{selectedLog.perfiles?.email}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Fecha y Hora</p>
+                                                <p className="text-white font-bold mt-1">
+                                                    {new Date(selectedLog.creado_en).toLocaleString('es-AR')}
+                                                </p>
+                                                <p className="text-gray-500 text-[10px]">Audit Log ID: {selectedLog.id.substring(0, 8)}...</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Comparativa de Payload (Git Diff)</label>
+                                            <RenderDiff oldData={selectedLog.datos_anteriores} newData={selectedLog.datos_nuevos} />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="grid grid-cols-2 gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl text-xs">
+                                            <div>
+                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Gimnasio Conectado</p>
+                                                <p className="text-white font-black uppercase text-sm mt-1">{selectedLog.gimnasio?.nombre || 'General'}</p>
+                                                <p className="text-gray-500 text-[10px]">ID: {selectedLog.gimnasio_id}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Administrador de Enlace</p>
+                                                <p className="text-white font-bold mt-1">{selectedLog.admin_profile?.nombre_completo}</p>
+                                                <p className="text-gray-500 text-[10px]">{selectedLog.admin_profile?.email}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-6 bg-red-600/5 border border-red-500/10 rounded-3xl space-y-4">
+                                            <div>
+                                                <p className="text-[9px] font-black text-red-400 uppercase tracking-widest">Justificación Técnica Registrada</p>
+                                                <p className="text-sm font-bold text-white italic mt-1 leading-relaxed">
+                                                    "{selectedLog.motivo || 'Soporte Técnico / Verificación'}"
+                                                </p>
+                                            </div>
+                                            <div className="h-px bg-white/5" />
+                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase text-gray-500">
+                                                <span>Duración Estimada</span>
+                                                <span className="text-white">{selectedLog.duracion_minutos || 15} minutos</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase text-gray-500">
+                                                <span>Fecha y Hora</span>
+                                                <span className="text-white">{new Date(selectedLog.creado_en).toLocaleString('es-AR')}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                                            <p className="text-[9px] font-black text-blue-400 uppercase tracking-wider leading-tight">
+                                                ⚠️ AVISO DE CUMPLIMIENTO: Este evento de soporte técnico remoto fue autorizado y registrado de forma inalterable en el ledger de seguridad global.
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Acciones de Modal */}
+                            <div className="p-8 border-t border-white/5 flex gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedLog(null)}
+                                    className="w-full py-4 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border border-white/5"
+                                >
+                                    Cerrar Visualizador
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div>
@@ -259,7 +385,7 @@ function EmptyState() {
     );
 }
 
-function SystemLogCard({ log, index }: { log: SystemLog, index: number }) {
+function SystemLogCard({ log, index, onView }: { log: SystemLog, index: number, onView: (log: SystemLog) => void }) {
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -299,7 +425,10 @@ function SystemLogCard({ log, index }: { log: SystemLog, index: number }) {
                         <span className="text-[8px] font-black uppercase tracking-widest">Registro Guardado</span>
                     </div>
                 </div>
-                <button className="p-3 bg-white/5 rounded-xl text-gray-500 hover:text-white hover:bg-white/10 transition-all group-hover:bg-amber-600 group-hover:text-white">
+                <button
+                    onClick={() => onView(log)}
+                    className="p-3 bg-white/5 rounded-xl text-gray-500 hover:text-white hover:bg-white/10 transition-all group-hover:bg-amber-600 group-hover:text-white"
+                >
                     <Eye size={18} />
                 </button>
             </div>
@@ -307,7 +436,7 @@ function SystemLogCard({ log, index }: { log: SystemLog, index: number }) {
     );
 }
 
-function ImpersonationCard({ log, index }: { log: ImpersonationLog, index: number }) {
+function ImpersonationCard({ log, index, onView }: { log: ImpersonationLog, index: number, onView: (log: ImpersonationLog) => void }) {
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -347,10 +476,73 @@ function ImpersonationCard({ log, index }: { log: ImpersonationLog, index: numbe
                         <span className="text-[8px] font-black uppercase tracking-widest">Impersonación Exitosa</span>
                     </div>
                 </div>
-                <button className="p-3 bg-red-600/10 rounded-xl text-red-500 hover:bg-red-600 hover:text-white transition-all">
+                <button
+                    onClick={() => onView(log)}
+                    className="p-3 bg-red-600/10 rounded-xl text-red-500 hover:bg-red-600 hover:text-white transition-all"
+                >
                     <Eye size={18} />
                 </button>
             </div>
         </motion.div>
+    );
+}
+
+function RenderDiff({ oldData, newData }: { oldData: any; newData: any }) {
+    const parseData = (data: any) => {
+        if (!data) return {};
+        if (typeof data === 'string') {
+            try {
+                return JSON.parse(data);
+            } catch {
+                return { valor: data };
+            }
+        }
+        return data;
+    };
+
+    const oldObj = parseData(oldData);
+    const newObj = parseData(newData);
+
+    const allKeys = Array.from(new Set([...Object.keys(oldObj), ...Object.keys(newObj)]));
+
+    if (allKeys.length === 0) {
+        return <p className="text-[10px] text-gray-500 uppercase font-black italic">Sin detalles de datos disponibles</p>;
+    }
+
+    return (
+        <div className="space-y-3 font-mono text-xs max-h-[40vh] overflow-y-auto bg-[#0a0a0a] p-6 rounded-2xl border border-white/5">
+            {allKeys.map((key) => {
+                const oldVal = oldObj[key];
+                const newVal = newObj[key];
+                const hasChanged = JSON.stringify(oldVal) !== JSON.stringify(newVal);
+
+                if (!hasChanged) {
+                    return (
+                        <div key={key} className="text-gray-500 py-0.5 border-b border-white/[0.02] flex items-center justify-between">
+                            <span className="text-gray-600">{key}:</span>
+                            <span className="text-gray-400 break-all text-right max-w-xs">{typeof newVal === 'object' ? JSON.stringify(newVal) : String(newVal)}</span>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div key={key} className="space-y-1 py-2 border-b border-white/5">
+                        <div className="text-gray-400 font-bold">{key}:</div>
+                        {oldVal !== undefined && (
+                            <div className="bg-red-500/10 text-red-400 px-3 py-1.5 rounded-lg border border-red-500/20 flex items-start gap-2">
+                                <span className="text-red-500 font-black shrink-0">-</span>
+                                <span className="break-all">{typeof oldVal === 'object' ? JSON.stringify(oldVal) : String(oldVal)}</span>
+                            </div>
+                        )}
+                        {newVal !== undefined && (
+                            <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/20 flex items-start gap-2">
+                                <span className="text-emerald-500 font-black shrink-0">+</span>
+                                <span className="break-all">{typeof newVal === 'object' ? JSON.stringify(newVal) : String(newVal)}</span>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
     );
 }

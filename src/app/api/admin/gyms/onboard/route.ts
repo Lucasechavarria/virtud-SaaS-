@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { nombre, slug, plan_id, modulos, admin_nombre, admin_email, admin_password, configuracion } = body;
+        const { nombre, slug, plan_id, modulos, admin_nombre, admin_email, admin_password, configuracion, sucursal_nombre, direccion } = body;
 
         // 1. Validar slug único
         const { data: existingGym } = await adminSupabase
@@ -39,6 +39,21 @@ export async function POST(request: Request) {
 
         if (gymError) throw gymError;
 
+        // 2b. Crear la sucursal inicial (Sede Casa Central)
+        const { error: branchError } = await adminSupabase
+            .from('sucursales')
+            .insert({
+                gimnasio_id: gym.id,
+                nombre: sucursal_nombre || 'Casa Central',
+                direccion: direccion || null
+            });
+
+        if (branchError) {
+            // Rollback: Eliminar gimnasio si falla la sucursal inicial
+            await adminSupabase.from('gimnasios').delete().eq('id', gym.id);
+            throw branchError;
+        }
+
         // 3. Crear el Usuario Administrador en Auth
         const { data: authUser, error: createUserError } = await adminSupabase.auth.admin.createUser({
             email: admin_email,
@@ -55,7 +70,8 @@ export async function POST(request: Request) {
         });
 
         if (createUserError) {
-            // Rollback: Eliminar gimnasio si falla el usuario
+            // Rollback: Eliminar sucursal y gimnasio si falla el usuario
+            await adminSupabase.from('sucursales').delete().eq('gimnasio_id', gym.id);
             await adminSupabase.from('gimnasios').delete().eq('id', gym.id);
             throw createUserError;
         }
@@ -73,8 +89,11 @@ export async function POST(request: Request) {
             });
 
         if (profileError) {
-            // Rollback parcial: Eliminar usuario y gimnasio (opcional, mejor loggear error crítico)
+            // Rollback completo en cascada: Eliminar auth user, sucursal y gimnasio
             console.error('Critical: Profile creation failed after auth user creation', profileError);
+            await adminSupabase.auth.admin.deleteUser(authUser.user.id);
+            await adminSupabase.from('sucursales').delete().eq('gimnasio_id', gym.id);
+            await adminSupabase.from('gimnasios').delete().eq('id', gym.id);
             throw profileError;
         }
 

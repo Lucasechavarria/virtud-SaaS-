@@ -19,8 +19,8 @@ function getSettings() {
     }
     return {
         costo_alojamiento_fijo: 49.00,
-        costo_por_video_ia: 0.05,
-        costo_por_rutina_ia: 0.01
+        costo_por_video_ia_real: 0.05,
+        costo_por_rutina_ia_real: 0.01
     };
 }
 
@@ -99,7 +99,7 @@ export async function GET(request: Request) {
         // 3d. Calcular Gastos basados en los Costes Operativos Editables
         const sysSettings = getSettings();
         const costoAlojamiento = Number(sysSettings.costo_alojamiento_fijo ?? 49.00);
-        const costoIA = (videosProcesados * Number(sysSettings.costo_por_video_ia ?? 0.05)) + (rutinasIA * Number(sysSettings.costo_por_rutina_ia ?? 0.01));
+        const costoIA = (videosProcesados * Number(sysSettings.costo_por_video_ia_real ?? 0.05)) + (rutinasIA * Number(sysSettings.costo_por_rutina_ia_real ?? 0.01));
         const gastosTotales = costoAlojamiento + costoIA;
         const gananciaNeta = ingresosTotales - gastosTotales;
 
