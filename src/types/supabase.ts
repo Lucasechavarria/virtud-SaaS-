@@ -625,6 +625,7 @@ export type Database = {
           color_primario: string | null
           color_secundario: string | null
           configuracion: Json | null
+          config_visual: Json | null
           creado_en: string | null
           cuota_ia_mensual: number | null
           cuota_ia_usada: number | null
@@ -647,6 +648,7 @@ export type Database = {
           color_primario?: string | null
           color_secundario?: string | null
           configuracion?: Json | null
+          config_visual?: Json | null
           creado_en?: string | null
           cuota_ia_mensual?: number | null
           cuota_ia_usada?: number | null
@@ -669,6 +671,7 @@ export type Database = {
           color_primario?: string | null
           color_secundario?: string | null
           configuracion?: Json | null
+          config_visual?: Json | null
           creado_en?: string | null
           cuota_ia_mensual?: number | null
           cuota_ia_usada?: number | null

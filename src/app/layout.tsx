@@ -34,6 +34,7 @@ const rajdhani = Rajdhani({
 });
 
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getCachedGymBranding } from '@/lib/services/gym-branding';
 import { headers } from 'next/headers';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -77,6 +78,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 import { PushProvider } from "@/components/providers/PushManager";
 
+// Función utilitaria server-side para convertir HEX a componentes RGB
+function hexToRgb(hex: string): string {
+  const cleaned = hex.replace('#', '');
+  const num = parseInt(cleaned, 16);
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return isNaN(r) ? '59, 130, 246' : `${r}, ${g}, ${b}`; // Fallback a azul si falla
+}
+
 export default async function RootLayout({
   children,
 }: {
@@ -88,21 +99,20 @@ export default async function RootLayout({
   let primaryColor = '#3b82f6';
   let secondaryColor = '#1e3a8a';
   let logoUrl = '/logos/logo.webp';
+  let radius = '0.625rem';
+  let customFont = '';
 
   if (slug) {
-    const supabase = createAdminClient();
-    const { data: gym } = await supabase
-      .from('gimnasios')
-      .select('color_primario, color_secundario, logo_url')
-      .eq('slug', slug)
-      .single();
-
-    if (gym) {
-      if (gym.color_primario) primaryColor = gym.color_primario;
-      if (gym.color_secundario) secondaryColor = gym.color_secundario;
-      if (gym.logo_url) logoUrl = gym.logo_url;
-    }
+    const branding = await getCachedGymBranding(slug);
+    primaryColor = branding.primaryColor;
+    secondaryColor = branding.secondaryColor;
+    logoUrl = branding.logoUrl;
+    radius = branding.radius;
+    customFont = branding.customFont;
   }
+
+  const primaryRgb = hexToRgb(primaryColor);
+  const secondaryRgb = hexToRgb(secondaryColor);
 
   return (
     <html lang="es" className={`${inter.variable} ${rajdhani.variable}`} suppressHydrationWarning>
@@ -111,12 +121,29 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="icon" href={logoUrl} />
 
+        {/* Inyección dinámica de Google Fonts si el gimnasio tiene configurada una fuente de marca */}
+        {customFont && (
+          <link
+            href={`https://fonts.googleapis.com/css2?family=${encodeURIComponent(customFont)}:wght@300;400;500;600;700;800;900&display=swap`}
+            rel="stylesheet"
+          />
+        )}
+
         {/* Inyección de marca blanca desde el servidor para erradicar el parpadeo visual */}
         <style dangerouslySetInnerHTML={{ __html: `
           :root {
             --primary: ${primaryColor};
+            --primary-rgb: ${primaryRgb};
             --primary-foreground: #ffffff;
             --secondary: ${secondaryColor};
+            --secondary-rgb: ${secondaryRgb};
+            --radius: ${radius};
+            --font-tenant: ${customFont ? `'${customFont}', var(--font-inter)` : 'var(--font-inter)'};
+          }
+          
+          /* Aplicar dinámicamente la tipografía del gimnasio a toda la estructura de la aplicación */
+          body {
+            font-family: var(--font-tenant) !important;
           }
         `}} />
 

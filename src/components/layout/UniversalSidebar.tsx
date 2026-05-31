@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
-
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
@@ -18,16 +17,16 @@ interface NavItem {
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
     admin: [
         { href: '/admin', label: 'Panel de Control', icon: '📊' },
-        { href: '/admin/crm', label: 'CRM Ventas', icon: '🎯', module: 'crm' },
-        { href: '/admin/shop', label: 'Tienda POS', icon: '🛒', module: 'inventario' },
+        { href: '/admin/crm', label: 'CRM Ventas', icon: '🎯', module: 'Crm' },
+        { href: '/admin/shop', label: 'Tienda POS', icon: '🛒', module: 'Pos' },
         { href: '/admin/users', label: 'Usuarios', icon: '👥' },
         { href: '/admin/challenges', label: 'Desafíos', icon: '⚔️', module: 'gamificacion' },
-        { href: '/admin/activities', label: 'Actividades', icon: '🏅', module: 'clases_reserva' },
+        { href: '/admin/activities', label: 'Actividades', icon: '🏅', module: 'Clases' },
         { href: '/admin/equipment', label: 'Equipamiento', icon: '🔧' },
         { href: '/coach/routines', label: 'Rutinas', icon: '💪', module: 'rutinas_ia' },
-        { href: '/admin/nutrition', label: 'Nutrición', icon: '🥗', module: 'nutricion_ia' },
+        { href: '/admin/nutrition', label: 'Nutrición', icon: '🥗', module: 'Nutricion' },
         { href: '/coach/vision', label: 'Vision Lab', icon: '🎥', module: 'vision_ia' },
-        { href: '/admin/finance', label: 'Finanzas', icon: '💰', module: 'pagos_online' },
+        { href: '/admin/finance', label: 'Finanzas', icon: '💰', module: 'Finanzas' },
         { href: '/admin/settings/payments', label: 'Configuración Cobros', icon: '💳' },
         { href: '/admin/settings/branding', label: 'Personalización', icon: '🎨' },
         { href: '/admin/settings/landing', label: 'Marketing', icon: '🚀' },
@@ -46,10 +45,10 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     coach: [
         { href: '/coach', label: 'Dashboard', icon: '🏠' },
         { href: '/coach/messages', label: 'Mensajes', icon: '💬' },
-        { href: '/schedule', label: 'Cronograma', icon: '🗓️', module: 'clases_reserva' },
+        { href: '/schedule', label: 'Cronograma', icon: '🗓️', module: 'Clases' },
         { href: '/coach/students', label: 'Alumnos', icon: '👥' },
         { href: '/coach/equipment', label: 'Equipamiento', icon: '🔧' },
-        { href: '/coach/classes', label: 'Clases', icon: '📅', module: 'clases_reserva' },
+        { href: '/coach/classes', label: 'Clases', icon: '📅', module: 'Clases' },
         { href: '/coach/routines', label: 'Rutinas', icon: '💪', module: 'rutinas_ia' },
         { href: '/coach/metrics', label: 'Métricas', icon: '📊' },
         { href: '/coach/vision', label: 'Vision Lab', icon: '🎥', module: 'vision_ia' },
@@ -60,11 +59,11 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
         { href: '/dashboard/qr', label: 'Mi Carnet', icon: '📱' },
         { href: '/dashboard/messages', label: 'Mensajes', icon: '💬' },
         { href: '/dashboard/membership', label: 'Mi Membresía', icon: '💳' },
-        { href: '/schedule', label: 'Cronograma', icon: '🗓️', module: 'clases_reserva' },
+        { href: '/schedule', label: 'Cronograma', icon: '🗓️', module: 'Clases' },
         { href: '/dashboard/routine', label: 'Mi Rutina', icon: '💪', module: 'rutinas_ia' },
         { href: '/dashboard/progress', label: 'Mi Progreso', icon: '📈', module: 'gamificacion' },
-        { href: '/dashboard/classes', label: 'Mis Clases', icon: '📅', module: 'clases_reserva' },
-        { href: '/dashboard/nutrition', label: 'Nutrición', icon: '🥗', module: 'nutricion_ia' },
+        { href: '/dashboard/classes', label: 'Mis Clases', icon: '📅', module: 'Clases' },
+        { href: '/dashboard/nutrition', label: 'Nutrición', icon: '🥗', module: 'Nutricion' },
         { href: '/dashboard/vision', label: 'Visión Lab', icon: '🎥', module: 'vision_ia' },
         { href: '/dashboard/settings', label: 'Configuración', icon: '⚙️' },
     ],
@@ -100,24 +99,51 @@ export function UniversalSidebar({
     const [visionBadgeCount, setVisionBadgeCount] = useState(0);
     const [loggingOut, setLoggingOut] = useState(false);
     const [gymInfo, setGymInfo] = useState<{ nombre?: string, logo_url?: string, modulos_activos?: string[] }>({});
+    const [isSubdomainMode, setIsSubdomainMode] = useState(false);
 
-    // Extract gymId safely from pathname since it's an app dir segment
-    const gymIdMatch = pathname.match(/^\/([^/]+)/);
-    const gymId = gymIdMatch ? gymIdMatch[1] : null;
-
+    // 1. Resolver metadatos del gimnasio localmente desde la sesión (Claims JWT)
     useEffect(() => {
-        if (gymId && gymId !== 'admin') { // Avoid fetching 'admin' as gymId if we are in superadmin
-            supabase.from('gimnasios').select('nombre, logo_url, modulos_activos').eq('id', gymId).single().then(({ data }) => {
-                if (data) {
-                    setGymInfo({
-                        nombre: data.nombre || undefined,
-                        logo_url: data.logo_url || undefined,
-                        modulos_activos: (data.modulos_activos as string[]) || []
-                    });
-                }
-            });
+        // Detectar si estamos navegando bajo un subdominio/marca blanca
+        if (typeof window !== 'undefined') {
+            const host = window.location.host;
+            const hostWithoutPort = host.split(':')[0];
+            const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
+            const baseDomain = isLocalhost ? hostWithoutPort : 'virtud.fit';
+            
+            if (hostWithoutPort !== baseDomain && hostWithoutPort !== `www.${baseDomain}`) {
+                setIsSubdomainMode(true);
+            }
         }
-    }, [gymId]);
+
+        // Obtener claims del usuario para inyectar en la sidebar de forma instantánea
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+                const activeModules = user.app_metadata?.modulos_activos || [];
+                const gymSlug = user.app_metadata?.gimnasio_slug;
+                const gymId = user.app_metadata?.gimnasio_id;
+
+                setGymInfo({
+                    nombre: user.user_metadata?.gimnasio_nombre || user.app_metadata?.gimnasio_nombre || 'Gimnasio',
+                    logo_url: user.user_metadata?.gimnasio_logo_url || user.app_metadata?.gimnasio_logo_url || undefined,
+                    modulos_activos: Array.isArray(activeModules) ? activeModules : Object.keys(activeModules)
+                });
+
+                // Fallback reactivo: Si faltan datos visuales (logo/nombre) en el token, consultar DB en background
+                if (gymId && gymId !== 'admin') {
+                    supabase.from('gimnasios').select('nombre, logo_url, modulos_activos')
+                        .eq('id', gymId).single().then(({ data }) => {
+                            if (data) {
+                                setGymInfo({
+                                    nombre: data.nombre || undefined,
+                                    logo_url: data.logo_url || undefined,
+                                    modulos_activos: (data.modulos_activos as string[]) || []
+                                });
+                            }
+                        });
+                }
+            }
+        });
+    }, [pathname]);
 
     const handleLogout = async () => {
         setLoggingOut(true);
@@ -206,6 +232,16 @@ export function UniversalSidebar({
         if (finalHref.startsWith('/saas-admin')) return { ...item, href: finalHref };
         if (finalHref.startsWith('http')) return item; // internal edge case logic
 
+        // Si estamos en modo Subdominio / Marca blanca, NO anteponemos el prefijo /gymId a los links,
+        // ya que el subdominio maneja de forma natural todo el enrutamiento limpio!
+        if (isSubdomainMode) {
+            return { ...item, href: finalHref };
+        }
+
+        // Fallback para URL heredadas basadas en path (ej: localhost:3000/olimpia/member/dashboard)
+        const gymIdMatch = pathname.match(/^\/([^/]+)/);
+        const gymId = gymIdMatch ? gymIdMatch[1] : null;
+
         if (gymId && gymId !== 'admin') {
             return { ...item, href: `/${gymId}${finalHref}` };
         }
@@ -279,7 +315,6 @@ export function UniversalSidebar({
                             </Link>
                         );
                     })}
-
                 </div>
             </nav>
 
@@ -295,7 +330,6 @@ export function UniversalSidebar({
                         <p className="text-[9px] text-tactical-cyan/60 font-black uppercase tracking-[0.3em] truncate">{role}</p>
                     </div>
                 </div>
-
 
                 {/* Logout button */}
                 <button

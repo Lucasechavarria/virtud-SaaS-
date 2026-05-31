@@ -193,3 +193,31 @@ body {
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+/* Tactical Interactive Shadows & Glassmorphic Glows (GPU Accelerated) */
+.tactical-glow-hover {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
+  will-change: transform, box-shadow;
+}
+
+.tactical-glow-hover:hover {
+  transform: translateY(-4px) scale(1.015);
+  box-shadow: 0 15px 30px -10px rgba(var(--primary-rgb, 59, 130, 246), 0.18);
+  border-color: rgba(var(--primary-rgb, 59, 130, 246), 0.25) !important;
+}
+
+/* Premium Shimmer Swiping for Loading Skeletons */
+.premium-shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer-swipe 2s infinite linear;
+}
+
+@keyframes shimmer-swipe {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

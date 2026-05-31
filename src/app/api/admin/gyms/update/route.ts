@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
+import { revalidateTag } from 'next/cache';
 
 export async function POST(request: Request) {
     try {
@@ -114,6 +115,11 @@ export async function POST(request: Request) {
             .single();
 
         if (gymError) throw gymError;
+
+        if (gym?.slug) {
+            (revalidateTag as any)(`gym-brand-${gym.slug}`);
+            logger.info(`[Admin Purge] Caché purgada para el gimnasio tras actualización general: ${gym.slug}`);
+        }
 
         return NextResponse.json({ success: true, gym });
 
