@@ -169,7 +169,9 @@ export async function GET(req: Request) {
             Sentry.captureException(err, {
                 extra: { studentId, mode: searchParams.get('mode') }
             });
-        } catch (_) {}
+        } catch (_) {
+            // Sentry opcional: ignorar errores de carga si no está instalado
+        }
 
         return NextResponse.json({
             error: 'Internal Server Error',
