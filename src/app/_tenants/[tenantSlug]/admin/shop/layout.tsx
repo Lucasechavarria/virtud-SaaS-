@@ -1,3 +1,4 @@
+import React from 'react';
 import { checkModuleAccess } from '@/lib/gating';
 
 export default async function ShopLayout({
