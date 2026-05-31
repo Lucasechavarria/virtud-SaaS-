@@ -81,9 +81,9 @@ export async function middleware(request: NextRequest) {
             requestHeaders.set('x-gym-slug', tenantSlug);
             requestHeaders.set('x-tenant-slug', tenantSlug);
 
-            // Reescribir silenciosamente la petición al App Router de _tenants
-            // ej: olimpia.virtud.fit/member/dashboard -> virtud.fit/_tenants/olimpia/member/dashboard
-            url.pathname = `/_tenants/${tenantSlug}${pathname}`;
+            // Reescribir silenciosamente la petición al App Router de tenants
+            // ej: olimpia.virtud.fit/member/dashboard -> virtud.fit/tenants/olimpia/member/dashboard
+            url.pathname = `/tenants/${tenantSlug}${pathname}`;
             const rewriteResponse = NextResponse.rewrite(url, {
                 request: {
                     headers: requestHeaders
@@ -100,7 +100,7 @@ export async function middleware(request: NextRequest) {
         // 6. Redirección o Reescritura para URLs heredadas basadas en path
         const pathSegments = pathname.split('/').filter(Boolean);
         const legacyTenant = pathSegments[0];
-        const ignoredPaths = ['saas-admin', 'api', 'auth', 'g', 'inscripcion', '_tenants'];
+        const ignoredPaths = ['saas-admin', 'api', 'auth', 'g', 'inscripcion', 'tenants', 'dashboard', 'saas', 'debug'];
 
         if (legacyTenant && !ignoredPaths.includes(legacyTenant) && !tenantSlug && !isSystemPath) {
             const remainingPath = '/' + pathSegments.slice(1).join('/');
@@ -112,7 +112,7 @@ export async function middleware(request: NextRequest) {
                 requestHeaders.set('x-gym-slug', legacyTenant);
                 requestHeaders.set('x-tenant-slug', legacyTenant);
 
-                url.pathname = `/_tenants/${legacyTenant}${remainingPath}`;
+                url.pathname = `/tenants/${legacyTenant}${remainingPath}`;
                 const rewriteResponse = NextResponse.rewrite(url, {
                     request: {
                         headers: requestHeaders

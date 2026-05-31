@@ -3,13 +3,13 @@ import { Database } from '../types/supabase';
 
 type Profile = Database['public']['Tables']['perfiles']['Row'];
 
+// Caché reactiva privada en memoria (Proxy Cache Singleton)
+let _cachedProfile: Profile | null = null;
+
 /**
  * Authentication service using Supabase Auth
  */
 export const authService = {
-    /**
-     * Sign up with email and password
-     */
     /**
      * Sign up with email and password
      */
@@ -68,6 +68,8 @@ export const authService = {
     async signOut() {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        // Invalidar y limpiar por completo la caché local al desautenticar
+        _cachedProfile = null;
     },
 
     /**
@@ -90,10 +92,20 @@ export const authService = {
 
     /**
      * Get user profile
+     * SAFE PROXY CACHE: Si el id corresponde a la sesión actual, retorna en O(1) de memoria local.
      */
     async getUserProfile(userId?: string) {
-        const id = userId || (await this.getCurrentUser())?.id;
+        let id = userId;
+        if (!id) {
+            const currentUser = await this.getCurrentUser();
+            id = currentUser?.id;
+        }
         if (!id) throw new Error('No user ID provided');
+
+        // Si corresponde al perfil en caché, lo retornamos instantáneamente sin consultar la red
+        if (_cachedProfile && _cachedProfile.id === id) {
+            return _cachedProfile;
+        }
 
         const { data, error } = await supabase
             .from('perfiles')
@@ -102,6 +114,13 @@ export const authService = {
             .single();
 
         if (error) throw error;
+
+        // Si corresponde al usuario actual, actualizamos la caché local
+        const currentUser = await this.getCurrentUser();
+        if (currentUser && currentUser.id === id) {
+            _cachedProfile = data as Profile;
+        }
+
         return data as Profile;
     },
 
@@ -117,6 +136,13 @@ export const authService = {
             .single();
 
         if (error) throw error;
+
+        // Actualizar la caché local en memoria si corresponde al usuario autenticado actual
+        const currentUser = await this.getCurrentUser();
+        if (currentUser && currentUser.id === userId) {
+            _cachedProfile = data as Profile;
+        }
+
         return data as Profile;
     },
 
@@ -169,8 +195,6 @@ export const authService = {
      * Listen to auth state changes
      */
     onAuthStateChange(callback: (event: string, session: unknown) => void) {
-        // Mantenemos session as any ya que viene así de la librería de Supabase en versiones antiguas 
-        // o queremos evitar cascada de tipos por ahora, pero tipamos lo demás.
         return supabase.auth.onAuthStateChange(callback);
     },
 };

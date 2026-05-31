@@ -1,71 +1,122 @@
-
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
-export async function GET() {
+interface TemporalChartData {
+    name: string;
+    value: number;
+}
+
+export async function GET(request: NextRequest) {
     const supabase = await createClient();
 
     try {
-        // 1. Fetch Key Metrics
-        const { count: totalMembers } = await supabase
-            .from('perfiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('rol', 'member');
+        // 1. Extraer Query Parameters para rango dinámico
+        const { searchParams } = new URL(request.url);
+        const range = searchParams.get('range') || '6months';
 
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
+        const today = new Date();
+        let startDate = new Date();
+        let isLifetime = false;
+
+        // 2. Resolver límites temporales de forma dinámica
+        if (range === 'year') {
+            startDate = new Date(today.getFullYear(), 0, 1); // 1 de Enero del año actual
+        } else if (range === 'lifetime') {
+            isLifetime = true;
+            startDate = new Date(2020, 0, 1); // Rango de inicio por defecto para datos históricos amplios
+        } else {
+            // Por defecto: 6months
+            startDate.setMonth(today.getMonth() - 5);
+            startDate.setDate(1);
+        }
+        
+        startDate.setHours(0, 0, 0, 0);
+        const startDateISO = startDate.toISOString();
+
+        // Calcular el inicio del mes actual para métricas de "nuevos" del mes
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         startOfMonth.setHours(0, 0, 0, 0);
+        const startOfMonthISO = startOfMonth.toISOString();
 
-        const { count: newMembers } = await supabase
-            .from('perfiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('rol', 'member')
-            .gte('creado_en' as any, startOfMonth.toISOString());
+        // 3. PARALELIZACIÓN DE CONSULTAS (Promise.all - Resuelve el Waterfall de Red)
+        const [
+            totalMembersResult,
+            newMembersResult,
+            attendanceResult,
+            paymentsResult,
+            userDatesResult
+        ] = await Promise.all([
+            // Consulta A: Miembros Activos Totales (Count-only ultra eficiente)
+            supabase
+                .from('perfiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('rol', 'member'),
+            
+            // Consulta B: Nuevos Miembros Registrados del Mes Actual
+            supabase
+                .from('perfiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('rol', 'member')
+                .gte('creado_en' as any, startOfMonthISO),
+            
+            // Consulta C: Asistencias de Clientes del Mes Actual
+            supabase
+                .from('reservas_de_clase')
+                .select('*', { count: 'exact', head: true })
+                .eq('estado', 'attended')
+                .gte('fecha', startOfMonthISO),
+            
+            // Consulta D: Pagos Completados (Filtrado dinámico en DB para evitar sobrecarga en RAM)
+            isLifetime 
+                ? supabase.from('pagos').select('monto, creado_en').eq('estado', 'completado')
+                : supabase.from('pagos').select('monto, creado_en').eq('estado', 'completado').gte('creado_en', startDateISO),
+            
+            // Consulta E: Fechas de Creación de Perfiles para Gráfico de Crecimiento
+            isLifetime 
+                ? supabase.from('perfiles').select('creado_en').eq('rol', 'member').order('creado_en', { ascending: true })
+                : supabase.from('perfiles').select('creado_en').eq('rol', 'member').gte('creado_en' as any, startDateISO).order('creado_en', { ascending: true })
+        ]);
 
-        const { count: attendanceCount } = await supabase
-            .from('reservas_de_clase')
-            .select('*', { count: 'exact', head: true })
-            .eq('estado', 'attended')
-            .gte('fecha', startOfMonth.toISOString());
+        // Validar Errores del SDK
+        if (paymentsResult.error) throw paymentsResult.error;
+        if (userDatesResult.error) throw userDatesResult.error;
 
-        // Revenue & Expenses from Payments Table
-        const { data: allPayments, error: paymentsError } = await supabase
-            .from('pagos')
-            .select('monto, creado_en, estado')
-            .eq('estado', 'completado');
+        const totalMembers = totalMembersResult.count || 0;
+        const newMembers = newMembersResult.count || 0;
+        const attendanceCount = attendanceResult.count || 0;
+        const payments = paymentsResult.data || [];
+        const userDates = userDatesResult.data || [];
 
-        if (paymentsError) throw paymentsError;
+        // 4. CÁLCULO OPTIMIZADO EN UN SOLO RECORRIDO O(N)
+        let totalRevenue = 0;
+        let totalExpenses = 0;
 
-        const totalRevenue = (allPayments || [])
-            .filter((p: any) => p.monto > 0)
-            .reduce((sum, p: any) => sum + p.monto, 0);
-
-        const totalExpenses = (allPayments || [])
-            .filter((p: any) => p.monto < 0)
-            .reduce((sum, p: any) => sum + Math.abs(p.monto), 0);
+        payments.forEach((p: any) => {
+            if (p.monto > 0) {
+                totalRevenue += p.monto;
+            } else if (p.monto < 0) {
+                totalExpenses += Math.abs(p.monto);
+            }
+        });
 
         const netRevenue = totalRevenue - totalExpenses;
 
-        const { data: userDates } = await supabase
-            .from('perfiles')
-            .select('creado_en')
-            .eq('rol', 'member')
-            .order('creado_en', { ascending: true });
-
-        const growthData = processGrowthData(userDates || []);
+        // 5. AGREGACIÓN TEMPORAL DE ALTO RENDIMIENTO (Unificada y DRY)
+        const growthData = aggregateTemporalData(userDates, 'creado_en', () => 1, range);
+        const revenueData = aggregateTemporalData(payments, 'creado_en', (p: any) => p.monto, range);
 
         return NextResponse.json({
             metrics: {
-                revenue: totalRevenue,
-                expenses: totalExpenses,
-                net: netRevenue,
-                active_members: totalMembers || 0,
-                new_members: newMembers || 0,
-                attendance_rate: attendanceCount || 0
+                revenue: Number(totalRevenue.toFixed(2)),
+                expenses: Number(totalExpenses.toFixed(2)),
+                net: Number(netRevenue.toFixed(2)),
+                active_members: totalMembers,
+                new_members: newMembers,
+                attendance_rate: attendanceCount
             },
             charts: {
                 growth: growthData,
-                revenue: processRevenueGrowth(allPayments || [])
+                revenue: revenueData
             }
         });
 
@@ -75,48 +126,74 @@ export async function GET() {
     }
 }
 
-function processGrowthData(data: { creado_en: string }[]) {
-    const months: Record<string, number> = {};
-    const today = new Date();
+// ==========================================
+// HELPERS DE RENDIMIENTO (Procesador Temporal)
+// ==========================================
 
-    for (let i = 5; i >= 0; i--) {
-        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const key = d.toLocaleString('es-ES', { month: 'short' });
-        months[key] = 0;
+/**
+ * Agrupa y acumula datos cronológicamente por mes o año con optimización extrema de CPU
+ */
+function aggregateTemporalData<T>(
+    records: T[],
+    dateField: keyof T,
+    valueExtractor: (item: T) => number,
+    range: string
+): TemporalChartData[] {
+    const isLifetime = range === 'lifetime';
+    const today = new Date();
+    const tempMap: Record<string, number> = {};
+    const keysOrder: string[] = [];
+
+    // 1. Inicializar la estructura y orden cronológico de las claves
+    if (isLifetime) {
+        // Agrupar por Años (Últimos 5 años calendarios)
+        const currentYear = today.getFullYear();
+        for (let i = 4; i >= 0; i--) {
+            const yearKey = String(currentYear - i);
+            tempMap[yearKey] = 0;
+            keysOrder.push(yearKey);
+        }
+    } else {
+        // Agrupar por Meses (Últimos 6 meses o los meses transcurridos del año actual)
+        const totalMonths = range === 'year' ? today.getMonth() + 1 : 6;
+        for (let i = totalMonths - 1; i >= 0; i--) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const monthKey = d.toLocaleString('es-ES', { month: 'short' });
+            tempMap[monthKey] = 0;
+            keysOrder.push(monthKey);
+        }
     }
 
-    data.forEach(u => {
-        const d = new Date((u as unknown as { creado_en: string }).creado_en);
-        const key = d.toLocaleString('es-ES', { month: 'short' });
-        if (months[key] !== undefined) months[key] += 1;
-    });
+    // 2. Acumular en un solo paso lineal O(N) sin instanciaciones redundantes de Date
+    const conversionCache: Record<string, string> = {};
 
-    return Object.keys(months).map(key => ({
-        name: key,
-        value: months[key]
-    }));
-}
+    records.forEach(item => {
+        const dateStr = item[dateField] as unknown as string;
+        if (!dateStr) return;
 
-function processRevenueGrowth(payments: { monto: number; creado_en: string }[]) {
-    const months: Record<string, number> = {};
-    const today = new Date();
-
-    for (let i = 5; i >= 0; i--) {
-        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const key = d.toLocaleString('es-ES', { month: 'short' });
-        months[key] = 0;
-    }
-
-    payments.forEach(p => {
-        const d = new Date(p.creado_en);
-        const key = d.toLocaleString('es-ES', { month: 'short' });
-        if (months[key] !== undefined) {
-            months[key] += p.monto;
+        if (isLifetime) {
+            // Extracción rápida por año mediante substring AAAA (coste CPU despreciable)
+            const yearKey = dateStr.substring(0, 4);
+            if (tempMap[yearKey] !== undefined) {
+                tempMap[yearKey] += valueExtractor(item);
+            }
+        } else {
+            // Extracción por mes de año (AAAA-MM) con caché local de internacionalización para evitar fatiga en V8
+            const yearMonth = dateStr.substring(0, 7);
+            if (!conversionCache[yearMonth]) {
+                const d = new Date(dateStr);
+                conversionCache[yearMonth] = d.toLocaleString('es-ES', { month: 'short' });
+            }
+            const monthKey = conversionCache[yearMonth];
+            if (tempMap[monthKey] !== undefined) {
+                tempMap[monthKey] += valueExtractor(item);
+            }
         }
     });
 
-    return Object.keys(months).map(key => ({
+    // 3. Mapear respetando el orden cronológico precalculado
+    return keysOrder.map(key => ({
         name: key,
-        value: months[key]
+        value: Number(tempMap[key].toFixed(2)) // Prevenir imprecisiones de representación binaria float
     }));
 }

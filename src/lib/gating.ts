@@ -71,7 +71,7 @@ export async function checkModuleAccess(requiredModule: string, tenantSlug: stri
         // 4. Redirección si el módulo no está activo en este gimnasio
         if (!isEnabled) {
             console.warn(`[RSC Gate] Módulo ${requiredModule} inactivo para ${tenantSlug}. Redirigiendo...`);
-            redirect(`/_tenants/${tenantSlug}/modulo-bloqueado?modulo=${encodeURIComponent(requiredModule)}`);
+            redirect(`/tenants/${tenantSlug}/modulo-bloqueado?modulo=${encodeURIComponent(requiredModule)}`);
         }
         
     } catch (error: any) {

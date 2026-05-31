@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { NotificationService } from '@/services/notification.service';
 
 /**
  * POST /api/challenges/[id]/join
@@ -62,28 +63,16 @@ export async function POST(
         // 3. Notificar al creador/juez del desafío
         try {
             if (challenge && challenge.creado_por) {
-                // Registrar notificación en historial
-                await supabase.from('historial_notificaciones').insert({
-                    usuario_id: challenge.creado_por,
+                const notifService = new NotificationService(supabase);
+                await notifService.sendToUser(challenge.creado_por, {
                     tipo: 'mensaje',
-                    titulo: 'Nuevo participante',
-                    cuerpo: `${user.email} se ha unido a tu desafío: ${challenge.titulo}`,
-                    datos: { challengeId },
-                    enviada: false
-                } as any);
-
-                // Intentar enviar push (opcional)
-                const pushBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-                fetch(`${pushBaseUrl}/api/push/send`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        recipientId: challenge.creado_por,
-                        title: '⚔️ Nuevo participante',
-                        body: `${user.user_metadata.full_name || 'Un alumno'} aceptó tu desafío: ${challenge.titulo}`,
+                    titulo: '⚔️ Nuevo participante',
+                    cuerpo: `${user.user_metadata?.nombre_completo || user.user_metadata?.full_name || user.email} aceptó tu desafío: ${challenge.titulo}`,
+                    datos: { 
+                        challengeId,
                         url: `/admin/challenges`
-                    })
-                }).catch(e => console.error('Error sending push:', e));
+                    }
+                });
             }
         } catch (notifError) {
             console.error('Error creating notification for challenge join:', notifError);
