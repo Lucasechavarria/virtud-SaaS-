@@ -1,74 +1,60 @@
-
 /// <reference types="cypress" />
 
-describe.skip('Admin Payments Flow', () => {
+describe('Admin Payments & SaaS Billing Flow (MercadoPago Hub)', () => {
 
     beforeEach(() => {
-        cy.session('admin-session', () => {
-            cy.clearCookies();
-            cy.clearLocalStorage();
-            // Login as Admin
-            cy.visit('/login');
-            cy.get('input[name="email"]').type('admin@virtudgym.com');
-            cy.get('input[name="password"]').type('password123'); // Asegúrate de que esta credencial exista en tu entorno de pruebas
-            cy.get('button[type="submit"]').click();
-            cy.url().should('include', '/dashboard');
-        });
+        // Autenticar por UI usando el rol de administrador local específico para el tenant
+        cy.login('gym-admin@virtudgym.com', 'Password123!');
     });
 
-    it('should navigate to payments page', () => {
-        cy.visit('/admin/payments');
-        cy.contains('Gestión de Pagos').should('be.visible');
-        cy.contains('Total Filtrado').should('be.visible');
+    it('should navigate to MercadoPago Hub and display correct branding', () => {
+        cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
+        cy.contains('h1', /MercadoPago/i).should('be.visible');
+        cy.contains('h1', /Hub/i).should('be.visible');
+        cy.contains('p', /Control Financiero y Facturación SaaS/i).should('be.visible');
     });
 
-    it('should filter payments by status', () => {
-        cy.visit('/admin/payments');
-        cy.get('select').select('Pendientes');
-        // Verificar que la URL o la lista cambio (dependiendo de la implem)
-        // En este caso es filtro cliente-side, así que verificamos que solo aparezcan pendientes o mensaje de vacio
+    it('should display correct revenue statistics cards based on mock ledger', () => {
+        cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
+        
+        // Validar tarjetas de estadísticas rápidas
+        cy.contains('h3', 'Recaudación Red').should('be.visible');
+        cy.contains('p', '$5,000').should('be.visible'); // Suma de pagos aprobados en mock ($5,000)
+        
+        cy.contains('h3', 'Total Transacciones').should('be.visible');
+        cy.contains('p', '2').should('be.visible'); // 2 transacciones en el mock global
     });
 
-    it('should show extension button for eligible payments', () => {
-        cy.visit('/admin/payments');
-        // Seleccionar filtro para ver pendientes o vencidos
-        cy.get('select').select('Pendientes');
+    it('should allow filtering payments by Gym', () => {
+        cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
 
-        // Si hay pagos, verificar que existe el botón
-        cy.get('body').then(($body) => {
-            if ($body.find('table tbody tr').length > 0) {
-                // Buscamos un botón que diga Prorrogar
-                // Nota: Esto puede ser flaky si no hay datos. Idealmente se mockearía la respuesta de la API.
-                // Para este sprint, asumimos que estamos en un entorno con datos o mockeamos la respuesta.
-                cy.intercept('GET', '/api/admin/payments', { fixture: 'payments.json' }).as('getPayments');
-                cy.wait('@getPayments');
-
-                cy.contains('button', 'Prorrogar').should('exist');
-            }
-        });
+        // Seleccionar gimnasio específico
+        cy.get('select').first().select('virtud', { force: true });
+        
+        // Validar que se liste la transacción del alumno mockeado
+        cy.contains('Test Student').should('be.visible');
+        cy.contains('Pending Student').should('be.visible');
     });
 
-    it('should open extension modal when clicking Prorrogar', () => {
-        // Mockear respuesta para asegurar que tenemos un pago para prorrogar
-        cy.intercept('GET', '/api/admin/payments', {
-            success: true,
-            payments: [
-                {
-                    id: '123',
-                    user_name: 'Test User',
-                    amount: 5000,
-                    status: 'pending',
-                    payment_method: 'cash',
-                    created_at: new Date().toISOString()
-                }
-            ]
-        }).as('getPayments');
+    it('should switch tabs to SaaS Subscription and display AI Wallet details', () => {
+        cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
+        cy.wait(1000); // Esperar a la hidratación y estabilización de los componentes de React
 
-        cy.visit('/admin/payments');
-        cy.wait('@getPayments');
+        // Hacer clic en la pestaña "Mi Suscripción SaaS"
+        cy.contains('button', 'Mi Suscripción SaaS')
+            .should('be.visible')
+            .click({ force: true });
 
-        cy.contains('button', 'Prorrogar').click();
-        cy.contains('Prorrogar 7 Días').should('be.visible');
-        cy.contains('Reglas de Prórroga').should('be.visible');
+        // Validar que se muestre el portal de consumo y el AI Wallet
+        cy.contains('h3', 'Portal Transparente de Consumo SaaS').should('be.visible');
+        cy.contains('h4', 'Monedero Virtual de IA (AI Wallet)').should('be.visible');
+        
+        // Validar saldo del AI Wallet del mock ($50.00 USD)
+        cy.contains('$50.00 USD').should('be.visible');
+        
+        // Validar la previsualización detallada de la factura mensual
+        cy.contains('Previsualización de Facturación Mensual Detallada').should('be.visible');
+        cy.contains('Total Estimado Próxima Factura:').should('be.visible');
+        cy.contains('$174.00 USD').should('be.visible'); // Total Amount del mock global
     });
 });

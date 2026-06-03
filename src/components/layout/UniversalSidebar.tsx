@@ -6,6 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import { hasModuleAccess } from '@/lib/saas/modules';
+
 
 interface NavItem {
     href: string;
@@ -98,7 +100,7 @@ export function UniversalSidebar({
     const router = useRouter();
     const [visionBadgeCount, setVisionBadgeCount] = useState(0);
     const [loggingOut, setLoggingOut] = useState(false);
-    const [gymInfo, setGymInfo] = useState<{ nombre?: string, logo_url?: string, modulos_activos?: string[] }>({});
+    const [gymInfo, setGymInfo] = useState<{ nombre?: string, logo_url?: string, modulos_activos?: any }>({});
     const [isSubdomainMode, setIsSubdomainMode] = useState(false);
 
     // 1. Resolver metadatos del gimnasio localmente desde la sesión (Claims JWT)
@@ -136,7 +138,7 @@ export function UniversalSidebar({
                                 setGymInfo({
                                     nombre: data.nombre || undefined,
                                     logo_url: data.logo_url || undefined,
-                                    modulos_activos: (data.modulos_activos as string[]) || []
+                                    modulos_activos: data.modulos_activos || []
                                 });
                             }
                         });
@@ -215,8 +217,7 @@ export function UniversalSidebar({
         if (!item.module) return true;
         // Always show all modules to superadmin
         if (role === 'superadmin') return true;
-        const activeModules = gymInfo.modulos_activos || [];
-        return activeModules.includes(item.module);
+        return hasModuleAccess(gymInfo.modulos_activos, item.module);
     });
 
     const navItems = navItemsRaw.map(item => {
