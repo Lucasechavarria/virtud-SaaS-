@@ -64,7 +64,7 @@ function resolveNetworkContext(request: NextRequest): NetworkContext {
     const port = nextPort ? `:${nextPort}` : '';
     const isLocalhost = hostname.endsWith('localhost') || hostname === '127.0.0.1';
     
-    const baseDomainWithoutPort = process.env.NEXT_PUBLIC_APP_DOMAIN || (isLocalhost ? 'localhost' : 'virtud.fit');
+    const baseDomainWithoutPort = process.env.NEXT_PUBLIC_APP_DOMAIN || (isLocalhost ? 'localhost' : (hostname.endsWith('vercel.app') ? hostname : 'virtud.fit'));
     const baseDomain = `${baseDomainWithoutPort}${port}`;
     
     const isSubdomain = hostname !== baseDomainWithoutPort && hostname !== `www.${baseDomainWithoutPort}`;

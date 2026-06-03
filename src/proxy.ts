@@ -27,7 +27,10 @@ export async function middleware(request: NextRequest) {
         const port = host.split(':')[1] ? `:${host.split(':')[1]}` : '';
         const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
         
-        const baseDomainWithoutPort = isLocalhost ? 'localhost' : 'virtud.fit';
+        let baseDomainWithoutPort = process.env.NEXT_PUBLIC_APP_DOMAIN;
+        if (!baseDomainWithoutPort) {
+            baseDomainWithoutPort = isLocalhost ? 'localhost' : (hostWithoutPort.endsWith('vercel.app') ? hostWithoutPort : 'virtud.fit');
+        }
         const baseDomain = `${baseDomainWithoutPort}${port}`;
         const isSubdomain = hostWithoutPort !== baseDomainWithoutPort && hostWithoutPort !== `www.${baseDomainWithoutPort}`;
         
@@ -68,6 +71,11 @@ export async function middleware(request: NextRequest) {
             // Redirección raíz del subdominio para usuarios logueados (UX limpia)
             if (pathname === '/' && user) {
                 const userRole = (user.app_metadata?.rol || user.app_metadata?.role)?.toLowerCase();
+                if (userRole === 'superadmin') {
+                    const protocol = request.nextUrl.protocol || 'http:';
+                    const mainDomain = `${protocol}//${baseDomain}/saas-admin`;
+                    return NextResponse.redirect(new URL(mainDomain));
+                }
                 let dest = '/member/dashboard';
                 if (['admin', 'recepcion'].includes(userRole)) dest = '/admin';
                 else if (userRole === 'coach') dest = '/coach';

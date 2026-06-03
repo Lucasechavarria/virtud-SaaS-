@@ -22,7 +22,7 @@ export default function RoleSwitcher({ currentRole, profileRole }: { currentRole
     if (!canSwitchRoles) return null;
 
     const roles: Role[] = [
-        { id: 'superadmin', name: 'Super Admin', icon: '⚡', path: '/admin' },
+        { id: 'superadmin', name: 'Super Admin', icon: '⚡', path: '/saas-admin' },
         { id: 'admin', name: 'Admin', icon: '⚙️', path: '/admin' },
         { id: 'coach', name: 'Profesor', icon: '🏋️', path: '/coach' },
         { id: 'member', name: 'Alumno', icon: '🎯', path: '/dashboard' },
