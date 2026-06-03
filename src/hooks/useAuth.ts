@@ -70,13 +70,13 @@ export function useAuth() {
         await supabase.auth.signOut();
     };
 
-    // Lógica de roles con fallback a metadatos del JWT
-    // app_metadata es seteado por el sistema/trigger y es más confiable
-    const userRole = profile?.rol ||
-        user?.app_metadata?.rol ||
+    // Lógica de roles con prioridad al JWT (app_metadata) por sobre la tabla perfiles
+    // app_metadata es seteado por el sistema/trigger y es validado en el middleware
+    const userRole = user?.app_metadata?.rol ||
         user?.app_metadata?.role ||
         user?.user_metadata?.rol ||
-        user?.user_metadata?.role;
+        user?.user_metadata?.role ||
+        profile?.rol;
 
     return {
         user,
