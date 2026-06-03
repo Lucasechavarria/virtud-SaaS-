@@ -49,7 +49,7 @@ interface Routine {
     };
 }
 
-export default function MyRoutinePage({ params }: { params: { gymId: string } }) {
+export default function MyRoutinePage({ params }: { params?: any }) {
     const router = useRouter();
     const [routine, setRoutine] = useState<Routine | null>(null);
     const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -107,8 +107,8 @@ export default function MyRoutinePage({ params }: { params: { gymId: string } })
         }
     };
 
-    const dayExercises = exercises.filter(ex => (ex.dia_numero || ex.numero_dia) === selectedDay);
-    const totalDays = Math.max(...exercises.map(ex => ex.dia_numero || ex.numero_dia || 0), 0);
+    const dayExercises = (exercises || []).filter(ex => (ex.dia_numero || ex.numero_dia) === selectedDay);
+    const totalDays = Math.max(...(exercises || []).map(ex => ex.dia_numero || ex.numero_dia || 0), 0);
 
     const container = {
         hidden: { opacity: 0 },

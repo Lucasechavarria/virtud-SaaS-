@@ -53,6 +53,12 @@ jobs:
 
       - name: Run tests
         run: npm test -- --coverage
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key-for-testing-purposes-only-12345
+          SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key-for-testing-purposes-only-67890
+          JWT_SECRET: mock-jwt-secret-for-testing-key-development-9999
+
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

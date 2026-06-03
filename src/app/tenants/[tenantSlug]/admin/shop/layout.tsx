@@ -6,10 +6,11 @@ export default async function ShopLayout({
     params,
 }: {
     children: React.ReactNode;
-    params: { tenantSlug: string };
+    params: Promise<{ tenantSlug: string }> | { tenantSlug: string };
 }) {
+    const resolvedParams = await params;
     // Validar acceso asíncrono al módulo de POS en el servidor (RSC)
-    await checkModuleAccess('Pos', params.tenantSlug);
+    await checkModuleAccess('Pos', resolvedParams.tenantSlug);
 
     return <>{children}</>;
 }

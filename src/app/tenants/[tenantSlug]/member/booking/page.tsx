@@ -206,7 +206,7 @@ export default function BookingPage({ _params }: { _params: { gymId: string } })
                             </div>
                             <h2 className="text-2xl font-black mb-4">¡Atención, Campeón!</h2>
                             <p className="text-gray-400 mb-8">
-                                Para tu seguridad y la de todos, es necesario que completes tu **Ficha Médica** antes de comenzar a entrenar.
+                                Para tu seguridad y la de todos, es necesario que completes tu <strong>Ficha Médica</strong> antes de comenzar a entrenar.
                             </p>
                             <Link
                                 href="/dashboard/profile/complete"

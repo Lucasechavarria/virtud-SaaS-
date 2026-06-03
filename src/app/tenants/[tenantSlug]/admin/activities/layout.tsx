@@ -6,10 +6,11 @@ export default async function ActivitiesLayout({
     params,
 }: {
     children: React.ReactNode;
-    params: { tenantSlug: string };
+    params: Promise<{ tenantSlug: string }> | { tenantSlug: string };
 }) {
+    const resolvedParams = await params;
     // Validar acceso asíncrono al módulo de Clases en el servidor (RSC)
-    await checkModuleAccess('Clases', params.tenantSlug);
+    await checkModuleAccess('Clases', resolvedParams.tenantSlug);
 
     return <>{children}</>;
 }

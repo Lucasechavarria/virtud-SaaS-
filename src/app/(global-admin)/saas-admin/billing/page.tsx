@@ -423,7 +423,7 @@ export default function AdminBillingPage() {
                                                             gym.estado_pago_saas === 'al_dia' || gym.estado_pago_saas === 'active' ? 'text-green-500' :
                                                             gym.estado_pago_saas === 'pendiente' || gym.estado_pago_saas === 'past_due' ? 'text-amber-500' : 'text-red-500'
                                                         }`}>
-                                                            {gym.estado_pago_saas === 'active' ? 'AL DIA' : gym.estado_pago_saas === 'past_due' ? 'DEUDA' : gym.estado_pago_saas.replace('_', ' ')}
+                                                            {gym.estado_pago_saas === 'active' ? 'AL DIA' : gym.estado_pago_saas === 'past_due' ? 'DEUDA' : gym.estado_pago_saas.replace('_', ' ').toUpperCase()}
                                                         </span>
                                                     </div>
                                                 </td>
@@ -673,7 +673,7 @@ export default function AdminBillingPage() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={updating}
+                                    disabled={false}
                                     className="flex-1 px-6 py-4 bg-tactical-cyan text-black text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-tactical-cyan/20 hover:scale-105 transition-all"
                                 >
                                     Guardar Plan

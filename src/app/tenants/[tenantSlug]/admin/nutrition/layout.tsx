@@ -6,10 +6,11 @@ export default async function NutritionLayout({
     params,
 }: {
     children: React.ReactNode;
-    params: { tenantSlug: string };
+    params: Promise<{ tenantSlug: string }> | { tenantSlug: string };
 }) {
+    const resolvedParams = await params;
     // Validar acceso asíncrono al módulo de Nutrición en el servidor (RSC)
-    await checkModuleAccess('Nutricion', params.tenantSlug);
+    await checkModuleAccess('Nutricion', resolvedParams.tenantSlug);
 
     return <>{children}</>;
 }

@@ -24,19 +24,22 @@ export function hasModuleAccess(
 
     const bit = MODULE_BITS[moduleName];
     if (!bit) {
-        console.warn(`[Module Guard] El módulo solicitado "${moduleName}" no está registrado en MODULE_BITS.`);
-        return false;
-    }
+        // Si no está registrado en bitmask, no podemos evaluarlo como número, pero sí como array/objeto
+        if (typeof activeModules === 'number' || typeof activeModules === 'boolean') {
+            console.warn(`[Module Guard] El módulo solicitado "${moduleName}" no está registrado en MODULE_BITS y no se puede evaluar con bitmask.`);
+            return false;
+        }
+    } else {
+        // CASO A: Formato Bitmask moderno (Número entero en claims)
+        if (typeof activeModules === 'number') {
+            return (activeModules & bit) !== 0;
+        }
 
-    // CASO A: Formato Bitmask moderno (Número entero en claims)
-    if (typeof activeModules === 'number') {
-        return (activeModules & bit) !== 0;
-    }
-
-    // CASO B: Formato de texto número (ej. "11" en cookies o strings de persistencia)
-    const num = Number(activeModules);
-    if (!isNaN(num) && typeof activeModules !== 'boolean' && !Array.isArray(activeModules) && activeModules !== '') {
-        return (num & bit) !== 0;
+        // CASO B: Formato de texto número (ej. "11" en cookies o strings de persistencia)
+        const num = Number(activeModules);
+        if (!isNaN(num) && typeof activeModules !== 'boolean' && !Array.isArray(activeModules) && activeModules !== '') {
+            return (num & bit) !== 0;
+        }
     }
 
     // CASO C: Retrocompatibilidad heredada (Array de strings, ej: ["Pos", "Finanzas"])
