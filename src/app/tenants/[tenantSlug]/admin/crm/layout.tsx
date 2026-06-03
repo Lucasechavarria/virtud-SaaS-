@@ -6,10 +6,11 @@ export default async function CrmLayout({
     params,
 }: {
     children: React.ReactNode;
-    params: { tenantSlug: string };
+    params: Promise<{ tenantSlug: string }> | { tenantSlug: string };
 }) {
+    const resolvedParams = await params;
     // Validar acceso asíncrono al módulo de CRM en el servidor (RSC)
-    await checkModuleAccess('Crm', params.tenantSlug);
+    await checkModuleAccess('Crm', resolvedParams.tenantSlug);
 
     return <>{children}</>;
 }

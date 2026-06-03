@@ -32,12 +32,13 @@ describe('Authentication Flow', () => {
         const email = 'admin@virtudgym.com';
         const password = 'Password123!';
 
-        cy.visit('/login');
+        // Usar redirectTo=/dashboard para activar el DashboardRedirector
+        cy.visit('/login?redirectTo=/dashboard');
         cy.get('input[name="email"]').type(email);
         cy.get('input[name="password"]').type(password);
         cy.get('button[type="submit"]').click();
 
-        // El Superadmin redirige a /saas-admin
+        // El Superadmin redirige a /saas-admin mediante DashboardRedirector
         cy.url({ timeout: 15000 }).should('include', '/saas-admin');
     });
 
@@ -45,13 +46,15 @@ describe('Authentication Flow', () => {
         const email = 'student@virtudgym.com';
         const password = 'Password123!';
 
-        cy.visit('/login');
+        // Usar redirectTo=/dashboard para activar el DashboardRedirector
+        cy.visit('/login?redirectTo=/dashboard');
         cy.get('input[name="email"]').type(email);
         cy.get('input[name="password"]').type(password);
         cy.get('button[type="submit"]').click();
 
-        // El Alumno redirige a /dashboard o /[gymId]/member/dashboard
+        // El Alumno redirige a /virtud/member/dashboard
         cy.url({ timeout: 15000 }).should('include', '/dashboard');
         cy.contains('Mi Membresía', { timeout: 15000 }).should('exist');
     });
 });
+

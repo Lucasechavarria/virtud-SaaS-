@@ -19,7 +19,9 @@ import Paywall from '@/features/dashboard/components/Paywall';
 
 
 
-export default function StudentDashboard({ params }: { params: { gymId: string } }) {
+export default function StudentDashboard({ params }: { params: Promise<{ tenantSlug: string }> }) {
+  const resolvedParams = React.use(params);
+  const tenantSlug = resolvedParams.tenantSlug;
   const {
     data,
     loading,
@@ -27,7 +29,7 @@ export default function StudentDashboard({ params }: { params: { gymId: string }
     isGoalModalOpen,
     handleRequestRoutine,
     handleGoalModal,
-  } = useStudentDashboard(params.gymId);
+  } = useStudentDashboard(tenantSlug);
 
   const containerVariants = {
     hidden: { opacity: 0 },

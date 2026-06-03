@@ -67,7 +67,7 @@ export default function FinanceHubPage() {
 
     const router = useRouter();
     const params = useParams();
-    const gymId = params?.gymId as string;
+    const gymId = (params?.gymId || params?.tenantSlug) as string;
 
     useEffect(() => {
         fetchFinanceData();

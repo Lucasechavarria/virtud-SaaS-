@@ -6,10 +6,11 @@ export default async function FinanceLayout({
     params,
 }: {
     children: React.ReactNode;
-    params: { tenantSlug: string };
+    params: Promise<{ tenantSlug: string }> | { tenantSlug: string };
 }) {
+    const resolvedParams = await params;
     // Validar acceso asíncrono al módulo de Finanzas en el servidor (RSC)
-    await checkModuleAccess('Finanzas', params.tenantSlug);
+    await checkModuleAccess('Finanzas', resolvedParams.tenantSlug);
 
     return <>{children}</>;
 }

@@ -42,20 +42,22 @@ interface Gym {
     };
 }
 
-export default function GymPublicLanding({ params }: { params: { tenantSlug: string } }) {
+export default function GymPublicLanding({ params }: { params: Promise<{ tenantSlug: string }> }) {
+    const resolvedParams = React.use(params);
+    const tenantSlug = resolvedParams.tenantSlug;
     const [gym, setGym] = useState<Gym | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (params.tenantSlug) {
+        if (tenantSlug) {
             fetchGym();
         }
-    }, [params.tenantSlug]);
+    }, [tenantSlug]);
 
     const fetchGym = async () => {
         try {
             // Consulta la API pública existente utilizando el tenantSlug
-            const res = await fetch(`/api/public/gyms/${params.tenantSlug}`);
+            const res = await fetch(`/api/public/gyms/${tenantSlug}`);
             const data = await res.json();
             if (res.ok) setGym(data.gym);
         } catch (error) {

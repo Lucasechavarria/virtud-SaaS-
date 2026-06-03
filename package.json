@@ -9,7 +9,10 @@
     "lint": "eslint src",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "cypress:run": "cypress run",
+    "cypress:open": "cypress open",
+    "test:integration": "jest --config jest.config.js tests/integration/"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.53",

@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { SUPABASE_COOKIE_OPTIONS } from './supabase/config';
+import { createClient } from '@/lib/supabase/server';
 import { hasModuleAccess } from './saas/modules';
 
 /**
@@ -24,25 +23,8 @@ export async function checkModuleAccess(requiredModule: string, tenantSlug: stri
     }
 
     try {
-        const cookieStore = await cookies();
-
         // 1. Inicializar cliente Supabase compatible con Server Components
-        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-            cookies: {
-                getAll() {
-                    return cookieStore.getAll();
-                },
-                setAll(cookiesToSet) {
-                    try {
-                        cookiesToSet.forEach(({ name, value, options }) =>
-                            cookieStore.set(name, value, { ...SUPABASE_COOKIE_OPTIONS, ...options })
-                        );
-                    } catch {
-                        // Ignorado silenciosamente en RSC (lectura únicamente de cookies)
-                    }
-                },
-            },
-        });
+        const supabase = await createClient();
 
         // 2. Obtener metadatos del usuario logueado (Claims del JWT)
         const { data: { user }, error: authError } = await supabase.auth.getUser();

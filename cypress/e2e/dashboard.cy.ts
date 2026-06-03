@@ -1,43 +1,39 @@
-
 /// <reference types="cypress" />
 
-describe.skip('Student Dashboard', () => {
+describe('Student Dashboard', () => {
 
     beforeEach(() => {
-        cy.session('student-session', () => {
-            cy.clearCookies();
-            cy.clearLocalStorage();
-            // Login as Student
-            cy.visit('/login');
-            cy.get('input[name="email"]').type('student@test.com');
-            cy.get('input[name="password"]').type('password123');
-            cy.get('button[type="submit"]').click();
-            cy.url().should('include', '/dashboard');
-        });
+        // Autenticar por API con credenciales de estudiante válidas
+        cy.loginByAuthAPI('student@virtudgym.com', 'Password123!');
     });
 
     it('should display main dashboard widgets', () => {
-        cy.visit('/dashboard');
+        // Visitar el dashboard multi-tenant en localhost
+        cy.visit('/virtud/member/dashboard');
 
         // Verificar elementos clave del dashboard de estudiante
-        cy.contains('Bienvenido').should('exist'); // Saludo común
+        cy.contains(/(?:Bienvenido|Status|Campeón)/i).should('exist'); // Saludo común o premium en DashboardHeader
 
-        // Verificar navegación
+        // Verificar navegación lateral (Sidebar)
         cy.get('nav').should('be.visible');
         cy.contains('Mi Rutina').should('be.visible');
         cy.contains('Mi Progreso').should('be.visible');
     });
 
     it('should navigate to routine page', () => {
-        cy.visit('/dashboard');
+        cy.visit('/virtud/member/dashboard');
         cy.contains('Mi Rutina').click();
-        cy.url().should('include', '/dashboard/routine');
-        cy.contains('Tu Plan de Entrenamiento').should('exist');
+        
+        // La URL debe cambiar a la sección de rutina multi-tenant
+        cy.url().should('include', '/member/dashboard/routine');
+        cy.contains(/(?:Plan de Fuerza|Plan de Entrenamiento|Tactical Plan)/i).should('exist');
     });
 
     it('should load progress charts', () => {
-        cy.visit('/dashboard/progress');
-        // Verificar que los componentes de gráficas cargan (aunque estén vacíos)
-        cy.get('canvas').should('exist'); // Chart.js usa canvas
+        // Visitar directamente la sección de progreso multi-tenant
+        cy.visit('/virtud/member/dashboard/progress');
+        
+        // Verificar que los componentes de gráficas cargan (Recharts usa SVG)
+        cy.get('svg').should('exist');
     });
 });
