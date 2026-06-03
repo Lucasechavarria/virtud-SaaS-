@@ -32,7 +32,9 @@ export function UniversalLayoutWrapper({
                     !!(window as any).Cypress || 
                     navigator.userAgent.toLowerCase().includes('cypress')
                 );
-            } catch (_) {}
+            } catch (_) {
+                // ignore
+            }
 
             if (isCypress) {
                 setIsMobile(false);

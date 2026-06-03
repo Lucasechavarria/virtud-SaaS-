@@ -12,7 +12,9 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
         const userHeaders = await headers();
         const userAgent = userHeaders.get('user-agent') || '';
         isCypress = userAgent.toLowerCase().includes('cypress');
-    } catch (_) {}
+    } catch (_) {
+        // ignore error
+    }
 
     if (isCypress) {
         // Extraer token de Cypress de las cookies para resolver rol correspondiente
@@ -88,7 +90,9 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
                         email = 'alumno-nuevo@test.com';
                     }
                 }
-            } catch (_) {}
+            } catch (_) {
+                // ignore parsing error
+            }
         }
 
         console.warn(`[SERVER_AUTH][Cypress SSR Bypass] Inyectando sesión mock para ${email} (Rol: ${rol})`);
