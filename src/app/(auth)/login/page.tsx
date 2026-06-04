@@ -160,6 +160,7 @@ export default function LoginPage() {
               <input
                 name="email"
                 type="email"
+                autoComplete="username"
                 placeholder="Correo electrónico"
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
                 required
@@ -169,6 +170,7 @@ export default function LoginPage() {
               <input
                 name="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="Contraseña"
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
                 required
