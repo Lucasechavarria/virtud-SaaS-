@@ -122,7 +122,7 @@ export default function SuperAdminOverview() {
 
     const gymCards = [
         { title: 'Gimnasios en Red', value: stats?.gyms || 0, icon: <Building2 />, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'hover:border-blue-500/50', href: '/saas-admin/gyms' },
-        { title: 'Usuarios en Red', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/saas-admin/gyms' },
+        { title: 'Usuarios en Red', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: '' },
         { title: 'Soporte Técnico', value: alerts.filter(a => a.type === 'ticket').length, icon: <ShieldAlert />, color: 'text-red-500', bg: 'bg-red-500/10', border: 'hover:border-red-500/50', href: '/saas-admin/support' },
     ];
 
@@ -133,16 +133,16 @@ export default function SuperAdminOverview() {
     ];
 
     const globalCards = [
-        { title: 'Usuarios Globales', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/saas-admin/gyms' },
+        { title: 'Usuarios Globales', value: stats?.users || 0, icon: <Users />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: '' },
         { title: 'Soporte Técnico', value: alerts.filter(a => a.type === 'ticket').length, icon: <ShieldAlert />, color: 'text-red-500', bg: 'bg-red-500/10', border: 'hover:border-red-500/50', href: '/saas-admin/support' },
         { title: 'Logs de Auditoría', value: activities.length, icon: <History />, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'hover:border-amber-500/50', href: '/saas-admin/audit' },
     ];
 
     const quickActions = {
         gyms: [
-            { label: 'Nuevo Gimnasio', icon: <PlusCircle size={20} />, href: '/saas-admin/gyms', color: 'from-blue-600 to-cyan-500' },
-            { label: 'Configurar Red', icon: <Building2 size={20} />, href: '/saas-admin/gyms', color: 'from-indigo-600 to-blue-500' },
-            { label: 'Usuarios Red', icon: <Users size={20} />, href: '/saas-admin/gyms', color: 'from-purple-600 to-indigo-500' },
+            { label: 'Nuevo Gimnasio', icon: <PlusCircle size={20} />, href: '/saas-admin/gyms/new', color: 'from-blue-600 to-cyan-500' },
+            { label: 'Configurar Red', icon: <Building2 size={20} />, href: '/saas-admin/settings', color: 'from-indigo-600 to-blue-500' },
+            { label: 'Auditoría Red', icon: <History size={20} />, href: '/saas-admin/audit', color: 'from-purple-600 to-indigo-500' },
             { label: 'Centro Soporte', icon: <ShieldAlert size={20} />, href: '/saas-admin/support', color: 'from-red-600 to-pink-500' },
         ],
         saas: [
@@ -432,21 +432,29 @@ export default function SuperAdminOverview() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: i * 0.05 }}
-                            onClick={() => router.push(card.href)}
-                            className={`bg-[#1c1c1e] p-6 rounded-[2rem] border border-white/5 group ${card.border} transition-all cursor-pointer relative overflow-hidden`}
+                            onClick={() => card.href && router.push(card.href)}
+                            className={`bg-[#1c1c1e] p-6 rounded-[2rem] border border-white/5 relative overflow-hidden transition-all ${
+                                card.href 
+                                    ? `group cursor-pointer ${card.border || ''}` 
+                                    : 'cursor-default'
+                            }`}
                         >
-                            <div className="absolute top-4 right-6 text-white/0 group-hover:text-white/20 transition-all transform translate-x-4 group-hover:translate-x-0">
-                                <ArrowUpRight size={20} />
-                            </div>
-                            <div className={`w-12 h-12 ${card.bg} ${card.color} rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110`}>
+                            {card.href && (
+                                <div className="absolute top-4 right-6 text-white/0 group-hover:text-white/20 transition-all transform translate-x-4 group-hover:translate-x-0">
+                                    <ArrowUpRight size={20} />
+                                </div>
+                            )}
+                            <div className={`w-12 h-12 ${card.bg} ${card.color} rounded-2xl flex items-center justify-center mb-4 transition-transform ${card.href ? 'group-hover:scale-110' : ''}`}>
                                 {card.icon}
                             </div>
                             <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-widest">{card.title}</h3>
                             <p className="text-3xl font-black text-white mt-1 italic tracking-tighter">{card.value}</p>
-                            <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-gray-500 group-hover:text-white transition-colors">
-                                <span>Administrar</span>
-                                <ChevronRight size={10} />
-                            </div>
+                            {card.href && (
+                                <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-gray-500 group-hover:text-white transition-colors">
+                                    <span>Administrar</span>
+                                    <ChevronRight size={10} />
+                                </div>
+                            )}
                         </motion.div>
                     ))}
                 </div>
