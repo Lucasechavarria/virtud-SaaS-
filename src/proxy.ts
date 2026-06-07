@@ -113,9 +113,9 @@ export async function middleware(request: NextRequest) {
         if (legacyTenant && !ignoredPaths.includes(legacyTenant) && !tenantSlug && !isSystemPath) {
             const remainingPath = '/' + pathSegments.slice(1).join('/');
             
-            if (isLocalhost) {
-                // En localhost, para evitar problemas de cookies inter-subdominio en Cypress y desarrollo,
-                // reescribimos internamente manteniendo la misma sesión y cookies en localhost:3000
+            if (isLocalhost || baseDomainWithoutPort.endsWith('vercel.app')) {
+                // En localhost o dominios vercel.app (donde no hay wildcards DNS),
+                // reescribimos internamente manteniendo la misma sesión y cookies sin cambiar de host
                 const requestHeaders = new Headers(request.headers);
                 requestHeaders.set('x-gym-slug', legacyTenant);
                 requestHeaders.set('x-tenant-slug', legacyTenant);
@@ -132,7 +132,7 @@ export async function middleware(request: NextRequest) {
                 });
                 return rewriteResponse;
             } else {
-                // En producción, redirigimos al subdominio del gimnasio
+                // En producción con dominio propio, redirigimos al subdominio del gimnasio
                 const redirectUrl = new URL(
                     `${request.nextUrl.protocol}//${legacyTenant}.${baseDomain}${remainingPath}${url.search}`
                 );

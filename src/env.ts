@@ -18,9 +18,9 @@ const envSchema = z.object({
 });
 
 // Durante la compilación en Vercel/CI, si faltan las variables críticas de Supabase,
-// proveemos valores temporales (fallback) para evitar que falle la compilación estática.
-const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || (isBuildTime ? "https://placeholder-project.supabase.co" : undefined);
-const rawSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (isBuildTime ? "placeholder-anon-key" : undefined);
+// proveemos valores temporales (fallback compatibles con Cypress/Testing) para evitar que falle la compilación estática.
+const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || (isBuildTime ? "http://localhost:54321" : undefined);
+const rawSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (isBuildTime ? "mock-anon-key-for-testing-purposes-only-12345" : undefined);
 
 if (isBuildTime && (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
   console.warn("⚠️ [Build Time Warning] Las variables críticas de Supabase no están presentes. Se usarán valores temporales para permitir la compilación.");
