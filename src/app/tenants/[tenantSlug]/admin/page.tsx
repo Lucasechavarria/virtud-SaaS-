@@ -8,7 +8,7 @@ export default async function AdminDashboard({
     params,
     searchParams,
 }: {
-    params: { gymId: string };
+    params: Promise<{ tenantSlug: string }> | { tenantSlug: string };
     searchParams?: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
 }) {
     const supabase = await createClient();
@@ -26,19 +26,33 @@ export default async function AdminDashboard({
         .eq('id', user.id)
         .single();
 
-    // Resolver searchParams compatible con Next.js 14/15
+    // Resolver params y searchParams compatibles con Next.js 14/15/16
+    const resolvedParams = params instanceof Promise ? await params : params;
     const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : searchParams;
+    const tenantSlug = resolvedParams?.tenantSlug;
     const isImpersonating = resolvedSearchParams?.impersonate === 'true';
 
     if (profile?.rol === 'superadmin') {
         if (isImpersonating) {
-            return <GymAdminDashboard gymId={params.gymId} isImpersonating={true} />;
+            let gymId = '';
+            if (tenantSlug) {
+                // Resolver el UUID del gimnasio mediante el slug
+                const { data: gym } = await supabase
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', tenantSlug)
+                    .single();
+                if (gym) {
+                    gymId = gym.id;
+                }
+            }
+            return <GymAdminDashboard gymId={gymId} isImpersonating={true} />;
         }
         return <SuperAdminTabs />;
     }
 
     if (profile?.rol === 'admin') {
-        return <GymAdminDashboard gymId={params.gymId} />;
+        return <GymAdminDashboard gymId={profile?.gimnasio_id || ''} />;
     }
 
     // Roles que no deben estar aquí → redirigir

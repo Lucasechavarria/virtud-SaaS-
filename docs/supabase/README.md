@@ -53,6 +53,15 @@ Esta carpeta contiene toda la documentación necesaria para migrar de Firebase a
 
 ---
 
+### 5. 🛡️ **SUPERADMIN_GUIDE.md**
+**Manual técnico de administración global (SaaS)**
+- Descripción del rol y acceso multitenant
+- Flujo detallado de acceso remoto (Impersonación)
+- Referencia de endpoints y RLS bypass
+- Diseño de auditoría visual (Git Diff de payloads)
+
+---
+
 ## 🚀 Orden Recomendado
 
 ```
@@ -60,6 +69,7 @@ Esta carpeta contiene toda la documentación necesaria para migrar de Firebase a
 2. ENV_SETUP.md             → Configurar variables
 3. MIGRATION_STRATEGY.md    → Decidir estrategia
 4. MIGRATION_GUIDE.md       → Ejecutar migración
+5. SUPERADMIN_GUIDE.md      → Estudiar infraestructura Superadmin (SaaS)
 ```
 
 ---
@@ -74,7 +84,8 @@ frontend/
 │       ├── SUPABASE_SETUP_EXACT.md  ← Empezar aquí
 │       ├── MIGRATION_STRATEGY.md
 │       ├── MIGRATION_GUIDE.md
-│       └── ENV_SETUP.md
+│       ├── ENV_SETUP.md
+│       └── SUPERADMIN_GUIDE.md      ← Nueva guía de Superadmin
 │
 ├── supabase/
 │   └── schema.sql                   ← SQL completo (usado en setup)

@@ -35,3 +35,10 @@ ts-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Temporary reports, logs and keys
+*_check.json
+*_report.json
+pull_*.txt
+models.json
+vapid_keys.txt

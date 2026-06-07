@@ -3,11 +3,11 @@
 Este documento detalla las funcionalidades de la aplicación basadas en el esquema de base de datos actual y define las políticas de seguridad (Row Level Security - RLS) requeridas para cada rol.
 
 ## Roles del Sistema
-- **Public**: Usuarios no autenticados (acceso muy restringido).
-- **Member (Authenticated)**: Alumnos/Usuarios estándar.
-- **Coach**: Entrenadores.
-- **Admin**: Administradores del gimnasio.
-- **Superadmin**: Acceso total al sistema.
+- **Public**: Usuarios no autenticados (acceso restringido a landings públicas).
+- **Member (Authenticated)**: Alumnos/Usuarios estándar asociados a un gimnasio.
+- **Coach**: Entrenadores de clases y asignación de rutinas.
+- **Admin**: Administradores locales con control limitado a su `gimnasio_id`.
+- **Superadmin**: Propietario supremo del SaaS. Puede ver métricas consolidadas, catálogo de planes y realizar conexiones de soporte técnico (impersonaciones) que son registradas de forma forense.
 
 ---
 
@@ -150,9 +150,58 @@ Este documento detalla las funcionalidades de la aplicación basadas en el esque
 | `payments` | **Admin/Super** | ALL | Registrar pagos, aprobar transferencias, ver reportes. |
 ---
 
+## 7. Row Level Security en Entornos Multi-Tenant (SaaS)
+
+Para lograr el aislamiento completo de los datos entre diferentes gimnasios (tenants), se aplican políticas RLS restrictivas en base a la columna `gimnasio_id` agregada a las tablas principales.
+
+### Funciones Helper en Supabase SQL
+* `public.get_user_gym_id()`: Retorna el `gimnasio_id` del perfil asociado al usuario autenticado (`auth.uid()`).
+* `public.get_user_role()`: Retorna el rol del usuario autenticado (`auth.uid()`).
+
+### Políticas Multi-Tenant Aplicadas
+* **Clases y Actividades (`actividades`, `horarios_de_clase`, `reservas_de_clase`)**:
+  ```sql
+  CREATE POLICY "Multi-tenant: Acceso a actividades por gimnasio" 
+  ON public.actividades FOR ALL USING (gimnasio_id = public.get_user_gym_id());
+  ```
+* **Membresías e Ingresos (`pagos`)**:
+  ```sql
+  CREATE POLICY "Multi-tenant: Pagos privados por gimnasio" 
+  ON public.pagos FOR ALL USING (gimnasio_id = public.get_user_gym_id());
+  ```
+* **Entrenamientos (`rutinas`, `ejercicios`)**:
+  ```sql
+  CREATE POLICY "Multi-tenant: Rutinas por gimnasio" 
+  ON public.rutinas FOR ALL USING (gimnasio_id = public.get_user_gym_id());
+  ```
+* **Acceso y Staff (`perfiles`)**:
+  ```sql
+  -- Los alumnos solo pueden ver los perfiles de su propio gimnasio
+  CREATE POLICY "Multi-tenant: Ver perfiles del mismo gimnasio" 
+  ON public.perfiles FOR SELECT USING (gimnasio_id = public.get_user_gym_id());
+
+  -- Solo los administradores o superadministradores pueden hacer CRUD de perfiles en su gimnasio
+  CREATE POLICY "Multi-tenant: Admins gestionan perfiles" 
+  ON public.perfiles FOR ALL USING (
+    gimnasio_id = public.get_user_gym_id() AND 
+    public.get_user_role() IN ('admin', 'superadmin')
+  );
+  ```
+
+---
+
+## 8. Seguridad y Bypass de RLS para Soporte Técnico (Impersonación)
+
+Para garantizar la auditoría e inmutabilidad durante las intervenciones del Superadmin:
+1. **Acceso Consolidado**: Los paneles del Superadmin (`/saas-admin`) hacen uso del cliente administrativo `createAdminClient()`, que utiliza la clave secreta `service_role` de Supabase para evitar las restricciones de RLS al recolectar estadísticas globales y datos de auditoría.
+2. **Registro de Impersonación**: Toda sesión de soporte remoto ejecutada desde el rol de Superadmin exige una justificación y guarda un registro inmutable en la tabla `logs_acceso_remoto`.
+3. **Control en Interfaz de Destino**: El flag `?impersonate=true` en las rutas del administrador local (`/[gymId]/admin`) evalúa dinámicamente si el usuario activo es un `superadmin` para habilitar temporalmente los controles del panel local de ese gimnasio sin comprometer el aislamiento general de los tenants.
+
+---
+
 ## Resumen de Acciones Críticas
 
 1.  **Habilitar RLS en TODAS las tablas**: `ALTER TABLE x ENABLE ROW LEVEL SECURITY;`.
 2.  **Políticas por defecto restrictivas**: Empezar denegando todo y habilitar lo específico.
 3.  **Funciones Helper**: Crear funciones en SQL (`auth.uid()`, `is_admin()`, `is_coach()`) para simplificar las policies.
-4.  **Índices**: Asegurar índices en claves foráneas (`user_id`, `coach_id`) para que las policies no ralenticen las consultas.
+4.  **Índices**: Asegurar índices en claves foráneas (`user_id`, `coach_id`, `gimnasio_id`) para que las policies no ralenticen las consultas.
