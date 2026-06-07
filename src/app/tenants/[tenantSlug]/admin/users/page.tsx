@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { useParams } from 'next/navigation';
 
 import ProfileViewerModal from '@/features/admin/components/ProfileViewerModal';
 import { SupabaseUserProfile, UserRole } from '@/types/user';
@@ -33,6 +34,9 @@ interface GymLimits {
 
 export default function UsersPage() {
     const _supabase = createClient();
+    const params = useParams();
+    const tenantSlug = params?.tenantSlug as string;
+
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<User[]>([]);
     const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -41,10 +45,12 @@ export default function UsersPage() {
     const [limits, setLimits] = useState<GymLimits | null>(null);
 
     useEffect(() => {
-        fetchUsers();
-        fetchCoaches();
-        fetchLimits();
-    }, []);
+        if (tenantSlug) {
+            fetchUsers();
+            fetchCoaches();
+            fetchLimits();
+        }
+    }, [tenantSlug]);
 
     const fetchLimits = async () => {
         try {
@@ -58,7 +64,10 @@ export default function UsersPage() {
 
     const fetchCoaches = async () => {
         try {
-            const res = await fetch('/api/admin/coaches/list');
+            const url = tenantSlug 
+                ? `/api/admin/coaches/list?gymId=${tenantSlug}` 
+                : '/api/admin/coaches/list';
+            const res = await fetch(url);
             const data = await res.json();
 
             if (!res.ok) {
@@ -77,7 +86,10 @@ export default function UsersPage() {
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/admin/users/list', {
+            const url = tenantSlug 
+                ? `/api/admin/users/list?gymId=${tenantSlug}` 
+                : '/api/admin/users/list';
+            const response = await fetch(url, {
                 cache: 'no-store',
                 headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
             });

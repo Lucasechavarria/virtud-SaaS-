@@ -27,6 +27,26 @@ export async function GET(request: Request) {
             .eq('id', profile.id)
             .single();
 
+        const { searchParams } = new URL(request.url);
+        const urlGym = searchParams.get('gymId');
+
+        let targetGymId = requester?.gimnasio_id;
+
+        // Si es Superadmin y provee un gymId en la URL, resolvemos su UUID correspondiente
+        if (!targetGymId && requester?.rol === 'superadmin' && urlGym) {
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
+            if (isUUID) {
+                targetGymId = urlGym;
+            } else {
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', urlGym)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
+        }
+
         let query = (adminClient
             .from('perfiles') as any)
             .select(`
@@ -43,10 +63,9 @@ export async function GET(request: Request) {
                 )
             `);
 
-        // Si es Admin o Coach, solo puede ver usuarios de su gimnasio
-        // Si es Superadmin, ve los del gimnasio que tenga seleccionado actualmente
-        if (requester?.gimnasio_id) {
-            query = query.eq('gimnasio_id', requester.gimnasio_id);
+        // Filtrar según el gimnasio objetivo resuelto
+        if (targetGymId) {
+            query = query.eq('gimnasio_id', targetGymId);
         }
 
         const { data: users, error: dbError } = await query

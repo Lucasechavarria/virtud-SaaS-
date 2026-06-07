@@ -51,10 +51,10 @@ Free
 
 ### Módulos Principales:
 1. **Autenticación y Perfiles**
-   - Login con email/password
-   - Login con Google OAuth
+   - Login con email/password y Google OAuth
    - Roles: member, coach, admin, superadmin
-   - Perfiles con datos médicos y de emergencia
+   - Perfiles vinculados a gimnasios específicos (`gimnasio_id`) para aislamiento multitenant.
+   - Acceso remoto seguro (impersonación) para superadmins con registro de justificación técnica.
 
 2. **Gestión de Actividades**
    - Actividades de gimnasio (Funcional, Fuerza, CrossFit)
@@ -90,7 +90,7 @@ Free
 ## Stack Tecnológico
 
 ### Frontend:
-- Next.js 15.3.3 (App Router)
+- Next.js 16.0.10 (App Router, Turbopack)
 - React 18
 - TypeScript
 - Tailwind CSS
@@ -112,14 +112,18 @@ Free
 
 ## Base de Datos
 
-### Tablas (7):
-1. **profiles** - Perfiles de usuarios
-2. **activities** - Actividades disponibles
-3. **classes** - Clases programadas
-4. **bookings** - Reservas de usuarios
-5. **payments** - Pagos y membresías
-6. **routines** - Rutinas personalizadas
-7. **exercises** - Ejercicios de rutinas
+### Tablas Principales:
+1. **perfiles** - Perfiles de usuarios y staff
+2. **actividades** - Actividades físicas y clases
+3. **horarios_de_clase** - Agenda de turnos programados
+4. **reservas_de_clase** - Registro de asistencia y waitlists
+5. **pagos** - Registro transaccional de membresías
+6. **rutinas** - Rutinas de entrenamiento
+7. **ejercicios** - Catálogo y ficha técnica de ejercicios
+8. **gimnasios** - Inquilinos (Tenants) aislados de la red SaaS
+9. **gimnasio_modulos** - Características y licencias habilitadas por tenant
+10. **logs_acceso_remoto** - Auditoría obligatoria de soporte por impersonación
+11. **audit_logs** - Ledger forense de inserciones, ediciones y bajas SQL
 
 ### Views (3):
 - classes_with_availability

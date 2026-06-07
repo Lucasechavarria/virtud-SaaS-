@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 
 /**
@@ -8,13 +9,49 @@ import { logger } from '@/lib/logger';
  */
 export async function GET(request: Request) {
     try {
-        const { supabase, error } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin']);
-        if (error) return error;
+        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin']);
+        if (authError) return authError;
 
-        const { data: coaches, error: dbError } = await supabase!
+        const adminClient = createAdminClient();
+
+        // Obtener el contexto actual del que hace la petición
+        const { data: requester } = await (adminClient
+            .from('perfiles') as any)
+            .select('rol, gimnasio_id')
+            .eq('id', profile.id)
+            .single();
+
+        const { searchParams } = new URL(request.url);
+        const urlGym = searchParams.get('gymId');
+
+        let targetGymId = requester?.gimnasio_id;
+
+        // Si es Superadmin y provee un gymId en la URL, resolvemos su UUID correspondiente
+        if (!targetGymId && requester?.rol === 'superadmin' && urlGym) {
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
+            if (isUUID) {
+                targetGymId = urlGym;
+            } else {
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', urlGym)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
+        }
+
+        let query = adminClient
             .from('perfiles')
             .select('id, nombre_completo, nombre, apellido, correo, rol')
             .in('rol', ['coach', 'admin', 'superadmin']);
+
+        // Filtrar profesores por el gimnasio respectivo si corresponde
+        if (targetGymId) {
+            query = query.eq('gimnasio_id', targetGymId);
+        }
+
+        const { data: coaches, error: dbError } = await query;
 
         if (dbError) {
             logger.error('Error fetching coaches list', { error: dbError.message });

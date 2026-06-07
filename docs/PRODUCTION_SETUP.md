@@ -263,17 +263,20 @@ throw new Error('Test Sentry');
 
 ## ✅ Checklist Final
 
-- [ ] `.env.local` configurado con todas las variables
+- [ ] `.env.local` configurado con todas las variables (Supabase, Firebase client, Resend, Gemini)
 - [ ] JWT_SECRET generado y configurado
 - [ ] Sentry DSN configurado
 - [ ] Google Analytics ID configurado
-- [ ] Firebase Admin credentials descargadas
-- [ ] Migración de Firestore ejecutada
-- [ ] GitHub secrets configurados
+- [ ] Conexión a Supabase (URL y Anon/Service Key) configurada
+- [ ] Base de datos migrada a multi-tenant (ejecutar `multitenant_migration.sql`)
+- [ ] Políticas RLS y funciones helper creadas y verificadas en Supabase
+- [ ] Perfil de Superadmin inicializado (`rol = 'superadmin'`)
+- [ ] Probar flujo de acceso remoto (impersonación) y verificar registro de logs
+- [ ] GitHub secrets configurados para CI/CD
 - [ ] Vercel tokens obtenidos
 - [ ] Testing de Sentry completado
 - [ ] Testing de GA completado
-- [ ] Testing de JWT completado
+- [ ] Testing de JWT y autenticación de roles completado
 
 ---
 
