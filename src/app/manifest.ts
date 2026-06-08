@@ -28,7 +28,9 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
             .eq('es_activo', true);
 
         if (slugCookie) {
-            query = query.eq('slug', slugCookie);
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slugCookie);
+            const queryField = isUUID ? 'id' : 'slug';
+            query = query.eq(queryField, slugCookie);
         } else if (host && !host.includes('localhost') && !host.includes('vercel')) {
             // En producción, intentar resolver por host custom
             query = query.or(`slug.eq.${host.split('.')[0]}`);

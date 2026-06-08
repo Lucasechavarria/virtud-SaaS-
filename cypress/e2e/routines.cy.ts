@@ -60,7 +60,7 @@ describe('Routine Management Flow', () => {
 
     it('should allow a coach to create a new routine using IA generator', () => {
         // Visitar el detalle del alumno en la ruta multi-tenant
-        cy.visit('/tenants/virtud/coach/coach/students/student-1-id');
+        cy.visit('/tenants/virtud/coach/students/student-1-id');
 
         // Esperar a que cargue la información
         cy.wait('@getStudentDetail');

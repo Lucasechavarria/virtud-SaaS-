@@ -143,20 +143,61 @@ async function handleApprovedPayment(
             throw historyError;
         }
 
-        // ACTUALIZAR FECHA DE EXPIRACIÓN Y LIMPIAR LA PRÓRROGA
+        // ACTUALIZAR FECHA DE EXPIRACIÓN, NUEVO PLAN Y LIMPIAR LA PRÓRROGA
+        const planId = payment.metadata?.plan_id;
+        const updatePayload: any = {
+            estado_pago_saas: 'active',
+            fecha_proximo_pago: nextPaymentDate.toISOString(),
+            fecha_limite_prorroga: null, // Limpiamos la prórroga al concretarse el pago
+            es_activo: true
+        };
+
+        if (planId) {
+            updatePayload.plan_id = planId;
+            
+            // Auto-mapear módulos basados en las características del plan
+            try {
+                const { data: planData } = await supabase
+                    .from('planes_suscripcion')
+                    .select('caracteristicas')
+                    .eq('id', planId)
+                    .single();
+                
+                if (planData && Array.isArray(planData.caracteristicas)) {
+                    const modulos: any = {};
+                    planData.caracteristicas.forEach((char: string) => {
+                        const charLower = char.toLowerCase();
+                        if (charLower.includes('rutinas') || charLower.includes('rutinas_ia') || charLower.includes('vision')) {
+                            modulos.rutinas_ia = true;
+                        }
+                        if (charLower.includes('nutricion') || charLower.includes('nutricion_ia')) {
+                            modulos.nutricion_ia = true;
+                        }
+                        if (charLower.includes('gamific') || charLower.includes('gamificacion')) {
+                            modulos.gamificacion = true;
+                        }
+                        if (charLower.includes('pagos') || charLower.includes('pagos_online') || charLower.includes('pos')) {
+                            modulos.pagos_online = true;
+                        }
+                    });
+                    
+                    if (Object.keys(modulos).length > 0) {
+                        updatePayload.modulos_activos = modulos;
+                    }
+                }
+            } catch (err) {
+                console.error('Error auto-mapping modules from plan characteristics:', err);
+            }
+        }
+
         const { error: gymUpdateError } = await supabase
             .from('gimnasios')
-            .update({
-                estado_pago_saas: 'active',
-                fecha_proximo_pago: nextPaymentDate.toISOString(),
-                fecha_limite_prorroga: null, // Limpiamos la prórroga al concretarse el pago
-                es_activo: true
-            })
+            .update(updatePayload)
             .eq('id', gymId);
 
         if (gymUpdateError) throw gymUpdateError;
 
-        console.log(`[SaaS Billing] Gimnasio ${gymId} extendió vencimiento al ${nextPaymentDate.toISOString()}`);
+        console.log(`[SaaS Billing] Gimnasio ${gymId} extendió vencimiento al ${nextPaymentDate.toISOString()}${planId ? ` con nuevo plan ${planId}` : ''}`);
     }
 
     // 5. ACTUALIZACIÓN ATÓMICA DE INGRESOS (UPSERT en un solo paso de red para SaaS Metrics)

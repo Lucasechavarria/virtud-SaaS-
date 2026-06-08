@@ -45,9 +45,16 @@ export function createAdminClient() {
 }
 
 // Función helper para construir proxies encadenables que interceptan la resolución de promesas (then)
-function makeBuilderProxy(builder: any, table: string, isCypressPromise: Promise<boolean>): any {
+function makeBuilderProxy(builder: any, table: string, isCypressPromise: Promise<boolean>, isSingle = false): any {
     return new Proxy(builder, {
         get(target, prop) {
+            if (prop === 'single') {
+                return (...args: any[]) => {
+                    const result = target.single(...args);
+                    return makeBuilderProxy(result, table, isCypressPromise, true);
+                };
+            }
+
             if (prop === 'then') {
                 return (onfulfilled: any, onrejected: any) => {
                     const originalThen = target.then.bind(target);
@@ -56,19 +63,20 @@ function makeBuilderProxy(builder: any, table: string, isCypressPromise: Promise
                         const isCypress = await isCypressPromise;
 
                         if (isCypress) {
-                            console.warn(`[SERVER_ADMIN_AUTH][Cypress SSR Bypass] Mocking database query for table: ${table}`);
+                            console.warn(`[SERVER_ADMIN_AUTH][Cypress SSR Bypass] Mocking database query for table: ${table} (single: ${isSingle})`);
                             if (table === 'perfiles') {
+                                const profileMock = {
+                                    id: 'a0e0a0e0-0000-0000-0000-000000000002',
+                                    nombre_completo: 'Test User',
+                                    correo: 'admin@virtudgym.com',
+                                    rol: 'superadmin',
+                                    gimnasio_id: null,
+                                    onboarding_completado: true,
+                                    exencion_aceptada: true,
+                                    waiver_accepted: true
+                                };
                                 return {
-                                    data: {
-                                        id: 'a0e0a0e0-0000-0000-0000-000000000002',
-                                        nombre_completo: 'Test User',
-                                        correo: 'admin@virtudgym.com',
-                                        rol: 'superadmin',
-                                        gimnasio_id: null,
-                                        onboarding_completado: true,
-                                        exencion_aceptada: true,
-                                        waiver_accepted: true
-                                    },
+                                    data: isSingle ? profileMock : [profileMock],
                                     error: null
                                 } as any;
                             }
@@ -87,7 +95,7 @@ function makeBuilderProxy(builder: any, table: string, isCypressPromise: Promise
             if (typeof value === 'function') {
                 return (...args: any[]) => {
                     const result = value.apply(target, args);
-                    return makeBuilderProxy(result, table, isCypressPromise);
+                    return makeBuilderProxy(result, table, isCypressPromise, isSingle);
                 };
             }
             return value;

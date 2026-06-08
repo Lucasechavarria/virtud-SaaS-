@@ -24,7 +24,7 @@ export async function PUT(
         const { role } = body;
 
         // Validar rol
-        const validRoles = ['member', 'coach', 'admin'];
+        const validRoles = ['member', 'coach', 'admin', 'recepcion'];
         if (!validRoles.includes(role)) {
             return NextResponse.json({
                 error: 'Rol inválido'
@@ -55,7 +55,7 @@ export async function PUT(
 
         // Registrar cambio en historial
         await supabase
-            .from('historial_de_cambios_de_perfil')
+            .from('historial_cambios_perfil')
             .insert({
                 perfil_id: userId,
                 cambiado_por: user.id,

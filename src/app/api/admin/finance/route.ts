@@ -2,15 +2,20 @@ import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 
 export async function GET(request: Request) {
-    const { supabase, error } = await authenticateAndRequireRole(request, ['superadmin']);
+    const { supabase, error, profile } = await authenticateAndRequireRole(request, ['superadmin', 'admin', 'recepcion']);
     if (error) return error;
 
     const { searchParams } = new URL(request.url);
-    const gymId = searchParams.get('gymId');
+    let gymId = searchParams.get('gymId');
     const status = searchParams.get('status');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const limit = parseInt(searchParams.get('limit') || '100');
+
+    // Control de Aislamiento Multi-tenant
+    if (profile?.role !== 'superadmin') {
+        gymId = profile?.gimnasio_id || 'unauthorized';
+    }
 
     try {
         let query = supabase
@@ -31,12 +36,18 @@ export async function GET(request: Request) {
         const { data: payments, error: payError } = await query;
         if (payError) throw payError;
 
-        // También obtener pagos de subscripción (SaaS) si queremos ver todo
-        const { data: saasPayments, error: saasError } = await supabase
+        // También obtener pagos de subscripción (SaaS) si queremos ver todo, filtrando por gimnasio si es admin local
+        let saasQuery = supabase
             .from('saas_pagos_historial')
             .select('*, gimnasio:gimnasio_id(nombre)')
             .order('fecha_pago', { ascending: false })
             .limit(50);
+
+        if (gymId) {
+            saasQuery = saasQuery.eq('gimnasio_id', gymId);
+        }
+
+        const { data: saasPayments, error: saasError } = await saasQuery;
 
         if (saasError) console.error('Error fetching SaaS payments:', saasError);
 

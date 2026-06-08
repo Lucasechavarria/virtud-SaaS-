@@ -1,0 +1,165 @@
+import { NextResponse } from 'next/server';
+import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(request: Request) {
+    try {
+        // Solo administradores o personal de recepción pueden validar el acceso
+        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'recepcion', 'superadmin']);
+        if (authError) return authError;
+
+        const body = await request.json();
+        const { token } = body;
+
+        if (!token) {
+            return NextResponse.json({ error: 'Token requerido' }, { status: 400 });
+        }
+
+        const adminClient = createAdminClient();
+
+        // 1. Buscar el token dinámico y el perfil del alumno correspondiente
+        const { data: qrData, error: qrError } = await adminClient
+            .from('accesos_qr')
+            .select('*, profile:perfiles!alumno_id(*)')
+            .eq('token_dinamico', token)
+            .eq('usado', false)
+            .single();
+
+        if (qrError || !qrData) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'invalid',
+                message: 'QR Inválido o ya utilizado'
+            });
+        }
+
+        // 2. Verificar expiración del token (vigencia de 30 segundos)
+        const expiraEn = new Date(qrData.expira_en);
+        if (expiraEn.getTime() < Date.now()) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'invalid',
+                message: 'Código QR Expirado'
+            });
+        }
+
+        const student = qrData.profile;
+        if (!student) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'invalid',
+                message: 'Socio no encontrado'
+            });
+        }
+
+        // Obtener el plan del socio para mostrar en la interfaz
+        let planName = 'Sin Plan';
+        if (student.plan_id) {
+            const { data: planData } = await adminClient
+                .from('planes_gimnasio')
+                .select('nombre')
+                .eq('id', student.plan_id)
+                .single();
+            if (planData) planName = planData.nombre;
+        }
+
+        const memberInfo = {
+            nombre: student.nombre_completo || `${student.nombre || ''} ${student.apellido || ''}`.trim() || student.correo || 'Socio sin nombre',
+            avatar: student.url_avatar || null,
+            plan: planName
+        };
+
+        // 3. Validación: Membresía Activa
+        if (student.estado_membresia !== 'active') {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'inactive',
+                message: 'Membresía Inactiva',
+                member: memberInfo
+            });
+        }
+
+        // 4. Validación: Apto Médico (PAR-Q) firmado
+        if (!student.parq_firmado) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'medico',
+                message: 'Falta Apto Médico (PAR-Q)',
+                member: memberInfo
+            });
+        }
+
+        // 5. Validación: Deudas
+        // A. Consultar saldo de cuenta corriente
+        const { data: cuenta } = await adminClient
+            .from('cuentas_corrientes')
+            .select('saldo_actual')
+            .eq('alumno_id', student.id)
+            .maybeSingle();
+
+        let totalDeuda = 0;
+        if (cuenta && cuenta.saldo_actual < 0) {
+            totalDeuda += Math.abs(cuenta.saldo_actual);
+        }
+
+        // B. Consultar facturas/pagos pendientes
+        const { data: pagosPendientes } = await adminClient
+            .from('pagos')
+            .select('monto')
+            .eq('usuario_id', student.id)
+            .eq('estado', 'pendiente');
+
+        if (pagosPendientes && pagosPendientes.length > 0) {
+            const sumPendientes = pagosPendientes.reduce((acc, p) => acc + Number(p.monto), 0);
+            totalDeuda += sumPendientes;
+        }
+
+        if (totalDeuda > 0) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'deuda',
+                message: 'Posee Saldo Adeudado',
+                deuda: totalDeuda,
+                member: memberInfo
+            });
+        }
+
+        // 6. Autorización Exitosa
+        // A. Quemar el token
+        await adminClient
+            .from('accesos_qr')
+            .update({ usado: true })
+            .eq('id', qrData.id);
+
+        // B. Registrar asistencia en la base de datos
+        await adminClient
+            .from('asistencias')
+            .insert({
+                usuario_id: student.id,
+                gimnasio_id: qrData.gimnasio_id,
+                rol_asistencia: 'member',
+                entrada: new Date().toISOString(),
+                source: 'qr'
+            });
+
+        // C. Obtener racha actual para felicitar al alumno
+        const { data: gamificacion } = await adminClient
+            .from('gamificacion_del_usuario')
+            .select('racha_actual')
+            .eq('usuario_id', student.id)
+            .maybeSingle();
+
+        return NextResponse.json({
+            status: 'allowed',
+            message: 'Acceso Autorizado',
+            racha: gamificacion?.racha_actual || 0,
+            member: memberInfo
+        });
+
+    } catch (error: any) {
+        console.error('❌ Check-in validation error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}

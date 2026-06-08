@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 
 // Mock DB Returns
 const MOCK_SCANS: Record<string, any> = {
@@ -38,6 +39,12 @@ const MOCK_SCANS: Record<string, any> = {
 };
 
 export default function QRAccessPage() {
+    const params = useParams();
+    const tenantSlug = params?.tenantSlug as string;
+    const getTenantLink = (href: string) => {
+        return tenantSlug ? `/${tenantSlug}${href}` : href;
+    };
+
     const [scanData, setScanData] = useState('');
     const [lastScanResult, setLastScanResult] = useState<any>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -76,18 +83,28 @@ export default function QRAccessPage() {
         return () => clearTimeout(timeout);
     }, [lastScanResult]);
 
-    const handleScan = (e: React.FormEvent) => {
+    const handleScan = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!scanData.trim()) return;
+        const tokenVal = scanData.trim();
+        if (!tokenVal) return;
 
-        // Simulate API verification
-        const result = MOCK_SCANS[scanData.trim()] || null;
+        try {
+            const res = await fetch('/api/access/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: tokenVal })
+            });
 
-        if (result) {
-            setLastScanResult(result);
-            setFlashColor(result.status === 'allowed' ? 'success' : 'error');
-        } else {
-            setLastScanResult({ status: 'denied', reason: 'unknown', message: 'QR Inválido o Expirado' });
+            if (!res.ok) {
+                setLastScanResult({ status: 'denied', reason: 'unknown', message: 'Error al conectar con el servidor' });
+                setFlashColor('error');
+            } else {
+                const result = await res.json();
+                setLastScanResult(result);
+                setFlashColor(result.status === 'allowed' ? 'success' : 'error');
+            }
+        } catch (_err) {
+            setLastScanResult({ status: 'denied', reason: 'unknown', message: 'Error de red' });
             setFlashColor('error');
         }
 
@@ -244,30 +261,30 @@ export default function QRAccessPage() {
                                 </div>
                             )}
 
-                            {/* Acciones para Denegado */}
-                            {lastScanResult.reason === 'deuda' && (
-                                <Link href="/admin/recepcion/pos">
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        className="w-full bg-white text-black hover:bg-gray-200 font-black italic uppercase tracking-widest py-5 rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-xl shadow-white/10"
-                                    >
-                                        Ir al Cajas (POS) para Cobrar <ArrowRight />
-                                    </motion.button>
-                                </Link>
-                            )}
-
-                            {lastScanResult.reason === 'medico' && (
-                                <Link href="/admin/users">
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        className="w-full bg-white text-black hover:bg-gray-200 font-black italic uppercase tracking-widest py-5 rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-xl shadow-white/10"
-                                    >
-                                        Actualizar Perfil (Firma PAR-Q) <ArrowRight />
-                                    </motion.button>
-                                </Link>
-                            )}
+                             {/* Acciones para Denegado */}
+                             {lastScanResult.reason === 'deuda' && (
+                                 <Link href={getTenantLink('/admin/recepcion/pos')}>
+                                     <motion.button
+                                         whileHover={{ scale: 1.02 }}
+                                         whileTap={{ scale: 0.98 }}
+                                         className="w-full bg-white text-black hover:bg-gray-200 font-black italic uppercase tracking-widest py-5 rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-xl shadow-white/10"
+                                     >
+                                         Ir al Cajas (POS) para Cobrar <ArrowRight />
+                                     </motion.button>
+                                 </Link>
+                             )}
+ 
+                             {lastScanResult.reason === 'medico' && (
+                                 <Link href={getTenantLink('/admin/users')}>
+                                     <motion.button
+                                         whileHover={{ scale: 1.02 }}
+                                         whileTap={{ scale: 0.98 }}
+                                         className="w-full bg-white text-black hover:bg-gray-200 font-black italic uppercase tracking-widest py-5 rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-xl shadow-white/10"
+                                     >
+                                         Actualizar Perfil (Firma PAR-Q) <ArrowRight />
+                                     </motion.button>
+                                 </Link>
+                             )}
                         </motion.div>
                     )}
 

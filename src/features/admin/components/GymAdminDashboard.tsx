@@ -17,7 +17,7 @@ import {
     Building2,
     ShieldAlert
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 interface GymStats {
@@ -45,6 +45,18 @@ export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: s
     const [stats, setStats] = useState<GymStats | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
+    const pathname = usePathname();
+
+    const segments = pathname.split('/').filter(Boolean);
+    const isTenantsPath = segments[0] === 'tenants';
+    const pathGymId = isTenantsPath ? segments[1] : (segments[0] !== 'admin' && segments[0] !== 'saas-admin' ? segments[0] : null);
+
+    const getTenantLink = (href: string) => {
+        if (!pathGymId || pathGymId === 'admin' || pathGymId === 'saas-admin') {
+            return href;
+        }
+        return `/${pathGymId}${href}`;
+    };
 
     useEffect(() => {
         const fetchGymData = async () => {
@@ -75,9 +87,9 @@ export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: s
     }
 
     const cards = [
-        { title: 'Socios Activos', value: stats?.activeMembers || 0, icon: <Users />, color: 'text-green-500', bg: 'bg-green-500/10', border: 'hover:border-green-500/50', href: '/admin/users' },
+        { title: 'Socios Activos', value: stats?.activeMembers || 0, icon: <Users />, color: 'text-green-500', bg: 'bg-green-500/10', border: 'hover:border-green-500/50', href: '/admin/users?role=member&membership=active' },
         { title: 'Usuarios Totales', value: stats?.totalUsers || 0, icon: <Building2 />, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'hover:border-blue-500/50', href: '/admin/users' },
-        { title: 'Clases Hoy', value: stats?.classesToday || 0, icon: <Calendar />, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'hover:border-amber-500/50', href: '/admin/classes' },
+        { title: 'Clases Hoy', value: stats?.classesToday || 0, icon: <Calendar />, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'hover:border-amber-500/50', href: '/admin/schedule' },
         { title: 'Recaudación Mes', value: `$${stats?.revenue.toLocaleString('es-AR')}`, icon: <TrendingUp />, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'hover:border-purple-500/50', href: '/admin/finance' },
     ];
 
@@ -113,7 +125,7 @@ export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: s
                             </div>
                         </div>
                         <button
-                            onClick={() => router.push(`/${gymId}/admin`)}
+                            onClick={() => router.push(getTenantLink('/admin'))}
                             className="w-full sm:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.6)] transform hover:-translate-y-0.5 active:translate-y-0"
                         >
                             Salir del Acceso Remoto
@@ -141,7 +153,7 @@ export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: s
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.1 }}
-                        onClick={() => router.push(card.href)}
+                        onClick={() => router.push(getTenantLink(card.href))}
                         className={`bg-[#1c1c1e] p-6 rounded-[2rem] border border-white/5 group ${card.border} transition-all cursor-pointer relative overflow-hidden`}
                     >
                         <div className="absolute top-4 right-6 text-white/0 group-hover:text-white/20 transition-all transform translate-x-4 group-hover:translate-x-0">
@@ -168,7 +180,7 @@ export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: s
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {quickActions.map((action, i) => (
-                        <Link key={i} href={action.href} className="group relative h-24 overflow-hidden rounded-2xl">
+                        <Link key={i} href={getTenantLink(action.href)} className="group relative h-24 overflow-hidden rounded-2xl">
                             <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
                             <div className="relative h-full flex flex-col items-center justify-center gap-2 border border-white/5 group-hover:border-white/20 transition-all rounded-2xl">
                                 <div className="p-2 bg-white/5 rounded-xl text-white group-hover:scale-110 transition-transform">
@@ -188,7 +200,7 @@ export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: s
                 <div className="lg:col-span-2 bg-[#1c1c1e] border border-white/5 rounded-[2.5rem] p-8">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-black text-white italic uppercase tracking-tight">Últimos Movimientos</h3>
-                        <Link href="/admin/auditoria" className="text-[10px] font-black text-gray-500 uppercase tracking-widest hover:text-white">Ver Todo</Link>
+                        <Link href={getTenantLink('/admin/security-dashboard')} className="text-[10px] font-black text-gray-500 uppercase tracking-widest hover:text-white">Ver Todo</Link>
                     </div>
                     <div className="space-y-4">
                         {stats?.recentActivity.map((act, i) => (
@@ -215,7 +227,7 @@ export default function GymAdminDashboard({ gymId, isImpersonating }: { gymId: s
                     </h3>
                     <div className="space-y-3">
                         {stats?.membershipExpiring.map((m, i) => (
-                            <div key={i} className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl flex items-center justify-between group hover:bg-red-500/10 transition-all cursor-pointer" onClick={() => router.push(`/admin/users?search=${m.nombre_completo}`)}>
+                            <div key={i} className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl flex items-center justify-between group hover:bg-red-500/10 transition-all cursor-pointer" onClick={() => router.push(getTenantLink(`/admin/users?search=${m.nombre_completo}`))}>
                                 <div>
                                     <p className="text-xs text-white font-bold">{m.nombre_completo}</p>
                                     <p className="text-[8px] font-black text-red-400 uppercase tracking-widest mt-0.5">Vence: {new Date(m.fecha_fin_membresia).toLocaleDateString('es-AR')}</p>

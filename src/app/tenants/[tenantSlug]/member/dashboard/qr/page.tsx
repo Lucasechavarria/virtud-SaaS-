@@ -6,7 +6,13 @@ import { QrCode, RotateCcw, ShieldCheck, Clock, User } from 'lucide-react';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
-export default function StudentQRPage({ _params }: { _params: { gymId: string } }) {
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+
+export default function StudentQRPage() {
+    const params = useParams();
+    const tenantSlug = params.tenantSlug as string;
+
     const [timeLeft, setTimeLeft] = useState(30);
     const [qrValue, setQrValue] = useState('generando...');
     const [loading, setLoading] = useState(true);
@@ -21,7 +27,7 @@ export default function StudentQRPage({ _params }: { _params: { gymId: string } 
             if (user) {
                 const { data } = await supabase
                     .from('perfiles')
-                    .select('nombre_completo, url_avatar, estado_membresia')
+                    .select('nombre_completo, url_avatar, estado_membresia, parq_firmado')
                     .eq('id', user.id)
                     .single();
                 setProfile(data);
@@ -35,10 +41,21 @@ export default function StudentQRPage({ _params }: { _params: { gymId: string } 
     useEffect(() => {
         if (loading) return;
 
-        // Función para rotar el QR cada 30 segundos
-        const rotateQR = () => {
-            const tempToken = `VIRTUD-${Date.now().toString(36)}-${Math.random().toString(36).substring(7)}`;
-            setQrValue(tempToken);
+        // Función para rotar el QR cargando el token real de la base de datos
+        const rotateQR = async () => {
+            try {
+                const res = await fetch('/api/student/membership/qr-token', {
+                    method: 'POST'
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setQrValue(data.token);
+                } else {
+                    setQrValue('ERROR');
+                }
+            } catch (_err) {
+                setQrValue('ERROR');
+            }
             setTimeLeft(30);
         };
 
@@ -68,7 +85,7 @@ export default function StudentQRPage({ _params }: { _params: { gymId: string } 
         );
     }
 
-    const isActive = profile?.estado_membresia !== 'inactive';
+    const isActive = profile?.estado_membresia === 'active' && profile?.parq_firmado === true;
 
     return (
         <div className="max-w-md mx-auto py-8">
@@ -94,7 +111,7 @@ export default function StudentQRPage({ _params }: { _params: { gymId: string } 
                         <div>
                             <h2 className="text-xl font-black text-white">{profile?.nombre_completo || 'Usuario VIRTUD'}</h2>
                             <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full mt-1 ${isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                {isActive ? 'Membresía Activa' : 'Membresía Inactiva'}
+                                {isActive ? 'Acceso Permitido' : 'Acceso Denegado'}
                             </span>
                         </div>
                     </div>
@@ -115,15 +132,23 @@ export default function StudentQRPage({ _params }: { _params: { gymId: string } 
 
                             {/* Watermark Logo */}
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                                <span className="font-black italic text-2xl rotate-45 text-black">VIRTUD</span>
+                                <span className="font-black italic text-2xl rotate-45 text-black">{qrValue}</span>
                             </div>
                         </div>
 
                         {!isActive && (
-                            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center rounded-[2rem] text-white p-6 text-center">
+                            <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center rounded-[2rem] text-white p-6 text-center">
                                 <ShieldCheck size={48} className="text-red-500 mb-4" />
                                 <h3 className="text-xl font-black italic uppercase tracking-tighter mb-2">Acceso Denegado</h3>
-                                <p className="text-sm font-bold text-gray-400">Debes regularizar tu membresía o firmar el deslinde médico para acceder al QR.</p>
+                                <p className="text-xs font-bold text-gray-400 mb-6">Debes regularizar tu membresía o firmar el deslinde médico para acceder al QR.</p>
+                                
+                                {profile?.estado_membresia === 'active' && !profile?.parq_firmado && (
+                                    <Link href={`/tenants/${tenantSlug}/member/dashboard/profile/parq`}>
+                                        <button className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] py-3 px-6 rounded-xl transition-all">
+                                            Firmar Apto Médico (PAR-Q)
+                                        </button>
+                                    </Link>
+                                )}
                             </div>
                         )}
                     </div>

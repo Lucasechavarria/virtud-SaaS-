@@ -43,7 +43,7 @@ export async function GET() {
         perfiles (
           id,
           nombre_completo,
-          email,
+          email:correo,
           rol
         )
       `)

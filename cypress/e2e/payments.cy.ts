@@ -9,19 +9,19 @@ describe('Admin Payments & SaaS Billing Flow (MercadoPago Hub)', () => {
 
     it('should navigate to MercadoPago Hub and display correct branding', () => {
         cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
-        cy.contains('h1', /MercadoPago/i).should('be.visible');
-        cy.contains('h1', /Hub/i).should('be.visible');
-        cy.contains('p', /Control Financiero y Facturación SaaS/i).should('be.visible');
+        cy.contains('h1', /Caja y Finanzas/i).should('be.visible');
+        cy.contains('h1 span', /Finanzas/i).should('be.visible');
+        cy.contains('p', /Control de ingresos de alumnos y cobros del sistema/i).should('be.visible');
     });
 
     it('should display correct revenue statistics cards based on mock ledger', () => {
         cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
         
         // Validar tarjetas de estadísticas rápidas
-        cy.contains('h3', 'Recaudación Red').should('be.visible');
-        cy.contains('p', '$5,000').should('be.visible'); // Suma de pagos aprobados en mock ($5,000)
+        cy.contains('h3', 'Ingresos por Alumnos').should('be.visible');
+        cy.contains('p', '$5.000').should('be.visible'); // Suma de pagos aprobados en mock ($5.000)
         
-        cy.contains('h3', 'Total Transacciones').should('be.visible');
+        cy.contains('h3', 'Transacciones').should('be.visible');
         cy.contains('p', '2').should('be.visible'); // 2 transacciones en el mock global
     });
 
@@ -40,21 +40,21 @@ describe('Admin Payments & SaaS Billing Flow (MercadoPago Hub)', () => {
         cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
         cy.wait(1000); // Esperar a la hidratación y estabilización de los componentes de React
 
-        // Hacer clic en la pestaña "Mi Suscripción SaaS"
-        cy.contains('button', 'Mi Suscripción SaaS')
+        // Hacer clic en la pestaña "Costo del Sistema e IA"
+        cy.contains('button', 'Costo del Sistema e IA')
             .should('be.visible')
             .click({ force: true });
 
         // Validar que se muestre el portal de consumo y el AI Wallet
-        cy.contains('h3', 'Portal Transparente de Consumo SaaS').should('be.visible');
-        cy.contains('h4', 'Monedero Virtual de IA (AI Wallet)').should('be.visible');
+        cy.contains('h3', 'Costo Mensual y Uso del Sistema').should('be.visible');
+        cy.contains('h4', 'Monedero de Inteligencia Artificial').should('be.visible');
         
         // Validar saldo del AI Wallet del mock ($50.00 USD)
         cy.contains('$50.00 USD').should('be.visible');
         
         // Validar la previsualización detallada de la factura mensual
-        cy.contains('Previsualización de Facturación Mensual Detallada').should('be.visible');
-        cy.contains('Total Estimado Próxima Factura:').should('be.visible');
+        cy.contains('Detalle del próximo pago estimado').should('be.visible');
+        cy.contains('Monto final estimado a pagar:').should('be.visible');
         cy.contains('$174.00 USD').should('be.visible'); // Total Amount del mock global
     });
 });

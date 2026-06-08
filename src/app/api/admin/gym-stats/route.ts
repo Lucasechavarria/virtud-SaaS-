@@ -28,7 +28,7 @@ export async function GET(request: Request) {
         ] = await Promise.all([
             adminClient.from('perfiles').select('*', { count: 'exact', head: true }).eq('gimnasio_id', gymId).eq('estado_membresia', 'active'),
             adminClient.from('perfiles').select('*', { count: 'exact', head: true }).eq('gimnasio_id', gymId).not('rol', 'in', '("admin","superadmin")'),
-            adminClient.from('horarios_de_clase').select('*', { count: 'exact', head: true }).eq('esta_activa', true).eq('dia_de_la_semana', new Date().getDay()),
+            adminClient.from('horarios_de_clase').select('*', { count: 'exact', head: true }).eq('esta_activa', true).eq('gimnasio_id', gymId).eq('dia_de_la_semana', new Date().getDay()),
             adminClient.from('perfiles').select('nombre_completo, creado_en').eq('gimnasio_id', gymId).order('creado_en', { ascending: false }).limit(5),
             adminClient.from('perfiles')
                 .select('nombre_completo, fecha_fin_membresia')

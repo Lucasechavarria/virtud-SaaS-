@@ -22,17 +22,22 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
         { href: '/admin/crm', label: 'CRM Ventas', icon: '🎯', module: 'Crm' },
         { href: '/admin/shop', label: 'Tienda POS', icon: '🛒', module: 'Pos' },
         { href: '/admin/users', label: 'Usuarios', icon: '👥' },
+        { href: '/admin/plans', label: 'Planes de Membresía', icon: '💎' },
         { href: '/admin/challenges', label: 'Desafíos', icon: '⚔️', module: 'gamificacion' },
         { href: '/admin/activities', label: 'Actividades', icon: '🏅', module: 'Clases' },
+        { href: '/admin/schedule', label: 'Cronograma', icon: '🗓️', module: 'Clases' },
         { href: '/admin/equipment', label: 'Equipamiento', icon: '🔧' },
         { href: '/coach/routines', label: 'Rutinas', icon: '💪', module: 'rutinas_ia' },
         { href: '/admin/nutrition', label: 'Nutrición', icon: '🥗', module: 'Nutricion' },
         { href: '/coach/vision', label: 'Vision Lab', icon: '🎥', module: 'vision_ia' },
         { href: '/admin/finance', label: 'Finanzas', icon: '💰', module: 'Finanzas' },
+        { href: '/admin/reports', label: 'Reportes y Analytics', icon: '📈' },
         { href: '/admin/settings/payments', label: 'Configuración Cobros', icon: '💳' },
         { href: '/admin/settings/branding', label: 'Personalización', icon: '🎨' },
         { href: '/admin/settings/landing', label: 'Marketing', icon: '🚀' },
-        { href: '/admin/settings/support', label: 'Soporte Técnico', icon: '🎧' },
+        { href: '/admin/support', label: 'Soporte SaaS', icon: '🎧' },
+        { href: '/admin/settings/support', label: 'Mensajería Interna', icon: '💬' },
+        { href: '/admin/security-dashboard', label: 'Seguridad y Accesos', icon: '🔒' },
         { href: '/admin/settings', label: 'Configuración', icon: '⚙️' },
     ],
     superadmin: [
@@ -102,6 +107,7 @@ export function UniversalSidebar({
     const [loggingOut, setLoggingOut] = useState(false);
     const [gymInfo, setGymInfo] = useState<{ nombre?: string, logo_url?: string, modulos_activos?: any }>({});
     const [isSubdomainMode, setIsSubdomainMode] = useState(false);
+    const [userPermisos, setUserPermisos] = useState<any>({});
 
     // 1. Resolver metadatos del gimnasio localmente desde la sesión (Claims JWT)
     useEffect(() => {
@@ -128,6 +134,13 @@ export function UniversalSidebar({
                     nombre: user.user_metadata?.gimnasio_nombre || user.app_metadata?.gimnasio_nombre || 'Gimnasio',
                     logo_url: user.user_metadata?.gimnasio_logo_url || user.app_metadata?.gimnasio_logo_url || undefined,
                     modulos_activos: Array.isArray(activeModules) ? activeModules : Object.keys(activeModules)
+                });
+
+                // Cargar permisos desde perfiles
+                (supabase.from('perfiles') as any).select('permisos').eq('id', user.id).single().then(({ data }: any) => {
+                    if (data) {
+                        setUserPermisos(data.permisos || {});
+                    }
                 });
 
                 // Fallback reactivo: Si faltan datos visuales (logo/nombre) en el token, consultar DB en background
@@ -213,7 +226,28 @@ export function UniversalSidebar({
         else if (pathname.includes('/admin')) viewRole = 'admin';
     }
 
-    const navItemsRaw = (NAV_BY_ROLE[viewRole] || NAV_BY_ROLE.member).filter(item => {
+    let baseNavItems = NAV_BY_ROLE[viewRole] || NAV_BY_ROLE.member;
+    if (viewRole === 'recepcion') {
+        const recepcionItems: NavItem[] = [
+            { href: '/admin/recepcion/pos', label: 'Caja POS', icon: '🛒' },
+            { href: '/admin/recepcion/acceso', label: 'Control Accesos', icon: '📷' },
+        ];
+        if (userPermisos?.acceso_usuarios) {
+            recepcionItems.push({ href: '/admin/users', label: 'Usuarios', icon: '👥' });
+        }
+        if (userPermisos?.acceso_planes) {
+            recepcionItems.push({ href: '/admin/plans', label: 'Planes de Membresía', icon: '💎' });
+        }
+        if (userPermisos?.acceso_finanzas) {
+            recepcionItems.push({ href: '/admin/finance', label: 'Finanzas', icon: '💰', module: 'Finanzas' });
+        }
+        if (userPermisos?.acceso_settings) {
+            recepcionItems.push({ href: '/admin/settings', label: 'Configuración', icon: '⚙️' });
+        }
+        baseNavItems = recepcionItems;
+    }
+
+    const navItemsRaw = baseNavItems.filter(item => {
         if (!item.module) return true;
         // Always show all modules to superadmin
         if (role === 'superadmin') return true;
@@ -239,11 +273,12 @@ export function UniversalSidebar({
             return { ...item, href: finalHref };
         }
 
-        // Fallback para URL heredadas basadas en path (ej: localhost:3000/olimpia/member/dashboard)
-        const gymIdMatch = pathname.match(/^\/([^/]+)/);
-        const gymId = gymIdMatch ? gymIdMatch[1] : null;
+        // Fallback para URL heredadas basadas en path (ej: localhost:3000/olimpia/member/dashboard o /tenants/olimpia/admin)
+        const segments = pathname.split('/').filter(Boolean);
+        const isTenantsPath = segments[0] === 'tenants';
+        const gymId = isTenantsPath ? segments[1] : (segments[0] !== 'admin' && segments[0] !== 'saas-admin' ? segments[0] : null);
 
-        if (gymId && gymId !== 'admin') {
+        if (gymId && gymId !== 'admin' && gymId !== 'saas-admin') {
             return { ...item, href: `/${gymId}${finalHref}` };
         }
         return { ...item, href: finalHref };

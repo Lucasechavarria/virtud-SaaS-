@@ -15,7 +15,7 @@ export const revalidate = 0;
  */
 export async function GET(request: Request) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin']);
+        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
         const adminClient = createAdminClient();
@@ -23,9 +23,17 @@ export async function GET(request: Request) {
         // Obtener el contexto actual del que hace la petición
         const { data: requester } = await (adminClient
             .from('perfiles') as any)
-            .select('rol, gimnasio_id')
+            .select('rol, gimnasio_id, permisos')
             .eq('id', profile.id)
             .single();
+
+        // Si es recepcionista, verificar si tiene el permiso concedido por el admin
+        if (requester?.rol === 'recepcion') {
+            const permisos = requester.permisos || {};
+            if (permisos.acceso_usuarios !== true) {
+                return NextResponse.json({ error: 'Forbidden: Requiere permiso de acceso a usuarios' }, { status: 403 });
+            }
+        }
 
         const { searchParams } = new URL(request.url);
         const urlGym = searchParams.get('gymId');

@@ -21,8 +21,9 @@ export function UniversalLayoutWrapper({
 
     const pathname = usePathname();
     const router = useRouter();
-    const gymIdMatch = pathname.match(/^\/([^/]+)/);
-    const gymId = gymIdMatch ? gymIdMatch[1] : null;
+    const segments = pathname.split('/').filter(Boolean);
+    const isTenantsPath = segments[0] === 'tenants';
+    const gymId = isTenantsPath ? segments[1] : (segments[0] !== 'admin' && segments[0] !== 'saas-admin' ? segments[0] : null);
 
     React.useEffect(() => {
         const checkMobile = () => {
