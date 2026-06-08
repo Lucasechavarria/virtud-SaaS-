@@ -10,7 +10,7 @@ describe('Admin Payments & SaaS Billing Flow (MercadoPago Hub)', () => {
     it('should navigate to MercadoPago Hub and display correct branding', () => {
         cy.visit('/tenants/virtud/admin/finance', { failOnStatusCode: false });
         cy.contains('h1', /Caja y Finanzas/i).should('be.visible');
-        cy.contains('span', /Finanzas/i).should('be.visible');
+        cy.contains('h1 span', /Finanzas/i).should('be.visible');
         cy.contains('p', /Control de ingresos de alumnos y cobros del sistema/i).should('be.visible');
     });
 
