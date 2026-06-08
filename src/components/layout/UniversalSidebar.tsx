@@ -108,6 +108,7 @@ export function UniversalSidebar({
     const [gymInfo, setGymInfo] = useState<{ nombre?: string, logo_url?: string, modulos_activos?: any }>({});
     const [isSubdomainMode, setIsSubdomainMode] = useState(false);
     const [userPermisos, setUserPermisos] = useState<any>({});
+    const [userGymPrefix, setUserGymPrefix] = useState<string | null>(null);
 
     // 1. Resolver metadatos del gimnasio localmente desde la sesión (Claims JWT)
     useEffect(() => {
@@ -130,6 +131,11 @@ export function UniversalSidebar({
                 const gymSlug = user.app_metadata?.gimnasio_slug;
                 const gymId = user.app_metadata?.gimnasio_id;
 
+                const initialSlug = gymSlug || user.user_metadata?.gimnasio_slug;
+                if (initialSlug) {
+                    setUserGymPrefix(initialSlug);
+                }
+
                 setGymInfo({
                     nombre: user.user_metadata?.gimnasio_nombre || user.app_metadata?.gimnasio_nombre || 'Gimnasio',
                     logo_url: user.user_metadata?.gimnasio_logo_url || user.app_metadata?.gimnasio_logo_url || undefined,
@@ -137,9 +143,13 @@ export function UniversalSidebar({
                 });
 
                 // Cargar permisos desde perfiles
-                (supabase.from('perfiles') as any).select('permisos').eq('id', user.id).single().then(({ data }: any) => {
+                (supabase.from('perfiles') as any).select('permisos, gimnasio_id, gimnasios(slug)').eq('id', user.id).single().then(({ data }: any) => {
                     if (data) {
                         setUserPermisos(data.permisos || {});
+                        const dbSlug = data.gimnasios?.slug || data.gimnasio_id;
+                        if (dbSlug) {
+                            setUserGymPrefix(dbSlug);
+                        }
                     }
                 });
 
@@ -276,10 +286,12 @@ export function UniversalSidebar({
         // Fallback para URL heredadas basadas en path (ej: localhost:3000/olimpia/member/dashboard o /tenants/olimpia/admin)
         const segments = pathname.split('/').filter(Boolean);
         const isTenantsPath = segments[0] === 'tenants';
-        const gymId = isTenantsPath ? segments[1] : (segments[0] !== 'admin' && segments[0] !== 'saas-admin' ? segments[0] : null);
+        const urlGymId = isTenantsPath ? segments[1] : (segments[0] !== 'admin' && segments[0] !== 'saas-admin' && segments[0] !== 'member' && segments[0] !== 'coach' ? segments[0] : null);
 
-        if (gymId && gymId !== 'admin' && gymId !== 'saas-admin') {
-            return { ...item, href: `/${gymId}${finalHref}` };
+        const activeGym = urlGymId || userGymPrefix;
+
+        if (activeGym && activeGym !== 'admin' && activeGym !== 'saas-admin') {
+            return { ...item, href: `/${activeGym}${finalHref}` };
         }
         return { ...item, href: finalHref };
     });

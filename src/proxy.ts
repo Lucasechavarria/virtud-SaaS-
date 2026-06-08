@@ -109,7 +109,7 @@ export async function middleware(request: NextRequest) {
         // 6. Redirección o Reescritura para URLs heredadas basadas en path
         const pathSegments = pathname.split('/').filter(Boolean);
         const legacyTenant = pathSegments[0];
-        const ignoredPaths = ['saas-admin', 'api', 'auth', 'g', 'inscripcion', 'tenants', 'dashboard', 'saas', 'debug'];
+        const ignoredPaths = ['saas-admin', 'api', 'auth', 'g', 'inscripcion', 'tenants', 'dashboard', 'saas', 'debug', 'admin', 'coach', 'member'];
 
         if (legacyTenant && !ignoredPaths.includes(legacyTenant) && !tenantSlug && !isSystemPath) {
             const remainingPath = '/' + pathSegments.slice(1).join('/');
