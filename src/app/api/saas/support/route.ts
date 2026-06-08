@@ -74,6 +74,7 @@ export async function POST(request: Request) {
                 gimnasio_id: profile.gimnasio_id,
                 usuario_id: profile.id,
                 asunto,
+                descripcion: mensaje,
                 prioridad: prioridad || 'media',
                 categoria: categoria || 'tecnico'
             })

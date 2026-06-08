@@ -36,14 +36,19 @@ export default async function AdminDashboard({
         if (isImpersonating) {
             let gymId = '';
             if (tenantSlug) {
-                // Resolver el UUID del gimnasio mediante el slug
-                const { data: gym } = await supabase
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', tenantSlug)
-                    .single();
-                if (gym) {
-                    gymId = gym.id;
+                const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantSlug);
+                if (isUUID) {
+                    gymId = tenantSlug;
+                } else {
+                    // Resolver el UUID del gimnasio mediante el slug
+                    const { data: gym } = await supabase
+                        .from('gimnasios')
+                        .select('id')
+                        .eq('slug', tenantSlug)
+                        .single();
+                    if (gym) {
+                        gymId = gym.id;
+                    }
                 }
             }
             return <GymAdminDashboard gymId={gymId} isImpersonating={true} />;

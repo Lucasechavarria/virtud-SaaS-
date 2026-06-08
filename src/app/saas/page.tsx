@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Zap,
@@ -16,8 +16,74 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
+
+const mapFeatureToSpanish = (feat: string): string => {
+    const map: Record<string, string> = {
+        'rutinas_ia': 'Rutinas de Entrenamiento con IA',
+        'asistencias_qr': 'Control de Asistencias por QR',
+        'gamificacion': 'Módulo de Gamificación',
+        'nutricion_ia': 'Planificación de Nutrición con IA',
+        'pagos_online': 'Cobros Online / Pasarela de Pagos',
+        'api_access': 'Acceso Completo a la API',
+        'reportes_avanzados': 'Módulo de Reportes Avanzados',
+        'personal_trainer_ia': 'Personal Trainer de IA Integrado'
+    };
+    return map[feat.toLowerCase()] || feat;
+};
 
 export default function SaasCommercialLanding() {
+    const [dbPlans, setDbPlans] = useState<any[]>([]);
+    const [userGymSlug, setUserGymSlug] = useState<string | null>(null);
+    const router = useRouter();
+
+    useEffect(() => {
+        const fetchPlans = async () => {
+            try {
+                const res = await fetch('/api/public/saas-plans');
+                const data = await res.json();
+                if (res.ok && data.success && data.plans && data.plans.length > 0) {
+                    setDbPlans(data.plans);
+                }
+            } catch (err) {
+                console.error('Error fetching SaaS plans:', err);
+            }
+        };
+
+        const checkUserSession = async () => {
+            try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: profile } = await supabase
+                        .from('perfiles')
+                        .select('gimnasios(slug, id)')
+                        .eq('id', user.id)
+                        .single();
+                    
+                    const gym = profile?.gimnasios as any;
+                    const slug = gym?.slug || gym?.id;
+                    if (slug) {
+                        setUserGymSlug(slug);
+                    }
+                }
+            } catch (err) {
+                console.error('Error checking user session in landing:', err);
+            }
+        };
+
+        fetchPlans();
+        checkUserSession();
+    }, []);
+
+    const handleChoosePlan = (planId: string) => {
+        if (userGymSlug) {
+            router.push(`/${userGymSlug}/admin/finance?upgradePlanId=${planId}`);
+        } else {
+            router.push(`/login?redirect=saas&planId=${planId}`);
+        }
+    };
     return (
         <div className="min-h-screen bg-black text-white selection:bg-red-600 selection:text-white">
             {/* Nav */}
@@ -101,6 +167,7 @@ export default function SaasCommercialLanding() {
                             width={1200}
                             height={800}
                             className="w-full h-auto rounded-[2rem] opacity-80 group-hover:scale-[1.01] transition-all duration-700"
+                            unoptimized
                         />
                     </div>
                 </motion.div>
@@ -156,22 +223,52 @@ export default function SaasCommercialLanding() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                    <SaaSPricingCard
-                        name="Básico"
-                        price="99"
-                        features={["1 Sede", "Hasta 50 Alumnos", "Estandar Branding", "Soporte vía Ticket"]}
-                    />
-                    <SaaSPricingCard
-                        name="Pro"
-                        price="199"
-                        featured
-                        features={["Hasta 3 Sedes", "Hasta 500 Alumnos", "White Label Completo", "IA Vision Lab", "Gestión de Finanzas"]}
-                    />
-                    <SaaSPricingCard
-                        name="Elite"
-                        price="399"
-                        features={["Sedes Ilimitadas", "Alumnos Ilimitados", "API Access", "Consultoría Mensual", "Account Manager Dedicado"]}
-                    />
+                    {dbPlans.length > 0 ? (
+                        dbPlans.map((p, idx) => {
+                            const cleanFeatures = Array.isArray(p.caracteristicas)
+                                ? p.caracteristicas.map(mapFeatureToSpanish)
+                                : [];
+                            
+                            const finalFeatures = [
+                                `${p.limite_sucursales === 9999 || p.limite_sucursales === 0 ? 'Sedes ilimitadas' : `Hasta ${p.limite_sucursales} sedes`}`,
+                                `${p.limite_usuarios === 9999 || p.limite_usuarios === 0 ? 'Alumnos ilimitados' : `Hasta ${p.limite_usuarios} alumnos`}`,
+                                ...cleanFeatures
+                            ];
+
+                            return (
+                                <SaaSPricingCard
+                                    key={p.id}
+                                    name={p.nombre}
+                                    price={p.precio_mensual.toString()}
+                                    featured={idx === 1 || p.nombre.toLowerCase().includes('pro') || p.nombre.toLowerCase().includes('profesional')}
+                                    features={finalFeatures}
+                                    onChoosePlan={() => handleChoosePlan(p.id)}
+                                />
+                            );
+                        })
+                    ) : (
+                        <>
+                            <SaaSPricingCard
+                                name="Básico"
+                                price="99"
+                                features={["1 Sede", "Hasta 50 Alumnos", "Estandar Branding", "Soporte vía Ticket"]}
+                                onChoosePlan={() => handleChoosePlan('1c30de49-1857-4394-8e00-622a310f1ea6')}
+                            />
+                            <SaaSPricingCard
+                                name="Pro"
+                                price="199"
+                                featured
+                                features={["Hasta 3 Sedes", "Hasta 500 Alumnos", "White Label Completo", "IA Vision Lab", "Gestión de Finanzas"]}
+                                onChoosePlan={() => handleChoosePlan('bc013f9a-0432-4979-974b-bc82d7d4b754')}
+                            />
+                            <SaaSPricingCard
+                                name="Elite"
+                                price="399"
+                                features={["Sedes Ilimitadas", "Alumnos Ilimitados", "API Access", "Consultoría Mensual", "Account Manager Dedicado"]}
+                                onChoosePlan={() => handleChoosePlan('bb9e7d52-f936-4722-82df-011493765837')}
+                            />
+                        </>
+                    )}
                 </div>
             </section>
 
@@ -212,7 +309,7 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode, titl
     );
 }
 
-function SaaSPricingCard({ name, price, features, featured }: { name: string, price: string, features: string[], featured?: boolean }) {
+function SaaSPricingCard({ name, price, features, featured, onChoosePlan }: { name: string, price: string, features: string[], featured?: boolean, onChoosePlan?: () => void }) {
     return (
         <div className={`p-12 rounded-[4rem] border ${featured ? 'bg-red-600 border-red-500 scale-105' : 'bg-[#1c1c1e] border-white/10'} shadow-2xl relative overflow-hidden`}>
             {featured && (
@@ -220,18 +317,21 @@ function SaaSPricingCard({ name, price, features, featured }: { name: string, pr
             )}
             <h3 className="text-2xl font-black italic uppercase tracking-tight mb-6">{name}</h3>
             <div className="flex items-baseline gap-1 mb-10">
-                <span className="text-6xl font-black italic tracking-tighter">${price}</span>
+                <span className="text-6xl font-black italic tracking-tighter">${parseFloat(price).toLocaleString('es-AR')}</span>
                 <span className={`${featured ? 'text-red-200' : 'text-gray-500'} text-sm font-bold`}>/mes</span>
             </div>
             <ul className="space-y-4 mb-12">
                 {features.map((f, i) => (
-                    <li key={i} className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider">
+                    <li key={i} className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-left">
                         <CheckCircle2 size={16} className={featured ? 'text-white' : 'text-red-500'} />
                         <span className={featured ? 'text-white' : 'text-gray-400'}>{f}</span>
                     </li>
                 ))}
             </ul>
-            <button className={`w-full py-5 rounded-3xl font-black text-[10px] uppercase tracking-widest transition-all ${featured ? 'bg-white text-black hover:bg-black hover:text-white' : 'bg-red-600 text-white hover:bg-red-700'}`}>
+            <button 
+                onClick={onChoosePlan}
+                className={`w-full py-5 rounded-3xl font-black text-[10px] uppercase tracking-widest transition-all ${featured ? 'bg-white text-black hover:bg-black hover:text-white' : 'bg-red-600 text-white hover:bg-red-700'}`}
+            >
                 Elegir Plan {name}
             </button>
         </div>

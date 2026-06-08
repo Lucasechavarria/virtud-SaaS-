@@ -25,7 +25,7 @@ const item = {
     show: { opacity: 1, y: 0 }
 };
 
-export default function CoachDashboard({ params }: { params: { gymId: string } }) {
+export default function CoachDashboard({ params }: { params: { tenantSlug: string } }) {
     const [loading, setLoading] = useState(true);
     const [sendingPush, setSendingPush] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
@@ -38,11 +38,13 @@ export default function CoachDashboard({ params }: { params: { gymId: string } }
 
     useEffect(() => {
         const fetchDashboardData = async () => {
+            const gymSlug = params.tenantSlug;
+            if (!gymSlug) return;
             try {
                 const [dashboardRes, analyticsRes, studentsRes] = await Promise.all([
-                    fetch(`/api/coach/dashboard?gymId=${params.gymId}`),
-                    fetch(`/api/coach/analytics?gymId=${params.gymId}`),
-                    fetch(`/api/coach/students?gymId=${params.gymId}`),
+                    fetch(`/api/coach/dashboard?gymId=${gymSlug}`),
+                    fetch(`/api/coach/analytics?gymId=${gymSlug}`),
+                    fetch(`/api/coach/students?gymId=${gymSlug}`),
                 ]);
 
                 if (dashboardRes.ok) {
@@ -66,7 +68,7 @@ export default function CoachDashboard({ params }: { params: { gymId: string } }
             }
         };
         fetchDashboardData();
-    }, []);
+    }, [params.tenantSlug]);
 
     const sendTestPush = async () => {
         setSendingPush(true);

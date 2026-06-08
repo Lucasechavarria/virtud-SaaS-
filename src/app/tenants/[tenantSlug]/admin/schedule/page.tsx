@@ -111,7 +111,7 @@ export default function AdminSchedulePage() {
         if (item) {
             setEditingItem(item);
             setFormData({
-                actividad_id: item.actividad.id,
+                actividad_id: item.actividad?.id || '',
                 entrenador_id: item.entrenador?.id || '',
                 profesor_texto: item.profesor_texto || '',
                 dia_de_la_semana: item.dia_de_la_semana,
@@ -251,7 +251,7 @@ export default function AdminSchedulePage() {
                                     className="bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg p-3 cursor-pointer group relative overflow-hidden"
                                     onClick={() => handleOpenModal(item)}
                                 >
-                                    <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: item.actividad.color }} />
+                                    <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: item.actividad?.color || '#a855f7' }} />
 
                                     <div className="pl-3">
                                         <div className="flex justify-between items-start">
@@ -263,7 +263,7 @@ export default function AdminSchedulePage() {
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
-                                        <p className="font-bold text-white text-sm truncate">{item.actividad.nombre}</p>
+                                        <p className="font-bold text-white text-sm truncate">{item.actividad?.nombre || 'Clase General'}</p>
                                         <p className="text-xs text-gray-400 truncate">
                                             {item.entrenador ? item.entrenador.nombre_completo : (item.profesor_texto || 'Sin instructor')}
                                         </p>
@@ -396,6 +396,9 @@ export default function AdminSchedulePage() {
                                                 <option key={coach.id} value={coach.id} className="bg-[#1c1c1e]">{coach.nombre_completo}</option>
                                             ))}
                                         </select>
+                                        <p className="text-[9px] text-gray-500 mt-1 ml-1 leading-tight">
+                                            Profesores del staff que pueden gestionar el progreso y asistencia en su app.
+                                        </p>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1.5 ml-1">Instructor Externo (Fallback)</label>
@@ -407,20 +410,28 @@ export default function AdminSchedulePage() {
                                             placeholder="Solo si no es Coach..."
                                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-all placeholder:text-gray-600 disabled:opacity-30"
                                         />
+                                        <p className="text-[9px] text-gray-500 mt-1 ml-1 leading-tight">
+                                            Nombre del profesor temporal o sustituto si no está registrado en el staff.
+                                        </p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
-                                    <input
-                                        type="checkbox"
-                                        id="esta_activa"
-                                        checked={formData.esta_activa}
-                                        onChange={e => setFormData({ ...formData, esta_activa: e.target.checked })}
-                                        className="w-5 h-5 rounded-lg border-white/10 bg-black/40 text-purple-600 focus:ring-purple-500 accent-purple-500"
-                                    />
-                                    <label htmlFor="esta_activa" className="text-sm font-bold text-gray-300 select-none cursor-pointer">
-                                        Clase Visible y Disponible para Reservas
-                                    </label>
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-1">
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="checkbox"
+                                            id="esta_activa"
+                                            checked={formData.esta_activa}
+                                            onChange={e => setFormData({ ...formData, esta_activa: e.target.checked })}
+                                            className="w-5 h-5 rounded-lg border-white/10 bg-black/40 text-purple-600 focus:ring-purple-500 accent-purple-500"
+                                        />
+                                        <label htmlFor="esta_activa" className="text-sm font-bold text-gray-300 select-none cursor-pointer">
+                                            Clase Visible y Disponible para Reservas
+                                        </label>
+                                    </div>
+                                    <p className="text-[9px] text-gray-500 pl-8 leading-tight">
+                                        Si está desmarcado, la clase se ocultará en la aplicación de los alumnos y no podrán reservar lugar.
+                                    </p>
                                 </div>
 
                                 <div className="pt-4 flex gap-3">

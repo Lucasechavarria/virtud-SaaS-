@@ -18,7 +18,8 @@ import Image from 'next/image';
 
 export default function LandingSettings() {
     const params = useParams();
-    const gymId = params.gymId as string;
+    const tenantSlug = params?.tenantSlug as string;
+    const [gymId, setGymId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [config, setConfig] = useState({
         hero_titulo: '',
@@ -33,6 +34,38 @@ export default function LandingSettings() {
     });
 
     const [slug, setSlug] = useState('');
+
+    useEffect(() => {
+        const resolveGymId = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            let resolvedId = '';
+            const { data: profile } = await supabase
+                .from('perfiles')
+                .select('rol, gimnasio_id')
+                .eq('id', user.id)
+                .single();
+
+            if (profile?.rol === 'superadmin' && tenantSlug) {
+                const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantSlug);
+                if (isUUID) {
+                    resolvedId = tenantSlug;
+                } else {
+                    const { data: gym } = await supabase
+                        .from('gimnasios')
+                        .select('id')
+                        .eq('slug', tenantSlug)
+                        .single();
+                    if (gym) resolvedId = gym.id;
+                }
+            } else {
+                resolvedId = profile?.gimnasio_id || '';
+            }
+            setGymId(resolvedId);
+        };
+        resolveGymId();
+    }, [tenantSlug]);
 
     useEffect(() => {
         const fetchGym = async () => {

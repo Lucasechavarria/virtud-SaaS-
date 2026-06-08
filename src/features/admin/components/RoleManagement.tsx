@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 const AVAILABLE_ROLES = [
     { id: 'member', label: 'Alumno', icon: '🏃', color: 'text-blue-400' },
     { id: 'coach', label: 'Profesor', icon: '🎓', color: 'text-orange-400' },
+    { id: 'recepcion', label: 'Recepcionista', icon: '📞', color: 'text-green-400' },
     { id: 'admin', label: 'Admin', icon: '⚙️', color: 'text-purple-400' },
 ] as const;
 
@@ -24,6 +25,7 @@ const getNormalizedRole = (rawRole: string): RoleId => {
     const roleLower = (rawRole || '').toLowerCase();
     if (['coach', 'profesor', 'entrenador'].includes(roleLower)) return 'coach';
     if (['admin', 'administrador'].includes(roleLower)) return 'admin';
+    if (['recepcion', 'recepcionista'].includes(roleLower)) return 'recepcion';
     return 'member';
 };
 

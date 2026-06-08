@@ -7,7 +7,9 @@ import { Database } from '@/types/supabase';
 // GET /api/equipment - List all equipment
 export async function GET(req: Request) {
     try {
-        const supabase = await createClient();
+        const { error: authError, supabase } = await authenticateAndRequireRole(req, [ROLES.ADMIN, ROLES.COACH, ROLES.RECEPCION, ROLES.MEMBER]);
+        if (authError || !supabase) return authError || NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
         const available = searchParams.get('available');
@@ -30,15 +32,15 @@ export async function GET(req: Request) {
 // POST /api/equipment - Create equipment (Admin only)
 export async function POST(req: Request) {
     try {
-        const { error: authError } = await authenticateAndRequireRole(req, [ROLES.ADMIN]);
-        if (authError) return authError;
+        const { error: authError, profile, supabase } = await authenticateAndRequireRole(req, [ROLES.ADMIN]);
+        if (authError || !supabase) return authError || NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const body = await req.json();
-        const supabase: any = await createClient();
 
         const { data, error } = await supabase
             .from('equipamiento' as any)
             .insert({
+                gimnasio_id: profile?.gimnasio_id,
                 nombre: body.name,
                 categoria: body.category,
                 estado: body.condition || 'Excelente', // Default or map if needed

@@ -63,7 +63,8 @@ export async function middleware(request: NextRequest) {
         const { pathname } = url;
         const systemPaths = [
             '/_next', '/api', '/auth', '/static', '/favicon.ico', '/manifest.json', '/manifest.webmanifest',
-            '/login', '/signup', '/forgot-password', '/reset-password'
+            '/login', '/signup', '/forgot-password', '/reset-password',
+            '/saas-admin', '/saas', '/inscripcion', '/debug'
         ];
         const isSystemPath = systemPaths.some(p => pathname.startsWith(p)) || pathname.match(/\.(?:svg|png|jpg|jpeg|gif|webp|css|js|pdf|txt|ico|json|webmanifest|woff|woff2|ttf)$/);
 

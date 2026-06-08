@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { createClient } from '@/lib/supabase/client';
+import { useParams, useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -32,6 +34,10 @@ interface GymLimits {
 export default function SettingsPage() {
     const [activeSection, setActiveSection] = useState<'gym' | 'integrations' | 'users' | 'branding' | 'equipment' | 'billing'>('gym');
     const [loading, setLoading] = useState(false);
+    const [checkingAccess, setCheckingAccess] = useState(true);
+    const router = useRouter();
+    const params = useParams();
+    const gymId = (params?.gymId || params?.tenantSlug) as string;
 
     const [gymInfo, setGymInfo] = useState<GymInfo | null>(null);
     const [limits, setLimits] = useState<GymLimits | null>(null);
@@ -46,7 +52,35 @@ export default function SettingsPage() {
     });
 
     useEffect(() => {
-        fetchGymData();
+        const checkAccessAndLoad = async () => {
+            try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    router.push('/login');
+                    return;
+                }
+                const { data: profile } = await (supabase
+                    .from('perfiles') as any)
+                    .select('rol, permisos')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profile?.rol === 'recepcion' && (profile?.permisos as any)?.acceso_settings !== true) {
+                    toast.error('Acceso denegado: No tienes permisos para ver configuración');
+                    router.push(gymId ? `/${gymId}/admin/recepcion/pos` : '/admin/recepcion/pos');
+                    return;
+                }
+
+                setCheckingAccess(false);
+                fetchGymData();
+            } catch (error) {
+                console.error('Error checking access:', error);
+                setCheckingAccess(false);
+                fetchGymData();
+            }
+        };
+        checkAccessAndLoad();
     }, []);
 
     const fetchGymData = async () => {
@@ -117,6 +151,14 @@ export default function SettingsPage() {
         logo: '/logos/Logo-Fondo-Negro.png',
     });
 
+    if (checkingAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-purple-500" />
+            </div>
+        );
+    }
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -140,11 +182,9 @@ export default function SettingsPage() {
                     <nav className="space-y-2">
                         {[
                             { id: 'gym', label: 'Gimnasio', icon: '🏢' },
-                            { id: 'equipment', label: 'Equipamiento', icon: '🏋️' },
-                            { id: 'billing', label: 'Plan y Facturación', icon: '💳' },
+                            { id: 'billing', label: 'Suscripción SaaS', icon: '💳' },
                             { id: 'integrations', label: 'Integraciones', icon: '🔌' },
                             { id: 'users', label: 'Permisos', icon: '👥' },
-                            { id: 'branding', label: 'Personalización', icon: '🎨' },
                         ].map((section) => (
                             <button
                                 key={section.id}
@@ -185,7 +225,7 @@ export default function SettingsPage() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <h2 className="text-2xl font-bold text-white mb-2">💳 Plan y Suscripción</h2>
-                                            <p className="text-gray-400 text-sm">Gestiona tu suscripción a Virtud Gym y tus límites de uso.</p>
+                                            <p className="text-gray-400 text-sm">💳 Historial de pagos y estado de tu suscripción con Virtud Gym SaaS. Aquí gestionas el plan contratado para tu negocio.</p>
                                         </div>
                                         <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-xl">
                                             <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Plan Actual</p>
@@ -278,7 +318,8 @@ export default function SettingsPage() {
                             {/* Gym Settings */}
                             {activeSection === 'gym' && (
                                 <div className="space-y-6">
-                                    <h2 className="text-2xl font-bold text-white mb-4">🏢 Información del Gimnasio</h2>
+                                    <h2 className="text-2xl font-bold text-white mb-1">🏢 Información del Gimnasio</h2>
+                                    <p className="text-gray-400 text-sm mb-6">🏢 Configura los datos básicos y la información de contacto pública de tu sucursal.</p>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2 group">
@@ -360,7 +401,7 @@ export default function SettingsPage() {
                                                     </div>
                                                     <div>
                                                         <h3 className="font-bold text-white text-xl">MercadoPago</h3>
-                                                        <p className="text-sm text-gray-500">Cobros automáticos y conciliación bancaria.</p>
+                                                        <p className="text-sm text-gray-500">Permite a tus alumnos pagar sus pases online de manera directa y actualizar sus estados de cuenta automáticamente.</p>
                                                     </div>
                                                 </div>
                                                 <label className="relative inline-flex items-center cursor-pointer">
@@ -428,7 +469,7 @@ export default function SettingsPage() {
                                                     </div>
                                                     <div>
                                                         <h3 className="font-bold text-white text-xl">Email (SendGrid)</h3>
-                                                        <p className="text-sm text-gray-500">Notificaciones transaccionales y marketing.</p>
+                                                        <p className="text-sm text-gray-500">Automatiza el envío de correos de bienvenida, alertas de vencimiento de pases y rutinas de ejercicio.</p>
                                                     </div>
                                                 </div>
                                                 <label className="relative inline-flex items-center cursor-pointer">
@@ -479,155 +520,43 @@ export default function SettingsPage() {
                                 </div>
                             )}
 
-                            <div className="space-y-8">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-white mb-2">👥 Seguridad y Accesos</h2>
-                                    <p className="text-gray-400 text-sm">Define qué puede hacer cada tipo de usuario en el sistema.</p>
-                                </div>
-
-                                <RoleManagement />
-
-                                <div className="pt-8 border-t border-white/5">
-                                    <h3 className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-6 ml-1">Guía de Privilegios por Rol</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {[
-                                            { role: 'SuperAdmin', permissions: ['Control Total', 'Gestión Financiera', 'Gestión de Staff', 'Configuración del Sistema'], info: 'Acceso ilimitado a todas las funciones.', color: 'purple' },
-                                            { role: 'Admin', permissions: ['Ver usuarios', 'Editar clases', 'Ver finanzas', 'Gestionar stock'], info: 'Personal administrativo centrado en la operación diaria.', color: 'blue' },
-                                            { role: 'Coach', permissions: ['Ver alumnos', 'Crear rutinas', 'Pasar lista', 'Chat con alumnos'], info: 'Personal deportivo limitado a la gestión de sus alumnos.', color: 'orange' },
-                                            { role: 'Miembro', permissions: ['Ver su progreso', 'Reservar clases', 'Chat con coach', 'Ver su rutina'], info: 'Clientes del gimnasio con acceso a su propia información.', color: 'green' },
-                                        ].map((roleInfo) => (
-                                            <div key={roleInfo.role} className="bg-white/5 rounded-2xl p-6 border border-white/5 hover:bg-white/10 transition-all group">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className={`w-2 h-8 rounded-full bg-${roleInfo.color}-500 shadow-lg shadow-${roleInfo.color}-500/40`} />
-                                                    <div>
-                                                        <h3 className={`font-black text-white text-xl tracking-tight`}>{roleInfo.role}</h3>
-                                                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">{roleInfo.info}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {roleInfo.permissions.map((perm, i) => (
-                                                        <span key={i} className="px-3 py-1.5 bg-black/40 text-gray-300 rounded-lg text-[10px] font-bold border border-white/5">
-                                                            ✓ {perm}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Equipment Management */}
-                            {activeSection === 'equipment' && (
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="text-2xl font-bold text-white">🏋️ Stock de Equipamiento</h2>
-                                        <Link
-                                            href="/admin/equipment"
-                                            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all"
-                                        >
-                                            + Gestionar Inventario
-                                        </Link>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {[
-                                            { name: 'Prensa de Piernas', quantity: 2, status: 'Disponible', icon: '📐' },
-                                            { name: 'Mancuernas Hex', quantity: 20, status: 'Excelente', icon: '💪' },
-                                            { name: 'Cinta de Correr T80', quantity: 5, status: 'En Mantenimiento', icon: '🏃' },
-                                            { name: 'Rack de Sentadillas', quantity: 3, status: 'Disponible', icon: '🏋️' },
-                                        ].map((item, idx) => (
-                                            <div key={idx} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-2xl">{item.icon}</span>
-                                                    <div>
-                                                        <h4 className="text-white font-bold">{item.name}</h4>
-                                                        <p className="text-xs text-gray-400">Cantidad: {item.quantity}</p>
-                                                    </div>
-                                                </div>
-                                                <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${item.status === 'En Mantenimiento' ? 'bg-orange-500/20 text-orange-400' : 'bg-emerald-500/20 text-emerald-400'
-                                                    }`}>
-                                                    {item.status}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Branding / Home Personalization */}
-                            {activeSection === 'branding' && (
+                            {activeSection === 'users' && (
                                 <div className="space-y-8">
                                     <div>
-                                        <h2 className="text-2xl font-bold text-white mb-2">🎨 Personalización Visual</h2>
-                                        <p className="text-gray-400 text-sm">Gestiona la identidad visual de tu gimnasio y el contenido de la página de inicio.</p>
+                                        <h2 className="text-2xl font-bold text-white mb-2">👥 Seguridad y Accesos</h2>
+                                        <p className="text-gray-400 text-sm">Define qué puede hacer cada tipo de usuario en el sistema.</p>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-black text-purple-400 uppercase tracking-widest">Colores de Marca</h3>
-                                            <div>
-                                                <label className="block text-gray-300 mb-2 font-bold text-xs uppercase">Color Primario</label>
-                                                <div className="flex gap-3">
-                                                    <input
-                                                        type="color"
-                                                        value={branding.primaryColor}
-                                                        onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
-                                                        className="w-14 h-14 rounded-xl cursor-pointer bg-white/5 border border-white/10"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={branding.primaryColor}
-                                                        onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
-                                                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 text-white font-mono"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <RoleManagement />
 
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-black text-purple-400 uppercase tracking-widest">Logo Principal</h3>
-                                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center justify-center gap-3">
-                                                <div className="w-full h-12 bg-black/40 rounded-lg flex items-center justify-center overflow-hidden relative">
-                                                    <Image src="/logos/Logo-Fondo-Negro.png" alt="Logo" width={120} height={32} className="object-contain" />
-                                                </div>
-                                                <button className="w-full py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-xl transition-all border border-white/5">
-                                                    Cambiar Logo
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 pt-4 border-t border-white/5">
-                                        <h3 className="text-sm font-black text-purple-400 uppercase tracking-widest">🏠 Gestión de Inicio (Carruseles)</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {[1, 2, 3].map((id) => (
-                                                <div key={id} className="relative aspect-video rounded-2xl overflow-hidden bg-white/5 border border-white/10 group cursor-pointer hover:border-purple-500/50 transition-all">
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 group-hover:text-white transition-colors">
-                                                        <span className="text-2xl mb-1">🖼️</span>
-                                                        <span className="text-[10px] font-bold uppercase">Slide {id}</span>
+                                    <div className="pt-8 border-t border-white/5">
+                                        <h3 className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-6 ml-1">Guía de Privilegios por Rol</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {[
+                                                { role: 'SuperAdmin', permissions: ['Control Total', 'Gestión Financiera', 'Gestión de Staff', 'Configuración del Sistema'], info: 'Acceso ilimitado a todas las funciones.', color: 'purple' },
+                                                { role: 'Admin', permissions: ['Ver usuarios', 'Editar clases', 'Ver finanzas', 'Gestionar stock'], info: 'Personal administrativo centrado en la operación diaria.', color: 'blue' },
+                                                { role: 'Coach', permissions: ['Ver alumnos', 'Crear rutinas', 'Pasar lista', 'Chat con alumnos'], info: 'Personal deportivo limitado a la gestión de sus alumnos.', color: 'orange' },
+                                                { role: 'Miembro', permissions: ['Ver su progreso', 'Reservar clases', 'Chat con coach', 'Ver su rutina'], info: 'Clientes del gimnasio con acceso a su propia información.', color: 'green' },
+                                            ].map((roleInfo) => (
+                                                <div key={roleInfo.role} className="bg-white/5 rounded-2xl p-6 border border-white/5 hover:bg-white/10 transition-all group">
+                                                    <div className="flex items-center gap-3 mb-4">
+                                                        <div className={`w-2 h-8 rounded-full bg-${roleInfo.color}-500 shadow-lg shadow-${roleInfo.color}-500/40`} />
+                                                        <div>
+                                                            <h3 className={`font-black text-white text-xl tracking-tight`}>{roleInfo.role}</h3>
+                                                            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">{roleInfo.info}</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="absolute bottom-2 right-2 flex gap-1">
-                                                        <button className="p-2 bg-black/60 backdrop-blur-md rounded-lg text-white hover:bg-purple-600 transition-colors">
-                                                            <Plus size={12} />
-                                                        </button>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {roleInfo.permissions.map((perm, i) => (
+                                                            <span key={i} className="px-3 py-1.5 bg-black/40 text-gray-300 rounded-lg text-[10px] font-bold border border-white/5">
+                                                                ✓ {perm}
+                                                            </span>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             ))}
-                                            <div className="aspect-video rounded-2xl border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-gray-600 hover:text-gray-400 hover:border-white/10 cursor-pointer transition-all">
-                                                <Plus size={24} />
-                                                <span className="text-[10px] font-bold uppercase mt-1">Añadir Slide</span>
-                                            </div>
                                         </div>
-                                        <p className="text-[10px] text-gray-500 italic">Aquí podrás subir las imágenes que aparecen en el carrusel de la página de inicio (vitudgym.vercel.app).</p>
                                     </div>
-
-                                    <button
-                                        onClick={saveSettings}
-                                        className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:scale-[1.01] active:scale-[0.99] text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-purple-900/40 border border-white/10"
-                                    >
-                                        GUARDAR TEMA Y CONTENIDO
-                                    </button>
                                 </div>
                             )}
                         </motion.div>

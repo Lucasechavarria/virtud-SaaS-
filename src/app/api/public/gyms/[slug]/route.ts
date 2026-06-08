@@ -15,6 +15,9 @@ export async function GET(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const adminClient = createAdminClient() as any;
 
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(params.slug);
+        const queryField = isUUID ? 'id' : 'slug';
+
         const { data: gym, error } = await adminClient
             .from('gimnasios')
             .select(`
@@ -34,7 +37,7 @@ export async function GET(
                   beneficios
                 )
             `)
-            .eq('slug', params.slug)
+            .eq(queryField, params.slug)
             .eq('planes_gimnasio.esta_activo', true)
             .single();
 

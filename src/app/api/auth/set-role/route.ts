@@ -33,23 +33,33 @@ export async function POST(request: Request) {
         }
 
         const isSuperAdmin = requesterProfile.rol === 'superadmin';
-        const validRoles = isSuperAdmin ? ['member', 'coach', 'admin', 'superadmin'] : ['member', 'coach', 'admin'];
+        const validRoles = isSuperAdmin 
+            ? ['member', 'coach', 'admin', 'superadmin', 'recepcion'] 
+            : ['member', 'coach', 'admin', 'recepcion'];
 
         if (!validRoles.includes(role)) {
             return NextResponse.json({ error: 'Invalid role or insufficient permissions' }, { status: 400 });
         }
 
+        // Parse optional permissions from body
+        const { permisos } = await request.clone().json().catch(() => ({}));
+
         // 4. Obtener estado actual para el log
-        const { data: currentProfile } = await supabase
-            .from('perfiles')
-            .select('rol')
+        const { data: currentProfile } = await (supabase
+            .from('perfiles') as any)
+            .select('rol, permisos')
             .eq('id', uid)
             .single();
 
         // 5. Update Target User Profile
+        const updatePayload: any = { rol: role };
+        if (permisos !== undefined) {
+            updatePayload.permisos = permisos;
+        }
+
         const { error: updateError } = await supabase
             .from('perfiles')
-            .update({ rol: role })
+            .update(updatePayload)
             .eq('id', uid);
 
         if (updateError) {
@@ -58,15 +68,15 @@ export async function POST(request: Request) {
         }
 
         // 6. Registrar en historial
-        await supabase
-            .from('historial_cambios_perfil')
+        await (supabase
+            .from('historial_cambios_perfil') as any)
             .insert({
-                profile_id: uid,
-                changed_by: user.id, // ID del administrador autenticado
-                field_changed: 'rol',
-                old_value: currentProfile?.rol || 'unknown',
-                new_value: role,
-                reason: 'Cambio de rol manual por administrador'
+                perfil_id: uid,
+                cambiado_por: user.id, // ID del administrador autenticado
+                campo_cambiado: 'rol',
+                valor_anterior: `${currentProfile?.rol || 'unknown'} (Permisos: ${JSON.stringify(currentProfile?.permisos || {})})`,
+                valor_nuevo: `${role} (Permisos: ${JSON.stringify(permisos || {})})`,
+                razon: 'Cambio de rol y permisos manual por administrador'
             });
 
         return NextResponse.json({ success: true, message: `Role ${role} assigned to ${uid}` });
