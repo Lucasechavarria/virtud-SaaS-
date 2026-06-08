@@ -49,7 +49,7 @@ type RBACGuard = (ctx: RBACContext) => NextResponse | null;
 
 // Configuración de rutas excluidas de validación de tenancy
 const EXCLUDED_TENANT_PATHS = new Set([
-    'saas-admin', 'api', 'auth', 'g', 'inscripcion', 'tenants', 'dashboard', 'saas', 'debug'
+    'saas-admin', 'api', 'auth', 'g', 'inscripcion', 'tenants', 'dashboard', 'saas', 'debug', 'admin', 'coach', 'member'
 ]);
 
 // ==========================================
@@ -371,6 +371,17 @@ export async function handleRBAC(
     const network = resolveNetworkContext(request);
     const claims = extractUserClaims(user);
     const isPublic = PUBLIC_ROUTES.includes(network.pathname);
+
+    // Redirección de desarrollo local (localhost) para rutas del sistema sin prefijo de gimnasio
+    if (user && !network.isSubdomain && claims.gymSlug) {
+        const gymPrefix = claims.gymSlug;
+        const systemRoutes = ['/admin', '/coach', '/member/dashboard', '/dashboard'];
+        const matchingRoute = systemRoutes.find(r => network.pathname === r);
+        if (matchingRoute) {
+            let destPath = matchingRoute === '/dashboard' ? '/member/dashboard' : matchingRoute;
+            return NextResponse.redirect(new URL(`/${gymPrefix}${destPath}`, request.url));
+        }
+    }
 
     const context: RBACContext = {
         request,
