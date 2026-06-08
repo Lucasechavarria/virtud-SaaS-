@@ -26,7 +26,14 @@ export async function POST(request: Request) {
         }
 
         // 3. Parse Body
-        const { uid, role } = await request.json();
+        let body;
+        try {
+            body = await request.json();
+        } catch (e) {
+            return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+        }
+
+        const { uid, role, permisos } = body;
 
         if (!uid || !role) {
             return NextResponse.json({ error: 'Missing uid or role' }, { status: 400 });
@@ -40,9 +47,6 @@ export async function POST(request: Request) {
         if (!validRoles.includes(role)) {
             return NextResponse.json({ error: 'Invalid role or insufficient permissions' }, { status: 400 });
         }
-
-        // Parse optional permissions from body
-        const { permisos } = await request.clone().json().catch(() => ({}));
 
         // 4. Obtener estado actual para el log
         const { data: currentProfile } = await (supabase
