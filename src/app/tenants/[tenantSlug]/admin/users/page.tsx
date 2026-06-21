@@ -121,7 +121,10 @@ export default function UsersPage() {
 
     const fetchLimits = async () => {
         try {
-            const res = await fetch('/api/admin/gym/info');
+            const url = tenantSlug 
+                ? `/api/admin/gym/info?gymId=${tenantSlug}` 
+                : '/api/admin/gym/info';
+            const res = await fetch(url);
             const data = await res.json();
             if (res.ok) setLimits(data.limits);
         } catch (error) {

@@ -7,6 +7,8 @@ import Link from 'next/link';
 import SaaSGuard from '@/components/auth/SaaSGuard';
 import { createClient } from '@/lib/supabase/server';
 
+import ImpersonationBanner from '@/components/layout/ImpersonationBanner';
+
 export default async function TenantAdminLayout({
     children,
 }: {
@@ -43,6 +45,7 @@ export default async function TenantAdminLayout({
 
             <UniversalLayoutWrapper profileName={profile.nombre_completo} profileRole={profile.rol}>
                 <SaaSGuard>
+                    <ImpersonationBanner />
                     {children}
                 </SaaSGuard>
             </UniversalLayoutWrapper>

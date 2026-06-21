@@ -8,17 +8,28 @@ import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
  */
 export async function GET(request: Request) {
     try {
-        const { supabase, error } = await authenticateAndRequireRole(
+        const { supabase, error, profile } = await authenticateAndRequireRole(
             request,
-            ['admin']
+            ['admin', 'superadmin']
         );
 
         if (error) return error;
 
-        // Obtener todos los usuarios con sus perfiles
-        const { data: users, error: usersError } = await supabase
+        // Blindaje contra gimnasio_id NULL para admin locales
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
+        }
+
+        // Obtener usuarios filtrados por gimnasio
+        let query = supabase
             .from('perfiles')
-            .select('*')
+            .select('*');
+
+        if (profile?.role !== 'superadmin') {
+            query = query.eq('gimnasio_id', profile.gimnasio_id);
+        }
+
+        const { data: users, error: usersError } = await query
             .order('creado_en', { ascending: false });
 
         if (usersError) throw usersError;

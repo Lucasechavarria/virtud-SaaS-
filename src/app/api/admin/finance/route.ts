@@ -1,5 +1,21 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function resolveGymId(rawGymId: string | null): Promise<string | null> {
+    if (!rawGymId) return null;
+    if (UUID_REGEX.test(rawGymId)) return rawGymId;
+    // Es un slug: resolver a UUID
+    const adminClient = createAdminClient();
+    const { data: gym } = await adminClient
+        .from('gimnasios')
+        .select('id')
+        .eq('slug', rawGymId)
+        .single();
+    return gym?.id || null;
+}
 
 export async function GET(request: Request) {
     const { supabase, error, profile } = await authenticateAndRequireRole(request, ['superadmin', 'admin', 'recepcion']);
@@ -15,10 +31,13 @@ export async function GET(request: Request) {
     // Control de Aislamiento Multi-tenant
     if (profile?.role !== 'superadmin') {
         gymId = profile?.gimnasio_id || 'unauthorized';
+    } else if (gymId) {
+        // Superadmin: resolver slug a UUID si es necesario
+        gymId = await resolveGymId(gymId);
     }
 
     try {
-        let query = supabase
+        let query = supabase!
             .from('pagos')
             .select(`
                 *,
@@ -37,7 +56,7 @@ export async function GET(request: Request) {
         if (payError) throw payError;
 
         // También obtener pagos de subscripción (SaaS) si queremos ver todo, filtrando por gimnasio si es admin local
-        let saasQuery = supabase
+        let saasQuery = supabase!
             .from('saas_pagos_historial')
             .select('*, gimnasio:gimnasio_id(nombre)')
             .order('fecha_pago', { ascending: false })

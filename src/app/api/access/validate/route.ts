@@ -71,6 +71,17 @@ export async function POST(request: Request) {
             plan: planName
         };
 
+        // Validación de Aislamiento de Sucursales (inter-gimnasio QR Access Block)
+        // El alumno solo puede registrar ingreso en la sucursal a la que pertenece
+        if (profile?.gimnasio_id && student.gimnasio_id !== profile.gimnasio_id) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'wrong_gym',
+                message: 'El alumno pertenece a otra sucursal',
+                member: memberInfo
+            });
+        }
+
         // 3. Validación: Membresía Activa
         if (student.estado_membresia !== 'active') {
             return NextResponse.json({

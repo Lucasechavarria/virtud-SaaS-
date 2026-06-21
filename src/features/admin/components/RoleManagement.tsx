@@ -44,18 +44,16 @@ export function RoleManagement() {
             setLoading(true);
             const res = await fetch('/api/admin/users/list');
             const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al obtener usuarios');
+            }
             if (data.users) {
                 setUsers(data.users);
             }
         } catch (err) {
             console.error('Error fetching users:', err);
-            toast.error('Error al cargar usuarios');
-            // Mock data fallback
-            setUsers([
-                { id: '1', nombre_completo: 'Juan Pérez', correo: 'juan@demo.com', rol: 'member' },
-                { id: '2', nombre_completo: 'María García', correo: 'maria@demo.com', rol: 'coach' },
-                { id: '3', nombre_completo: 'Carlos López', correo: 'carlos@demo.com', rol: 'member' },
-            ]);
+            toast.error(err instanceof Error ? err.message : 'Error al cargar usuarios');
+            setUsers([]);
         } finally {
             setLoading(false);
         }

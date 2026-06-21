@@ -6,6 +6,9 @@ export function createAdminClient() {
     // 1. Detectar Cypress de forma asíncrona pero segura en el hilo principal del request
     const isCypressPromise = (async () => {
         try {
+            if (process.env.NODE_ENV !== 'development') {
+                return false;
+            }
             const userHeaders = await headers();
             const userAgent = userHeaders.get('user-agent') || '';
             return userAgent.toLowerCase().includes('cypress');

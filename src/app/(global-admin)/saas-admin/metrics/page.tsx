@@ -133,16 +133,42 @@ export default function SaaSMetricsPage() {
         }
     };
 
-    const handleExportPDF = () => {
-        window.print();
+    const handleExportCSV = () => {
+        if (!history || history.length === 0) {
+            toast.error('No hay datos históricos para exportar');
+            return;
+        }
+        
+        const headers = ['Fecha', 'MRR (USD)', 'Gimnasios Activos', 'Gimnasios Suspendidos', 'Total Alumnos', 'Videos Procesados', 'Rutinas IA', 'Ingresos Totales', 'Gastos Totales', 'Ganancia Neta'];
+        const rows = history.map(item => [
+            item.fecha,
+            item.mrr || 0,
+            item.gyms_activos || 0,
+            item.gyms_suspendidos || 0,
+            item.total_alumnos || 0,
+            item.videos_procesados || 0,
+            item.rutinas_ia || 0,
+            item.ingresos_totales_mes || 0,
+            item.gastos_totales || 0,
+            item.ganancia_neta || 0
+        ]);
+        
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+            
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `virtud_saas_metrics_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Métricas exportadas en CSV con éxito');
     };
 
     const fetchMetrics = async () => {
         setLoading(true);
         try {
-            const updateRes = await fetch('/api/saas-admin/metrics/update');
-            if (!updateRes.ok) throw new Error('Error updating metrics');
-
             const res = await fetch('/api/saas-admin/metrics/history');
             if (!res.ok) throw new Error('Error fetching history');
             
@@ -153,6 +179,23 @@ export default function SaaSMetricsPage() {
             toast.error('Error al cargar las métricas globales');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const syncMetrics = async () => {
+        const toastId = toast.loading('Sincronizando y recalculando métricas SaaS...');
+        try {
+            const res = await fetch('/api/saas-admin/metrics/update');
+            if (res.ok) {
+                toast.success('Métricas sincronizadas con éxito');
+                fetchMetrics();
+            } else {
+                toast.error('Error al sincronizar métricas');
+            }
+        } catch (_err) {
+            toast.error('Error de conexión al sincronizar');
+        } finally {
+            toast.dismiss(toastId);
         }
     };
 
@@ -183,6 +226,28 @@ export default function SaaSMetricsPage() {
         g.slug.toLowerCase().includes(searchGym.toLowerCase())
     );
 
+    // Calcular deltas dinámicos
+    const computeDelta = (currentVal: number, prevVal: number) => {
+        if (!prevVal || prevVal === 0) return currentVal > 0 ? '+100.0%' : '0.0%';
+        const diff = currentVal - prevVal;
+        const pct = (diff / prevVal) * 100;
+        const sign = pct >= 0 ? '+' : '';
+        return `${sign}${pct.toFixed(1)}%`;
+    };
+
+    const currentMonth = history.length > 0 ? history[history.length - 1] : null;
+    const prevMonth = history.length > 1 ? history[history.length - 2] : null;
+
+    const ingresosDelta = currentMonth && prevMonth
+        ? computeDelta(currentMonth.ingresos_totales_mes || currentMonth.mrr || 0, prevMonth.ingresos_totales_mes || prevMonth.mrr || 0)
+        : '+0.0%';
+
+    const gastosDelta = currentMonth && prevMonth
+        ? computeDelta(currentMonth.gastos_totales || 0, prevMonth.gastos_totales || 0)
+        : '+0.0%';
+
+    const isExpensesDeltaNegative = !gastosDelta.startsWith('-');
+
     // Fallbacks dinámicos
     const ingresosSaaS = metrics?.ingresos_totales_mes || metrics?.mrr || 0;
     const gastosTotales = metrics?.gastos_totales || 49.00;
@@ -204,7 +269,7 @@ export default function SaaSMetricsPage() {
                     </p>
                 </div>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                     {/* Tab Selector */}
                     <div className="flex bg-zinc-900/80 p-1.5 rounded-2xl border border-white/5 shadow-inner no-print">
                         {[
@@ -226,6 +291,27 @@ export default function SaaSMetricsPage() {
                             </button>
                         ))}
                     </div>
+
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={syncMetrics}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-5 py-3 bg-zinc-900 hover:bg-zinc-800 text-tactical-cyan border border-tactical-cyan/30 hover:border-tactical-cyan/60 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg no-print disabled:opacity-50"
+                    >
+                        <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} />
+                        Recalcular Métricas
+                    </motion.button>
+
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 px-5 py-3 bg-tactical-cyan text-black hover:bg-tactical-cyan/80 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-tactical-cyan/25 transition-all no-print"
+                    >
+                        <Download size={12} />
+                        Exportar CSV
+                    </motion.button>
 
                     <motion.button
                         whileHover={{ scale: 1.05 }}
@@ -265,17 +351,17 @@ export default function SaaSMetricsPage() {
                             <MetricCard
                                 title="Ingresos SaaS (Membresías)"
                                 value={`$${ingresosSaaS.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                                change="+15.8%"
+                                change={ingresosDelta}
                                 icon={<DollarSign className="text-tactical-cyan" />}
                                 subtitle="Cobros a gimnasios en curso"
                             />
                             <MetricCard
                                 title="Gastos del Superadmin"
                                 value={`$${gastosTotales.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                                change="+2.4%"
+                                change={gastosDelta}
                                 icon={<Server className="text-tactical-magenta" />}
                                 subtitle="Hosting + API Consumo IA"
-                                isNegativeChange={true}
+                                isNegativeChange={isExpensesDeltaNegative}
                             />
                             <MetricCard
                                 title="Beneficio Neto SaaS"
@@ -678,10 +764,10 @@ export default function SaaSMetricsPage() {
                                 </p>
                             </div>
                             <button
-                                onClick={handleExportPDF}
+                                onClick={handleExportCSV}
                                 className="flex items-center gap-2 px-6 py-3.5 bg-tactical-cyan text-black hover:bg-tactical-cyan/80 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-tactical-cyan/25 transition-all no-print"
                             >
-                                <Download size={14} /> Exportar Reporte BI (PDF)
+                                <Download size={14} /> Exportar Reporte BI (CSV)
                             </button>
                         </div>
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/admin/challenges
@@ -7,15 +8,38 @@ import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
  */
 export async function POST(request: Request) {
     try {
-        const { user, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { user, profile, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (error) return error;
 
         const body = await request.json();
         const { title, description, rules, type, points_prize, end_date } = body;
 
+        let targetGymId = profile?.gimnasio_id;
+        if (profile?.role === 'superadmin' && body.gimnasio_id) {
+            const rawGymId: string = body.gimnasio_id;
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rawGymId);
+            if (isUUID) {
+                targetGymId = rawGymId;
+            } else {
+                // Resolver slug a UUID
+                const adminClient = createAdminClient();
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', rawGymId)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
+        }
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Gimnasio no asignado o no especificado' }, { status: 400 });
+        }
+
         const { data, error: dbError } = await supabase!
             .from('desafios')
             .insert({
+                gimnasio_id: targetGymId,
                 creado_por: user.id,   // antes: creator_id
                 juez_id: user.id,       // antes: judge_id
                 titulo: title,          // antes: title
@@ -45,8 +69,32 @@ export async function POST(request: Request) {
  */
 export async function GET(request: Request) {
     try {
-        const { supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
+        const { profile, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
         if (error) return error;
+
+        let targetGymId = profile?.gimnasio_id;
+
+        const { searchParams } = new URL(request.url);
+        const urlGym = searchParams.get('gymId');
+
+        if (profile?.role === 'superadmin' && urlGym) {
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
+            if (isUUID) {
+                targetGymId = urlGym;
+            } else {
+                const adminClient = createAdminClient();
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', urlGym)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
+        }
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Gimnasio no asignado o no especificado' }, { status: 400 });
+        }
 
         const { data, error: dbError } = await supabase!
             .from('desafios')
@@ -60,6 +108,7 @@ export async function GET(request: Request) {
                     usuario:perfiles(nombre_completo)
                 )
             `)
+            .eq('gimnasio_id', targetGymId)
             .order('creado_en', { ascending: false });
 
         if (dbError) throw dbError;
@@ -89,3 +138,4 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
+

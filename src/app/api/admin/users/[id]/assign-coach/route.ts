@@ -11,8 +11,16 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { error: authError } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (authError) return authError;
+
+        // Blindaje contra gimnasio_id NULL para admin
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'Administrador sin gimnasio asignado'
+            }, { status: 403 });
+        }
 
         const { id: userId } = await params;
         const body = await request.json();
@@ -22,6 +30,48 @@ export async function PUT(
 
         // Usamos el cliente administrativo para saltar RLS y problemas de caché
         const adminClient = createAdminClient();
+
+        // 1. Validar que el alumno pertenezca al gimnasio del administrador (o a algún gimnasio si es superadmin)
+        const { data: studentProfile, error: studentError } = await adminClient
+            .from('perfiles')
+            .select('gimnasio_id')
+            .eq('id', userId)
+            .single();
+
+        if (studentError || !studentProfile) {
+            return NextResponse.json({ error: 'Alumno no encontrado' }, { status: 404 });
+        }
+
+        if (profile?.role !== 'superadmin' && studentProfile.gimnasio_id !== profile?.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: El alumno no pertenece a tu gimnasio' }, { status: 403 });
+        }
+
+        // 2. Si se especifica un coachId, validar que pertenezca al mismo gimnasio
+        if (coachId && coachId !== "null" && coachId !== "") {
+            const { data: coachProfile, error: coachError } = await adminClient
+                .from('perfiles')
+                .select('gimnasio_id, rol')
+                .eq('id', coachId)
+                .single();
+
+            if (coachError || !coachProfile) {
+                return NextResponse.json({ error: 'Entrenador no encontrado' }, { status: 404 });
+            }
+
+            if (coachProfile.rol !== 'coach' && coachProfile.rol !== 'admin' && coachProfile.rol !== 'superadmin') {
+                return NextResponse.json({ error: 'El usuario especificado no es un entrenador' }, { status: 400 });
+            }
+
+            // Si es admin local, el coach debe ser del mismo gimnasio que el admin
+            if (profile?.role !== 'superadmin' && coachProfile.gimnasio_id !== profile?.gimnasio_id) {
+                return NextResponse.json({ error: 'Forbidden: El entrenador no pertenece a tu gimnasio' }, { status: 403 });
+            }
+
+            // Si es superadmin, el coach debe pertenecer al mismo gimnasio que el alumno
+            if (profile?.role === 'superadmin' && coachProfile.gimnasio_id !== studentProfile.gimnasio_id) {
+                return NextResponse.json({ error: 'Forbidden: El entrenador y el alumno deben pertenecer al mismo gimnasio' }, { status: 400 });
+            }
+        }
 
         // PASO ATÓMICO: Primero eliminamos CUALQUIER relación previa de este alumno
         // Ahora usamos usuario_id (confirmado en la base de datos)

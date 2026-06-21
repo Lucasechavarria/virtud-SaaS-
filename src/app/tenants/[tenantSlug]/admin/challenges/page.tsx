@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'next/navigation';
 
 interface Participant {
     user_id: string;
@@ -24,6 +25,8 @@ interface Challenge {
 }
 
 export default function AdminChallengesPage() {
+    const params = useParams();
+    const tenantSlug = (params?.tenantSlug) as string | undefined;
     const [challenges, setChallenges] = useState<Challenge[]>([]);
     // const [loading, setLoading] = useState(true); // Removed as it was not used based on lint report, but actually used in line 53? Wait.
     const [showCreate, setShowCreate] = useState(false);
@@ -57,7 +60,10 @@ export default function AdminChallengesPage() {
 
     const fetchChallenges = async () => {
         try {
-            const res = await fetch('/api/admin/challenges');
+            const url = tenantSlug
+                ? `/api/admin/challenges?gymId=${tenantSlug}`
+                : '/api/admin/challenges';
+            const res = await fetch(url);
             const data = await res.json();
             if (data.challenges) setChallenges(data.challenges);
         } catch (_error) {
@@ -74,7 +80,8 @@ export default function AdminChallengesPage() {
             const payload = {
                 ...newChallenge,
                 end_date: newChallenge.end_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                rules: newChallenge.rules || 'Reglas estándar del gimnasio'
+                rules: newChallenge.rules || 'Reglas estándar del gimnasio',
+                ...(tenantSlug && { gimnasio_id: tenantSlug })
             };
 
             const res = await fetch('/api/admin/challenges', {

@@ -15,28 +15,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
-// Mock DB Returns
-const MOCK_SCANS: Record<string, any> = {
-    'valid-qr-123': {
-        status: 'allowed',
-        member: { nombre: 'Carlos Ruiz', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=200', plan: 'Plan Pro' },
-        message: 'Acceso Autorizado',
-        racha: 12
-    },
-    'invalid-deuda-456': {
-        status: 'denied',
-        reason: 'deuda',
-        member: { nombre: 'Ana Gómez', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200', plan: 'Plan Básico' },
-        message: 'Cuota Vencida',
-        deuda: 12000
-    },
-    'invalid-medico-789': {
-        status: 'denied',
-        reason: 'medico',
-        member: { nombre: 'Luis Torres', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200', plan: 'Plan Pro' },
-        message: 'Falta Apto Médico (PAR-Q)',
-    }
-};
 
 export default function QRAccessPage() {
     const params = useParams();

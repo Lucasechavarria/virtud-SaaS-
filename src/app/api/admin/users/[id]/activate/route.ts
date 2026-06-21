@@ -11,8 +11,16 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { user, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { user, profile, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (error) return error;
+
+        // Blindaje contra gimnasio_id NULL para admin
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'Administrador sin gimnasio asignado'
+            }, { status: 403 });
+        }
 
         const { id } = await params;
         const userId = id;
@@ -22,12 +30,26 @@ export async function POST(
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + days);
 
-        // 1. Obtener estado actual para el log
-        const { data: currentProfile } = await supabase!
+        // 1. Obtener perfil del socio objetivo para validar tenant
+        const { data: targetProfile, error: targetError } = await supabase!
             .from('perfiles')
-            .select('estado_membresia, fecha_fin_membresia')
+            .select('gimnasio_id, estado_membresia')
             .eq('id', userId)
             .single();
+
+        if (targetError || !targetProfile) {
+            return NextResponse.json({
+                error: 'User not found',
+                message: 'Socio no encontrado'
+            }, { status: 404 });
+        }
+
+        if (profile?.role !== 'superadmin' && targetProfile.gimnasio_id !== profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'El socio especificado pertenece a otra sucursal'
+            }, { status: 403 });
+        }
 
         // 2. Update profile
         const { error: updateError } = await supabase!
@@ -47,7 +69,7 @@ export async function POST(
                 profile_id: userId,
                 changed_by: user.id, // ID del administrador que realiza la acción
                 field_changed: 'estado_membresia',
-                old_value: currentProfile?.estado_membresia || 'unknown',
+                old_value: targetProfile?.estado_membresia || 'unknown',
                 new_value: 'active',
                 reason: `Activación manual por ${days} días`
             });

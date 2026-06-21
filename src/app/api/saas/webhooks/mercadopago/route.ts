@@ -31,6 +31,17 @@ function calculateNextPaymentDate(currentExpiryDateISO: string | null): Date {
     return nextDate;
 }
 
+/**
+ * Normaliza el estado recibido de MercadoPago según el enum unificado de base de datos
+ */
+function normalizeMPStatus(status: string): 'approved' | 'pending' | 'rejected' | 'refunded' {
+    const lowerStatus = (status || '').toLowerCase();
+    if (lowerStatus === 'approved' || lowerStatus === 'aprobado' || lowerStatus === 'completado') return 'approved';
+    if (lowerStatus === 'rejected' || lowerStatus === 'rechazado' || lowerStatus === 'cancelled' || lowerStatus === 'cancelado') return 'rejected';
+    if (lowerStatus === 'refunded' || lowerStatus === 'reembolsado') return 'refunded';
+    return 'pending'; // fallback seguro
+}
+
 // ==========================================
 // 2. MANEJADORES DE ESTADO (Strategy Pattern)
 // ==========================================
@@ -205,19 +216,34 @@ async function handleApprovedPayment(
     try {
         await supabase.rpc('update_saas_metrics_on_payment', {
             p_amount: payment.transaction_amount,
-            p_fecha: hoy
+            p_fecha: hoy,
+            p_is_subscription: !isCreditReload
         });
     } catch (_e) {
-        // Fallback optimizado en Edge mediante un único UPSERT
-        const { error: upsertError } = await supabase
-            .from('saas_metrics')
-            .upsert({
-                fecha: hoy,
-                ingresos_totales_mes: payment.transaction_amount,
-                mrr: isCreditReload ? 0 : payment.transaction_amount // MRR solo aplica a suscripciones estables
-            }, { onConflict: 'fecha' });
-            
-        if (upsertError) console.error('[Metrics Upsert Warning] Error en actualización manual de métricas:', upsertError);
+        // Fallback optimizado y seguro en Edge (Intenta sumar recuperando el estado previo en lugar de sobrescribir directamente)
+        try {
+            const { data: existingMetric } = await supabase
+                .from('saas_metrics')
+                .select('ingresos_totales_mes, mrr')
+                .eq('fecha', hoy)
+                .maybeSingle();
+
+            const prevIngresos = Number(existingMetric?.ingresos_totales_mes || 0);
+            const prevMRR = Number(existingMetric?.mrr || 0);
+            const mrrIncrement = isCreditReload ? 0 : payment.transaction_amount;
+
+            const { error: upsertError } = await supabase
+                .from('saas_metrics')
+                .upsert({
+                    fecha: hoy,
+                    ingresos_totales_mes: prevIngresos + payment.transaction_amount,
+                    mrr: prevMRR + mrrIncrement
+                }, { onConflict: 'fecha' });
+                
+            if (upsertError) console.error('[Metrics Upsert Warning] Error en actualización manual de métricas:', upsertError);
+        } catch (fallbackErr) {
+            console.error('[Metrics Fallback Critical] Falló la recuperación/upsert de métricas:', fallbackErr);
+        }
     }
 
     return NextResponse.json({ success: true, message: 'Pago procesado exitosamente' });
@@ -238,7 +264,7 @@ async function handleRejectedPayment(
             gimnasio_id: gymId,
             monto: payment.transaction_amount,
             moneda: payment.currency_id,
-            estado: payment.status,
+            estado: normalizeMPStatus(payment.status), // Sanitizar el estado
             fecha_pago: new Date().toISOString(),
             referencia_externa: paymentId.toString(),
             metadata: { mp_id: payment.id, status_detail: payment.status_detail }

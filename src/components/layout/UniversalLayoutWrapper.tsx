@@ -63,7 +63,7 @@ export function UniversalLayoutWrapper({
 
         // Fetch pro-active wallet alert for local gym admin (SSOT)
         if (gymId && gymId !== 'admin' && gymId !== 'saas-admin' && profileRole === 'admin') {
-            fetch('/api/admin/gym/billing')
+            fetch(gymId ? `/api/admin/gym/billing?gymId=${gymId}` : '/api/admin/gym/billing')
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.bill && data.bill.configuracion) {

@@ -9,7 +9,7 @@ import { logger } from '@/lib/logger';
  */
 export async function GET(request: Request) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin', 'recepcion']);
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
         const adminClient = createAdminClient();
@@ -18,8 +18,17 @@ export async function GET(request: Request) {
         const { data: requester } = await (adminClient
             .from('perfiles') as any)
             .select('rol, gimnasio_id, permisos')
-            .eq('id', profile.id)
+            .eq('id', user.id)
             .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin, recepcion o coach (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
 
         // Si es recepcionista, verificar si tiene el permiso concedido por el admin
         if (requester?.rol === 'recepcion') {

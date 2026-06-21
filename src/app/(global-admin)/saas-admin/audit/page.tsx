@@ -8,6 +8,7 @@ import {
     History,
     Search,
     ChevronLeft,
+    ChevronRight,
     Clock,
     Database,
     Zap,
@@ -49,18 +50,31 @@ export default function AuditLogsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [page, setPage] = useState(1);
+    const limit = 20;
     const router = useRouter();
     const [selectedLog, setSelectedLog] = useState<SystemLog | ImpersonationLog | null>(null);
 
     useEffect(() => {
-        fetchLogs();
+        if (page !== 1) {
+            setPage(1);
+        } else {
+            fetchLogs();
+        }
     }, [activeTab, startDate, endDate]);
+
+    useEffect(() => {
+        fetchLogs();
+    }, [page]);
 
     const fetchLogs = async () => {
         setLoading(true);
         try {
+            const offset = (page - 1) * limit;
             const params = new URLSearchParams({
                 type: activeTab,
+                limit: limit.toString(),
+                offset: offset.toString(),
                 ...(startDate && { startDate }),
                 ...(endDate && { endDate })
             });
@@ -107,6 +121,31 @@ export default function AuditLogsPage() {
         link.click();
         document.body.removeChild(link);
     };
+
+    const filteredSystemLogs = systemLogs.filter(log => {
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        return (
+            log.id.toLowerCase().includes(term) ||
+            log.operacion.toLowerCase().includes(term) ||
+            log.tabla.toLowerCase().includes(term) ||
+            log.registro_id.toLowerCase().includes(term) ||
+            log.perfiles?.nombre_completo?.toLowerCase().includes(term) ||
+            log.perfiles?.email?.toLowerCase().includes(term)
+        );
+    });
+
+    const filteredImpersonationLogs = impersonationLogs.filter(log => {
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        return (
+            log.id.toLowerCase().includes(term) ||
+            log.motivo.toLowerCase().includes(term) ||
+            log.admin_profile?.nombre_completo?.toLowerCase().includes(term) ||
+            log.admin_profile?.email?.toLowerCase().includes(term) ||
+            log.gimnasio?.nombre?.toLowerCase().includes(term)
+        );
+    });
 
     return (
         <div className="space-y-8 p-6 md:p-10 max-w-7xl mx-auto pb-32">
@@ -231,14 +270,14 @@ export default function AuditLogsPage() {
                         className="space-y-4"
                     >
                         {activeTab === 'system' ? (
-                            systemLogs.length === 0 ? <EmptyState /> : (
-                                systemLogs.map((log, i) => (
+                            filteredSystemLogs.length === 0 ? <EmptyState /> : (
+                                filteredSystemLogs.map((log, i) => (
                                     <SystemLogCard key={log.id} log={log} index={i} onView={setSelectedLog} />
                                 ))
                             )
                         ) : (
-                            impersonationLogs.length === 0 ? <EmptyState /> : (
-                                impersonationLogs.map((log, i) => (
+                            filteredImpersonationLogs.length === 0 ? <EmptyState /> : (
+                                filteredImpersonationLogs.map((log, i) => (
                                     <ImpersonationCard key={log.id} log={log} index={i} onView={setSelectedLog} />
                                 ))
                             )
@@ -246,6 +285,31 @@ export default function AuditLogsPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Controles de Paginación */}
+            <div className="flex justify-between items-center bg-[#1c1c1e] border border-white/5 p-4 rounded-2xl mt-6 no-print">
+                <button
+                    disabled={page === 1 || loading}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="flex items-center gap-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-30 disabled:pointer-events-none"
+                >
+                    <ChevronLeft size={14} />
+                    Anterior
+                </button>
+                
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Página {page}
+                </span>
+
+                <button
+                    disabled={loading || (activeTab === 'system' ? systemLogs.length < limit : impersonationLogs.length < limit)}
+                    onClick={() => setPage(p => p + 1)}
+                    className="flex items-center gap-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-30 disabled:pointer-events-none"
+                >
+                    Siguiente
+                    <ChevronRight size={14} />
+                </button>
+            </div>
 
             {/* Modal de Detalle de Auditoría y Diff Avanzado */}
             <AnimatePresence>

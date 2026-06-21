@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
         const adminClient = createAdminClient();
@@ -19,10 +19,19 @@ export async function GET(request: Request) {
         const { data: requester } = await adminClient
             .from('perfiles')
             .select('rol, gimnasio_id, permisos')
-            .eq('id', profile.id)
+            .eq('id', user.id)
             .single();
 
-        if (requester?.rol === 'recepcion' && requester.permisos?.acceso_planes !== true) {
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin o recepcion (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
+
+        if (requester.rol === 'recepcion' && requester.permisos?.acceso_planes !== true) {
             return NextResponse.json({ error: 'Forbidden: Sin permisos de acceso a planes' }, { status: 403 });
         }
 
@@ -83,7 +92,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (authError) return authError;
 
         const adminClient = createAdminClient();
@@ -92,15 +101,36 @@ export async function POST(request: Request) {
         const { data: requester } = await adminClient
             .from('perfiles')
             .select('rol, gimnasio_id')
-            .eq('id', profile.id)
+            .eq('id', user.id)
             .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
 
         let targetGymId = requester?.gimnasio_id;
         const body = await request.json();
 
-        // Permitir a Superadmin definir gimnasio_id
+        // Permitir a Superadmin definir gimnasio_id (resolver slug a UUID si es necesario)
         if (requester?.rol === 'superadmin' && body.gimnasio_id) {
-            targetGymId = body.gimnasio_id;
+            const rawGymId: string = body.gimnasio_id;
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rawGymId);
+            if (isUUID) {
+                targetGymId = rawGymId;
+            } else {
+                // Resolver slug a UUID
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', rawGymId)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
         }
 
         if (!targetGymId) {

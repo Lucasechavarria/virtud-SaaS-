@@ -274,7 +274,7 @@ export default function SuperAdminOverview() {
                         <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Control SaaS Global</h2>
                     </div>
                     <div className="flex items-end gap-3">
-                        <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">Vitud SaaS Hub</h1>
+                        <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">Virtud SaaS Hub</h1>
                         <span className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
                             <span className="text-red-500">📍</span> HQ
                         </span>

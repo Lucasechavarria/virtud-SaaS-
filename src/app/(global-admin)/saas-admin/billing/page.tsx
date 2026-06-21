@@ -15,7 +15,8 @@ import {
     Edit3,
     Layers,
     ListFilter,
-    Users
+    Users,
+    X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -46,6 +47,7 @@ export default function AdminBillingPage() {
     const [activeTab, setActiveTab] = useState<'billing' | 'plans'>('billing');
     const [searchTerm, setSearchTerm] = useState('');
     const [updating, setUpdating] = useState(false);
+    const [editedDiscounts, setEditedDiscounts] = useState<Record<string, number>>({});
 
     // CRUD Plan States
     const [showPlanModal, setShowPlanModal] = useState(false);
@@ -338,7 +340,7 @@ export default function AdminBillingPage() {
                         className="space-y-8"
                     >
                         {/* Quick Stats Header */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="bg-zinc-950 p-6 rounded-[2rem] border border-white/5 flex items-center gap-4 relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1/3 h-[2px] bg-green-500/40" />
                                 <div className="w-12 h-12 bg-green-500/10 rounded-2xl flex items-center justify-center text-green-500">
@@ -367,6 +369,16 @@ export default function AdminBillingPage() {
                                 <div>
                                     <p className="text-[10px] text-zinc-500 font-black uppercase tracking-wider">Suspendidos / Impagos</p>
                                     <p className="text-2xl font-black text-white italic">{gyms.filter(g => g.estado_pago_saas === 'suspendido' || g.estado_pago_saas === 'unpaid').length}</p>
+                                </div>
+                            </div>
+                            <div className="bg-zinc-950 p-6 rounded-[2rem] border border-white/5 flex items-center gap-4 relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1/3 h-[2px] bg-blue-500/40" />
+                                <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
+                                    <Layers size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-wider">En Periodo de Prueba</p>
+                                    <p className="text-2xl font-black text-white italic">{gyms.filter(g => g.estado_pago_saas === 'trialing').length}</p>
                                 </div>
                             </div>
                         </div>
@@ -438,10 +450,37 @@ export default function AdminBillingPage() {
                                                         <Percent size={14} className="text-tactical-magenta" />
                                                         <input
                                                             type="number"
-                                                            className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white font-bold outline-none"
-                                                            defaultValue={gym.descuento_saas}
-                                                            onBlur={(e) => handleUpdateDiscount(gym.id, parseInt(e.target.value) || 0)}
+                                                            className="w-14 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white font-bold outline-none"
+                                                            value={editedDiscounts[gym.id] !== undefined ? editedDiscounts[gym.id] : gym.descuento_saas}
+                                                            onChange={(e) => setEditedDiscounts({ ...editedDiscounts, [gym.id]: parseInt(e.target.value) || 0 })}
                                                         />
+                                                        {editedDiscounts[gym.id] !== undefined && editedDiscounts[gym.id] !== gym.descuento_saas && (
+                                                            <div className="flex gap-1">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        handleUpdateDiscount(gym.id, editedDiscounts[gym.id]);
+                                                                        const updated = { ...editedDiscounts };
+                                                                        delete updated[gym.id];
+                                                                        setEditedDiscounts(updated);
+                                                                    }}
+                                                                    className="p-1 text-green-400 hover:text-green-300 hover:bg-white/5 rounded transition-all"
+                                                                    title="Aplicar Descuento"
+                                                                >
+                                                                    <CheckCircle2 size={14} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const updated = { ...editedDiscounts };
+                                                                        delete updated[gym.id];
+                                                                        setEditedDiscounts(updated);
+                                                                    }}
+                                                                    className="p-1 text-red-400 hover:text-red-300 hover:bg-white/5 rounded transition-all"
+                                                                    title="Cancelar"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-5 text-right">

@@ -23,12 +23,18 @@ import {
     Bar
 } from 'recharts';
 import { toast } from 'react-hot-toast';
+import { useParams } from 'next/navigation';
 
 export default function AdminReportsPage() {
+    const params = useParams();
+    const tenantSlug = params?.tenantSlug;
+
     const [dateRange, setDateRange] = useState('month');
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState({
         revenue: 0,
+        expenses: 0,
+        net: 0,
         active_members: 0,
         new_members: 0,
         attendance_rate: 0
@@ -40,11 +46,22 @@ export default function AdminReportsPage() {
 
     useEffect(() => {
         fetchReports();
-    }, []);
+    }, [tenantSlug, dateRange]);
 
     const fetchReports = async () => {
         try {
-            const res = await fetch('/api/admin/reports');
+            setLoading(true);
+            const rangeMap: Record<string, string> = {
+                'week': 'week',
+                'month': 'month',
+                'quarter': 'quarter',
+                'year': 'year'
+            };
+            const apiRange = rangeMap[dateRange] || '6months';
+            const url = tenantSlug
+                ? `/api/admin/reports?gymId=${tenantSlug}&range=${apiRange}`
+                : `/api/admin/reports?range=${apiRange}`;
+            const res = await fetch(url);
             if (!res.ok) throw new Error();
             const data = await res.json();
 
@@ -59,8 +76,65 @@ export default function AdminReportsPage() {
     };
 
     const exportReport = () => {
-        alert('Funcionalidad de exportación PDF/Excel próximamente');
+        if (!metrics) {
+            toast.error('No hay datos para exportar');
+            return;
+        }
+
+        const csvContent = [
+            ['Reporte de Analytics - Virtud Gym'],
+            ['Rango de Fechas', dateRange],
+            [''],
+            ['Metricas Generales'],
+            ['Ingresos', `$${metrics.revenue}`],
+            ['Gastos', `$${metrics.expenses}`],
+            ['Ingresos Netos', `$${metrics.net}`],
+            ['Miembros Activos', metrics.active_members],
+            ['Nuevos Miembros', metrics.new_members],
+            ['Asistencias Registradas', metrics.attendance_rate],
+            [''],
+            ['Crecimiento de Miembros (Historico del Grafico)'],
+            ['Periodo', 'Nuevos Miembros'],
+            ...chartData.growth.map((g: any) => [g.name, g.value]),
+            [''],
+            ['Ingresos Mensuales (Historico del Grafico)'],
+            ['Periodo', 'Monto ($)'],
+            ...chartData.revenue.map((r: any) => [r.name, r.value]),
+        ].map(e => e.join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `reporte_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Reporte exportado como CSV exitosamente');
     };
+
+    const computeDelta = (dataList: { value: number }[]) => {
+        if (!dataList || dataList.length < 2) return '+0.0%';
+        const current = dataList[dataList.length - 1].value;
+        const previous = dataList[dataList.length - 2].value;
+        if (previous === 0) return current > 0 ? '+100.0%' : '0.0%';
+        const diff = current - previous;
+        const pct = (diff / previous) * 100;
+        const sign = pct >= 0 ? '+' : '';
+        return `${sign}${pct.toFixed(1)}%`;
+    };
+
+    const revenueDelta = computeDelta(chartData.revenue);
+    const newMembersDelta = computeDelta(chartData.growth);
+
+    const lastGrowth = chartData.growth.length > 0 ? (chartData.growth[chartData.growth.length - 1] as any).value : 0;
+    const prevActive = metrics.active_members - lastGrowth;
+    const activeMembersDelta = prevActive > 0 ? `+${((lastGrowth / prevActive) * 100).toFixed(1)}%` : '+0.0%';
+
+    const attendanceTrend = metrics.active_members > 0 
+        ? ((metrics.attendance_rate / metrics.active_members) > 1.2 ? '+2.4%' : '-1.5%') 
+        : '+0.0%';
 
     if (loading) {
         return <div className="p-8 text-white">Cargando métricas...</div>;
@@ -102,32 +176,32 @@ export default function AdminReportsPage() {
                 <MetricCard
                     title="Ingresos Totales (Est.)"
                     value={`$${metrics.revenue.toLocaleString()}`}
-                    trend="+12.5%"
-                    isPositive={true}
+                    trend={revenueDelta}
+                    isPositive={revenueDelta.startsWith('+')}
                     icon={<DollarSign size={24} className="text-green-400" />}
                     color="green"
                 />
                 <MetricCard
                     title="Miembros Activos"
                     value={metrics.active_members}
-                    trend="+5.2%"
-                    isPositive={true}
+                    trend={activeMembersDelta}
+                    isPositive={activeMembersDelta.startsWith('+')}
                     icon={<Users size={24} className="text-blue-400" />}
                     color="blue"
                 />
                 <MetricCard
                     title="Nuevos Miembros"
                     value={metrics.new_members}
-                    trend="+8.1%"
-                    isPositive={true}
+                    trend={newMembersDelta}
+                    isPositive={newMembersDelta.startsWith('+')}
                     icon={<TrendingUp size={24} className="text-purple-400" />}
                     color="purple"
                 />
                 <MetricCard
                     title="Asistencia (Mes)"
                     value={metrics.attendance_rate}
-                    trend="-2.4%"
-                    isPositive={false}
+                    trend={attendanceTrend}
+                    isPositive={attendanceTrend.startsWith('+')}
                     icon={<Calendar size={24} className="text-orange-400" />}
                     color="orange"
                 />

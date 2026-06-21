@@ -11,11 +11,31 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { supabase, error, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (error) return error;
+
+        // Blindaje contra gimnasio_id NULL para admin locales
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
+        }
 
         const { id } = await params;
         const userId = id;
+
+        // Validar multitenant: verificar que el usuario objetivo pertenezca al mismo gimnasio
+        const { data: targetProfile, error: targetError } = await supabase!
+            .from('perfiles')
+            .select('gimnasio_id')
+            .eq('id', userId)
+            .single();
+
+        if (targetError || !targetProfile) {
+            return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+        }
+
+        if (profile?.role !== 'superadmin' && targetProfile.gimnasio_id !== profile.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: No tienes acceso a este usuario' }, { status: 403 });
+        }
 
         // Consultar historial con el nombre del que realizó el cambio
         const { data, error: historyError } = await supabase!

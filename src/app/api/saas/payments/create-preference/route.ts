@@ -99,7 +99,7 @@ export async function POST(request: Request) {
                         title: `Suscripción Mensual Virtud Gym (${planNombre}) - ${gymBase.nombre}`,
                         quantity: 1,
                         unit_price: precio,
-                        currency_id: 'ARS',
+                        currency_id: 'USD',
                     },
                 ],
                 external_reference: gymBase.id,

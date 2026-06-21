@@ -16,6 +16,8 @@ import {
     X
 } from 'lucide-react';
 
+import { useParams } from 'next/navigation';
+
 interface Equipment {
     id: string;
     name: string;
@@ -35,6 +37,9 @@ const CONDITIONS = [
 ];
 
 export default function AdminEquipmentPage() {
+    const params = useParams();
+    const tenantSlug = params?.tenantSlug;
+
     const [equipment, setEquipment] = useState<Equipment[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -44,11 +49,12 @@ export default function AdminEquipmentPage() {
 
     useEffect(() => {
         fetchEquipment();
-    }, []);
+    }, [tenantSlug]);
 
     const fetchEquipment = async () => {
         try {
-            const res = await fetch('/api/equipment');
+            const url = tenantSlug ? `/api/equipment?gymId=${tenantSlug}` : '/api/equipment';
+            const res = await fetch(url);
             if (!res.ok) throw new Error();
             const data = await res.json();
             setEquipment(data);
@@ -62,12 +68,16 @@ export default function AdminEquipmentPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const method = editingItem?.id ? 'PATCH' : 'POST';
+        const payload = {
+            ...editingItem,
+            gymId: tenantSlug
+        };
 
         try {
             const res = await fetch('/api/equipment', {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(editingItem),
+                body: JSON.stringify(payload),
             });
 
             if (!res.ok) throw new Error();
@@ -84,7 +94,8 @@ export default function AdminEquipmentPage() {
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de eliminar este equipo?')) return;
         try {
-            const res = await fetch(`/api/equipment?id=${id}`, { method: 'DELETE' });
+            const url = `/api/equipment?id=${id}` + (tenantSlug ? `&gymId=${tenantSlug}` : '');
+            const res = await fetch(url, { method: 'DELETE' });
             if (!res.ok) throw new Error();
             toast.success('Equipo eliminado');
             fetchEquipment();

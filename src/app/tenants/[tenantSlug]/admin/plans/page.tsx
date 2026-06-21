@@ -150,6 +150,7 @@ export default function GymPlansManagementPage() {
             .filter(line => line.length > 0);
 
         const payload = {
+            gimnasio_id: tenantSlug,
             nombre: formData.nombre,
             descripcion: formData.descripcion,
             precio: Number(formData.precio),

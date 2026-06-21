@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { 
     LineChart, 
     Line as RechartsLine, 
@@ -32,6 +33,9 @@ interface AccessLog {
 }
 
 export default function SecurityDashboardPage() {
+    const params = useParams();
+    const tenantSlug = (params?.tenantSlug) as string | undefined;
+
     const [metrics, setMetrics] = useState<SecurityMetrics>({
         totalAccess: 0,
         suspiciousAccess: 0,
@@ -54,7 +58,10 @@ export default function SecurityDashboardPage() {
     const loadSecurityData = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/admin/security/dashboard');
+            const url = tenantSlug
+                ? `/api/admin/security/dashboard?gymId=${tenantSlug}`
+                : '/api/admin/security/dashboard';
+            const response = await fetch(url);
             const data = await response.json();
 
             setMetrics(data.metrics);

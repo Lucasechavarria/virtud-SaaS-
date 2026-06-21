@@ -15,7 +15,7 @@ export const revalidate = 0;
  */
 export async function GET(request: Request) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin', 'recepcion']);
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'coach', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
         const adminClient = createAdminClient();
@@ -24,8 +24,17 @@ export async function GET(request: Request) {
         const { data: requester } = await (adminClient
             .from('perfiles') as any)
             .select('rol, gimnasio_id, permisos')
-            .eq('id', profile.id)
+            .eq('id', user.id)
             .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin, recepcion o coach (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
 
         // Si es recepcionista, verificar si tiene el permiso concedido por el admin
         if (requester?.rol === 'recepcion') {
@@ -37,6 +46,7 @@ export async function GET(request: Request) {
 
         const { searchParams } = new URL(request.url);
         const urlGym = searchParams.get('gymId');
+        const search = searchParams.get('search') || searchParams.get('q');
 
         let targetGymId = requester?.gimnasio_id;
 
@@ -76,13 +86,24 @@ export async function GET(request: Request) {
             query = query.eq('gimnasio_id', targetGymId);
         }
 
+        if (search) {
+            query = query.or(`nombre_completo.ilike.%${search}%,correo.ilike.%${search}%`).limit(50);
+        }
+
         const { data: users, error: dbError } = await query
             .order('creado_en', { ascending: false });
 
         if (dbError) {
             logger.error('❌ Error en DB query:', { error: dbError });
             // Fallback si falla el JOIN (posiblemente por desajuste de schema extremo)
-            const fallback = await adminClient.from('perfiles').select('*');
+            let fallbackQuery = adminClient.from('perfiles').select('*');
+            if (targetGymId) {
+                fallbackQuery = fallbackQuery.eq('gimnasio_id', targetGymId);
+            }
+            if (search) {
+                fallbackQuery = fallbackQuery.or(`nombre_completo.ilike.%${search}%,correo.ilike.%${search}%`).limit(50);
+            }
+            const fallback = await fallbackQuery;
             if (fallback.error) throw fallback.error;
             return NextResponse.json({ users: fallback.data.map(u => normalizeUser(u)) });
         }

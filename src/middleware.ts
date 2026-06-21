@@ -114,14 +114,28 @@ export async function middleware(request: NextRequest) {
         if (legacyTenant && !ignoredPaths.includes(legacyTenant) && !tenantSlug && !isSystemPath) {
             const remainingPath = '/' + pathSegments.slice(1).join('/');
             
+            // Si el legacyTenant es un UUID, resolver su slug real para evitar URLs con UUID
+            let resolvedTenant = legacyTenant;
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(legacyTenant);
+            if (isUUID) {
+                const { data: gym } = await supabase
+                    .from('gimnasios')
+                    .select('slug')
+                    .eq('id', legacyTenant)
+                    .single();
+                if (gym?.slug) {
+                    resolvedTenant = gym.slug;
+                }
+            }
+
             if (isLocalhost || baseDomainWithoutPort.endsWith('vercel.app')) {
                 // En localhost o dominios vercel.app (donde no hay wildcards DNS),
                 // reescribimos internamente manteniendo la misma sesión y cookies sin cambiar de host
                 const requestHeaders = new Headers(request.headers);
-                requestHeaders.set('x-gym-slug', legacyTenant);
-                requestHeaders.set('x-tenant-slug', legacyTenant);
+                requestHeaders.set('x-gym-slug', resolvedTenant);
+                requestHeaders.set('x-tenant-slug', resolvedTenant);
 
-                url.pathname = `/tenants/${legacyTenant}${remainingPath}`;
+                url.pathname = `/tenants/${resolvedTenant}${remainingPath}`;
                 const rewriteResponse = NextResponse.rewrite(url, {
                     request: {
                         headers: requestHeaders
@@ -135,7 +149,7 @@ export async function middleware(request: NextRequest) {
             } else {
                 // En producción con dominio propio, redirigimos al subdominio del gimnasio
                 const redirectUrl = new URL(
-                    `${request.nextUrl.protocol}//${legacyTenant}.${baseDomain}${remainingPath}${url.search}`
+                    `${request.nextUrl.protocol}//${resolvedTenant}.${baseDomain}${remainingPath}${url.search}`
                 );
                 return NextResponse.redirect(redirectUrl);
             }

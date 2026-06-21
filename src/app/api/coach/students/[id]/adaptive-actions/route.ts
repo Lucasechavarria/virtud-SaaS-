@@ -22,10 +22,10 @@ export async function POST(
             await (supabase as any)
                 .from('audit_log_coach')
                 .insert({
-                    user_id: session.user.id,
-                    action: 'ia_suggestion_apply',
-                    target_user_id: studentId,
-                    details: { suggestion: suggestionData }
+                    entrenador_id: session.user.id,
+                    operacion: 'ia_suggestion_apply',
+                    usuario_id: studentId,
+                    datos_nuevos: { suggestion: suggestionData }
                 });
 
         } else if (action === 'discard') {
@@ -34,10 +34,10 @@ export async function POST(
             await (supabase as any)
                 .from('audit_log_coach')
                 .insert({
-                    user_id: session.user.id,
-                    action: 'ia_suggestion_discard',
-                    target_user_id: studentId,
-                    details: { suggestionId }
+                    entrenador_id: session.user.id,
+                    operacion: 'ia_suggestion_discard',
+                    usuario_id: studentId,
+                    datos_nuevos: { suggestionId }
                 });
         }
 

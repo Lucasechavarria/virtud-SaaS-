@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { logger } from '@/lib/logger';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/payments/manual-approval
@@ -38,8 +39,7 @@ import { logger } from '@/lib/logger';
  *   "paymentId": "payment_abc123",
  *   "message": "Pago aprobado exitosamente"
  * }
- */
-export async function POST(request: Request) {
+ */export async function POST(request: Request) {
     try {
         // Verificar autenticación y rol de admin
         const { user, profile, supabase, error } = await authenticateAndRequireRole(
@@ -49,8 +49,28 @@ export async function POST(request: Request) {
 
         if (error) return error;
 
+        // Blindaje contra gimnasio_id NULL para admin
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'Administrador sin gimnasio asignado'
+            }, { status: 403 });
+        }
+
         // Obtener datos del request
-        const { userId, amount, concept, notes } = await request.json();
+        const { userId, amount, concept, notes, gymId } = await request.json();
+
+        // Resolver gimnasio
+        let targetGymId = profile?.gimnasio_id;
+        if (profile?.role === 'superadmin') {
+            if (!gymId) {
+                return NextResponse.json({
+                    error: 'Missing gymId',
+                    message: 'El gymId es requerido para superadmins'
+                }, { status: 400 });
+            }
+            targetGymId = gymId;
+        }
 
         // Validaciones robustas
         if (!userId || !amount || !concept) {
@@ -69,18 +89,25 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        // Validar que el userId exista
-        const { data: userExists, error: userCheckError } = await supabase!
+        // Validar que el userId exista y pertenezca al mismo gimnasio
+        const { data: targetUser, error: userCheckError } = await supabase!
             .from('perfiles')
-            .select('id')
+            .select('id, gimnasio_id')
             .eq('id', userId)
             .single();
 
-        if (userCheckError || !userExists) {
+        if (userCheckError || !targetUser) {
             return NextResponse.json({
                 error: 'User not found',
                 message: `Usuario con ID ${userId} no encontrado`
             }, { status: 404 });
+        }
+
+        if (profile?.role !== 'superadmin' && targetUser.gimnasio_id !== targetGymId) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'El socio especificado no pertenece a tu gimnasio'
+            }, { status: 403 });
         }
 
         // Crear registro de pago en Supabase
@@ -88,6 +115,7 @@ export async function POST(request: Request) {
             .from('pagos')
             .insert({
                 usuario_id: userId,
+                gimnasio_id: targetGymId, // Inyección del gimnasio_id
                 monto: numericAmount,
                 moneda: 'ARS', // Siempre ARS para pagos manuales
                 concepto: concept,
@@ -111,7 +139,9 @@ export async function POST(request: Request) {
         }
 
         // Usar la función RPC para aprobar con reglas de negocio (mantiene ciclo de facturación)
-        const { data: approvalData, error: approvalError } = await supabase!
+        // Se ejecuta usando createAdminClient para poseer privilegios de service_role tras la revocación de execute a usuarios autenticados
+        const adminClient = createAdminClient();
+        const { data: approvalData, error: approvalError } = await adminClient
             .rpc('aprobar_pago_con_reglas', {
                 p_pago_id: payment.id,
                 p_admin_id: user!.id
@@ -119,8 +149,6 @@ export async function POST(request: Request) {
 
         if (approvalError) {
             logger.error('Error aprobando pago con RPC', { error: approvalError.message, paymentId: payment.id });
-            // Fallback: Si falla la RPC, intentar actualizar manualmente como antes (seguridad)
-            // O devolver error 500. Decidimos devolver error para investigar.
             return NextResponse.json({
                 error: 'Payment approval logic failed',
                 message: approvalError.message
@@ -177,15 +205,36 @@ export async function GET(request: Request) {
 
         if (error) return error;
 
-        // Obtener pagos manuales con información del usuario y aprobador
-        const { data: payments, error: paymentsError } = await supabase!
+        // Blindaje contra gimnasio_id NULL para admin
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'Administrador sin gimnasio asignado'
+            }, { status: 403 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const urlGym = searchParams.get('gymId');
+        let targetGymId = profile?.gimnasio_id;
+
+        if (profile?.role === 'superadmin' && urlGym) {
+            targetGymId = urlGym;
+        }
+
+        let query = supabase!
             .from('pagos')
             .select(`
                 *,
-                user:perfiles!usuario_id (id, nombre_completo, email),
-                approver:perfiles!aprobado_por (id, nombre_completo, email)
+                user:perfiles!usuario_id (id, nombre_completo, email:correo),
+                approver:perfiles!aprobado_por (id, nombre_completo, email:correo)
             `)
-            .eq('metodo_pago', 'cash')
+            .eq('metodo_pago', 'cash');
+
+        if (targetGymId) {
+            query = query.eq('gimnasio_id', targetGymId);
+        }
+
+        const { data: payments, error: paymentsError } = await query
             .order('creado_en', { ascending: false })
             .limit(100);
 

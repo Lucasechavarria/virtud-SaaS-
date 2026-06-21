@@ -5,23 +5,79 @@ import crypto from 'crypto';
 import type { MercadoPagoPayment, MercadoPagoWebhookNotification } from '@/types/mercadopago';
 
 /**
+ * Valida la firma HMAC de notificaciones de MercadoPago
+ */
+function validateMercadoPagoSignature(
+    rawBody: string, 
+    xSignature: string | null, 
+    xRequestId: string | null,
+    secret: string | undefined
+): boolean {
+    if (!xSignature || !secret) return false;
+    
+    try {
+        const parts = xSignature.split(',');
+        const ts = parts.find(p => p.startsWith('ts='))?.split('=')?.[1];
+        const v1 = parts.find(p => p.startsWith('v1='))?.split('=')?.[1];
+        
+        if (!ts || !v1) return false;
+        
+        const bodyObj = JSON.parse(rawBody);
+        const resourceId = bodyObj?.data?.id;
+        if (!resourceId) return false;
+
+        const signedTemplate = `id:${resourceId};request-id:${xRequestId};ts:${ts};`;
+        const expected = crypto.createHmac('sha256', secret)
+            .update(signedTemplate)
+            .digest('hex');
+            
+        return crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected));
+    } catch (_) {
+        return false;
+    }
+}
+
+/**
+ * Helper para obtener el gimnasio_id de un socio
+ */
+async function getUserGymId(supabase: any, userId: string): Promise<string> {
+    const { data: userProfile, error } = await supabase
+        .from('perfiles')
+        .select('gimnasio_id')
+        .eq('id', userId)
+        .single();
+
+    if (error || !userProfile?.gimnasio_id) {
+        logger.error('Error al obtener el gimnasio del usuario o gimnasio no asignado', { userId, error });
+        throw new Error('Socio no encontrado o no tiene un gimnasio asignado');
+    }
+    return userProfile.gimnasio_id;
+}
+
+/**
  * POST /api/payments/webhook
  * 
  * Webhook de MercadoPago para notificaciones de pagos.
- * Procesa pagos aprobados, pendientes y rechazados.
- * 
- * @route POST /api/payments/webhook
- * @access Public (validado con signature)
- * 
- * @param {Object} request.body - Notificación de MercadoPago
- * 
- * @returns {Object} 200 - Webhook procesado
- * @returns {Object} 400 - Datos inválidos
+ * Procesa pagos aprobados, pendientes y rechazados con validación HMAC.
  */
 export async function POST(request: Request) {
     try {
-        const body = await request.json();
+        const xSignature = request.headers.get('x-signature');
+        const xRequestId = request.headers.get('x-request-id');
+        const rawBody = await request.text();
 
+        // 1. Validar la firma HMAC de MercadoPago
+        const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+        if (process.env.NODE_ENV === 'production' || secret) {
+            if (!validateMercadoPagoSignature(rawBody, xSignature, xRequestId, secret)) {
+                logger.warn('Webhook de MercadoPago rechazado: firma inválida o faltante');
+                return NextResponse.json({ error: 'Firma inválida' }, { status: 401 });
+            }
+        } else {
+            logger.warn('Advertencia: Webhook de MercadoPago procesado sin validar firma (secreto no configurado en entorno local)');
+        }
+
+        const body = JSON.parse(rawBody);
         logger.info('Webhook recibido de MercadoPago', { type: body.type, action: body.action });
 
         // Validar que sea una notificación de pago
@@ -101,8 +157,6 @@ export async function POST(request: Request) {
 
 /**
  * Maneja pagos aprobados
- * @param payment - Objeto de pago de MercadoPago
- * @param userId - ID del usuario que realizó el pago
  */
 async function handleApprovedPayment(payment: MercadoPagoPayment, userId: string) {
     try {
@@ -119,6 +173,9 @@ async function handleApprovedPayment(payment: MercadoPagoPayment, userId: string
             throw new Error('User ID es requerido para procesar el pago');
         }
 
+        // Obtener gimnasio del socio
+        const gymId = await getUserGymId(supabase, userId);
+
         // 🔐 Idempotency Check: Ver si el pago ya fue procesado como 'aprobado'
         const { data: existingPayment } = await supabase
             .from('pagos')
@@ -126,20 +183,21 @@ async function handleApprovedPayment(payment: MercadoPagoPayment, userId: string
             .eq('id', payment.id.toString())
             .single();
 
-        if (existingPayment?.estado === 'aprobado') {
+        if (existingPayment?.estado === 'approved') {
             logger.info('♻️ Pago ya procesado previamente. Omitiendo duplicidad.', { paymentId: payment.id });
             return;
         }
 
-        // Guardar pago en Supabase
+        // Guardar pago en Supabase con gimnasio_id
         const { error: paymentError } = await supabase
             .from('pagos')
             .upsert({
                 id: payment.id.toString(),
                 usuario_id: userId,
+                gimnasio_id: gymId, // Inyección de Tenant
                 monto: payment.transaction_amount,
                 moneda: payment.currency_id || 'ARS',
-                estado: 'aprobado',
+                estado: 'approved',
                 metodo_pago: 'mercadopago',
                 proveedor_pago: 'mercadopago',
                 id_pago_proveedor: payment.id.toString(),
@@ -181,7 +239,6 @@ async function handleApprovedPayment(payment: MercadoPagoPayment, userId: string
                 userId,
                 paymentId: payment.id
             });
-            // No lanzamos error aquí porque el pago ya se guardó exitosamente
         }
 
         logger.info('✅ Pago aprobado procesado exitosamente', {
@@ -202,9 +259,7 @@ async function handleApprovedPayment(payment: MercadoPagoPayment, userId: string
 }
 
 /**
- * Maneja pagos pendientes (transferencias bancarias, Rapipago, etc.)
- * @param payment - Objeto de pago de MercadoPago
- * @param userId - ID del usuario que realizó el pago
+ * Maneja pagos pendientes
  */
 async function handlePendingPayment(payment: MercadoPagoPayment, userId: string) {
     try {
@@ -215,15 +270,19 @@ async function handlePendingPayment(payment: MercadoPagoPayment, userId: string)
             throw new Error('Payment ID y User ID son requeridos');
         }
 
-        // Guardar pago pendiente
+        // Obtener gimnasio del socio
+        const gymId = await getUserGymId(supabase, userId);
+
+        // Guardar pago pendiente con gimnasio_id
         const { error: paymentError } = await supabase
             .from('pagos')
             .upsert({
                 id: payment.id.toString(),
                 usuario_id: userId,
+                gimnasio_id: gymId, // Inyección de Tenant
                 monto: payment.transaction_amount,
                 moneda: payment.currency_id || 'ARS',
-                estado: 'pendiente',
+                estado: 'pending',
                 metodo_pago: 'mercadopago',
                 proveedor_pago: 'mercadopago',
                 id_pago_proveedor: payment.id.toString(),
@@ -265,8 +324,6 @@ async function handlePendingPayment(payment: MercadoPagoPayment, userId: string)
 
 /**
  * Maneja pagos rechazados
- * @param payment - Objeto de pago de MercadoPago
- * @param userId - ID del usuario que realizó el pago
  */
 async function handleRejectedPayment(payment: MercadoPagoPayment, userId: string) {
     try {
@@ -277,15 +334,19 @@ async function handleRejectedPayment(payment: MercadoPagoPayment, userId: string
             throw new Error('Payment ID y User ID son requeridos');
         }
 
-        // Guardar pago rechazado para auditoría
+        // Obtener gimnasio del socio
+        const gymId = await getUserGymId(supabase, userId);
+
+        // Guardar pago rechazado para auditoría con gimnasio_id
         const { error: paymentError } = await supabase
             .from('pagos')
             .upsert({
                 id: payment.id.toString(),
                 usuario_id: userId,
+                gimnasio_id: gymId, // Inyección de Tenant
                 monto: payment.transaction_amount,
                 moneda: payment.currency_id || 'ARS',
-                estado: 'rechazado',
+                estado: 'rejected',
                 metodo_pago: 'mercadopago',
                 proveedor_pago: 'mercadopago',
                 id_pago_proveedor: payment.id.toString(),
@@ -296,7 +357,7 @@ async function handleRejectedPayment(payment: MercadoPagoPayment, userId: string
                     status_detail: payment.status_detail,
                     date_created: payment.date_created,
                     payer_email: payment.payer?.email,
-                    rejection_reason: payment.status_detail // Importante para análisis
+                    rejection_reason: payment.status_detail
                 }
             });
 

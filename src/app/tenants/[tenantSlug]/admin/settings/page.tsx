@@ -66,9 +66,20 @@ export default function SettingsPage() {
                     .eq('id', user.id)
                     .single();
 
-                if (profile?.rol === 'recepcion' && (profile?.permisos as any)?.acceso_settings !== true) {
+                const hasAccess = 
+                    profile?.rol === 'superadmin' || 
+                    profile?.rol === 'admin' || 
+                    (profile?.rol === 'recepcion' && (profile?.permisos as any)?.acceso_settings === true);
+
+                if (!hasAccess) {
                     toast.error('Acceso denegado: No tienes permisos para ver configuración');
-                    router.push(gymId ? `/${gymId}/admin/recepcion/pos` : '/admin/recepcion/pos');
+                    if (profile?.rol === 'recepcion') {
+                        router.push(gymId ? `/${gymId}/admin/recepcion/pos` : '/admin/recepcion/pos');
+                    } else if (profile?.rol === 'coach') {
+                        router.push(gymId ? `/${gymId}/coach` : '/coach');
+                    } else {
+                        router.push(gymId ? `/${gymId}/member/dashboard` : '/member/dashboard');
+                    }
                     return;
                 }
 
@@ -86,7 +97,10 @@ export default function SettingsPage() {
     const fetchGymData = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/admin/gym/info');
+            const url = gymId 
+                ? `/api/admin/gym/info?gymId=${gymId}` 
+                : '/api/admin/gym/info';
+            const res = await fetch(url);
             const data = await res.json();
             if (res.ok) {
                 setGymInfo(data.gym as GymInfo);
@@ -135,8 +149,36 @@ export default function SettingsPage() {
         }
     }, []);
 
-    const saveSettings = () => {
-        toast.success('Configuración guardada exitosamente');
+    const handleSaveGymSettings = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch('/api/admin/gym/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: gymSettings.name,
+                    address: gymSettings.address,
+                    phone: gymSettings.phone,
+                    email: gymSettings.email,
+                    openingHours: gymSettings.openingHours,
+                    timezone: gymSettings.timezone,
+                    ...(gymId && { gymId })
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Configuración guardada exitosamente');
+                // Refrescar datos para confirmar persistencia
+                await fetchGymData();
+            } else {
+                throw new Error(data.error || 'Error al guardar');
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Error desconocido';
+            toast.error(message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const [integrations, setIntegrations] = useState({
@@ -374,10 +416,11 @@ export default function SettingsPage() {
                                     </div>
 
                                     <button
-                                        onClick={saveSettings}
-                                        className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-xl transition-all"
+                                        onClick={handleSaveGymSettings}
+                                        disabled={loading}
+                                        className="w-full bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-all"
                                     >
-                                        Guardar Cambios
+                                        {loading ? 'Guardando...' : 'Guardar Cambios'}
                                     </button>
                                 </div>
                             )}
@@ -512,10 +555,11 @@ export default function SettingsPage() {
                                     </div>
 
                                     <button
-                                        onClick={saveSettings}
-                                        className="w-full bg-white/5 hover:bg-white/10 text-white font-black py-4 rounded-3xl transition-all border border-white/10 uppercase tracking-widest text-xs mt-8 shadow-xl shadow-black/20"
+                                        onClick={handleSaveGymSettings}
+                                        disabled={loading}
+                                        className="w-full bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white font-black py-4 rounded-3xl transition-all border border-white/10 uppercase tracking-widest text-xs mt-8 shadow-xl shadow-black/20"
                                     >
-                                        ACTUALIZAR CREDENCIALES
+                                        {loading ? 'GUARDANDO...' : 'ACTUALIZAR CREDENCIALES'}
                                     </button>
                                 </div>
                             )}

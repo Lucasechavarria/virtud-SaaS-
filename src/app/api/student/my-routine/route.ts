@@ -20,12 +20,11 @@ export async function GET(request: Request) {
             .from('rutinas')
             .select(`
                 *,
-                coach:perfiles(nombre_completo, email)
+                coach:perfiles(nombre_completo, email:correo)
             `)
             .eq('usuario_id', user.id)
             .eq('esta_activa', true)
-            .eq('estado', 'approved')
-            .single();
+            .maybeSingle();
 
         if (routineError || !routine) {
             return NextResponse.json({

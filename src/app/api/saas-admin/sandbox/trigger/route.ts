@@ -82,7 +82,10 @@ export async function POST(request: Request) {
                             .eq('id', gymId);
                     }
                 }
-            } catch (_err) {
+            } catch (err) {
+                if (process.env.NODE_ENV !== 'development') {
+                    throw err;
+                }
                 amount = Math.floor(Math.random() * 50) + 49;
                 discount = Math.random() > 0.7 ? 10 : 0;
                 finalAmount = amount - (amount * discount / 100);
@@ -109,7 +112,10 @@ export async function POST(request: Request) {
 
                 if (pError) throw pError;
                 payment = data;
-            } catch (_err) {
+            } catch (err) {
+                if (process.env.NODE_ENV !== 'development') {
+                    throw err;
+                }
                 // Fallback robusto en caliente si la tabla o relaciones no existen
                 payment = {
                     id: 'sim_pay_' + Math.random().toString(36).substr(2, 9),
@@ -216,7 +222,10 @@ export async function POST(request: Request) {
 
                 if (tError) throw tError;
                 ticket = data;
-            } catch (_err) {
+            } catch (err) {
+                if (process.env.NODE_ENV !== 'development') {
+                    throw err;
+                }
                 // Fallback robusto en caliente si la tabla o relaciones no existen o fallan por claves foráneas
                 ticket = {
                     id: 'sim_ticket_' + Math.random().toString(36).substr(2, 9),
@@ -259,19 +268,22 @@ export async function POST(request: Request) {
             try {
                 const { data, error: mError } = await supabase
                     .from('saas_metrics' as any)
-                    .insert({
+                    .upsert({
                         fecha: todayStr,
                         gyms_activos: activeGyms,
                         gyms_suspendidos: totalGyms - activeGyms,
                         nuevos_gyms_hoy: 0,
                         creado_en: new Date().toISOString()
-                    })
+                    }, { onConflict: 'fecha' })
                     .select()
                     .single();
 
-                if (!mError) snapshot = data;
-            } catch (_err) {
-                // Silencioso
+                if (mError) throw mError;
+                snapshot = data;
+            } catch (err) {
+                if (process.env.NODE_ENV !== 'development') {
+                    throw err;
+                }
             }
 
             if (!snapshot) {

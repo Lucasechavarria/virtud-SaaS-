@@ -31,6 +31,21 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
     handleGoalModal,
   } = useStudentDashboard(tenantSlug);
 
+  const [isSubdomain, setIsSubdomain] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const host = window.location.host.split(':')[0];
+      const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
+      const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
+      setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
+    }
+  }, []);
+
+  const getLink = (path: string) => {
+    return isSubdomain ? path : `/${tenantSlug}${path}`;
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -110,7 +125,7 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
             </div>
           </div>
           <Link
-            href="/dashboard/payments"
+            href={getLink('/member/dashboard/payments')}
             className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-red-500/20"
           >
             Renovar Ahora
@@ -176,7 +191,7 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
       {/* Floating Report Button */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="fixed bottom-10 right-10 z-50">
         <Link
-          href="/dashboard/report-issue"
+          href={getLink('/member/dashboard/report-issue')}
           className="flex items-center justify-center w-16 h-16 bg-zinc-900 border border-white/10 rounded-full shadow-2xl text-white hover:scale-110 transition-all duration-300 group backdrop-blur-3xl"
         >
           <span className="text-3xl group-hover:animate-bounce">🔔</span>

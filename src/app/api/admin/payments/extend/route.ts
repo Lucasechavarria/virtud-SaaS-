@@ -1,6 +1,6 @@
-
 import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/admin/payments/extend
@@ -20,8 +20,16 @@ import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
  */
 export async function POST(request: Request) {
     try {
-        const { user, supabase, error } = await authenticateAndRequireRole(request, ['admin']);
-        if (error) return error;
+        const { user, profile, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        if (error || !supabase || !user) return error || NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+        // Blindaje contra gimnasio_id NULL para admin locales
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'Administrador sin gimnasio asignado'
+            }, { status: 403 });
+        }
 
         const { paymentId } = await request.json();
 
@@ -32,8 +40,31 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        // Llamar a la función RPC de Supabase
-        const { data, error: rpcError } = await supabase.rpc('solicitar_prorroga_pago', {
+        // Consultar el pago para validar pertenencia al mismo gimnasio
+        const { data: payment, error: paymentError } = await supabase
+            .from('pagos')
+            .select('gimnasio_id')
+            .eq('id', paymentId)
+            .single();
+
+        if (paymentError || !payment) {
+            return NextResponse.json({
+                error: 'Payment not found',
+                message: 'El pago especificado no existe'
+            }, { status: 404 });
+        }
+
+        // Si es admin local, exigir coincidencia estricta de gimnasio_id
+        if (profile?.role !== 'superadmin' && payment.gimnasio_id !== profile.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'No tienes permisos para prorrogar este pago'
+            }, { status: 403 });
+        }
+
+        // Instanciar Admin Client para invocar la RPC securizada con privilegios de service_role
+        const adminClient = createAdminClient();
+        const { data, error: rpcError } = await adminClient.rpc('solicitar_prorroga_pago', {
             p_pago_id: paymentId,
             p_admin_id: user.id
         });

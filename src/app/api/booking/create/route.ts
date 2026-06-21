@@ -81,7 +81,7 @@ export async function POST(request: Request) {
 
             return NextResponse.json({
                 success: true,
-                message: (booking as { estado: string }).estado === 'waitlist'
+                message: (booking as { estado: string }).estado === 'en_lista_espera'
                     ? 'Clase llena. Agregado a lista de espera.'
                     : 'Reserva confirmada',
                 status: (booking as { estado: string }).estado,
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
                 .eq('usuario_id', user!.id)
                 .eq('horario_clase_id', classId)
                 .eq('fecha', date)
-                .in('estado', ['confirmed', 'waitlist'])
+                .in('estado', ['reservada', 'en_lista_espera'])
                 .limit(1);
 
             if (!bookings || bookings.length === 0) {

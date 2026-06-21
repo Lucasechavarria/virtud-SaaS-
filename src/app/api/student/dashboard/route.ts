@@ -73,14 +73,10 @@ export async function GET() {
             // Active Routine
             supabase
                 .from('rutinas')
-                .select(`
-                    *,
-                    gimnasios (id, nombre, url_logo),
-                    planes:plan_id (id, nombre, precio_mensual)
-                `)
+                .select('*')
                 .eq('usuario_id', user.id)
                 .eq('esta_activa', true)
-                .single(),
+                .maybeSingle(),
 
             // Profile
             supabase
