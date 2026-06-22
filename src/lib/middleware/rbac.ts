@@ -353,9 +353,28 @@ const adminAreaGuard: RBACGuard = (ctx) => {
         return null;
     }
 
+    // Permitir acceso a la pantalla de control de accesos para recepcionistas / personal de asistencia
+    if (pathname.includes('/admin/recepcion/acceso')) {
+        if (!permisos?.admin && !permisos?.asistencia && ctx.claims.role !== 'recepcion') {
+            const dest = isSubdomain 
+                ? '/member/dashboard' 
+                : (gymPrefix ? `/${gymPrefix}/member/dashboard` : '/');
+            return NextResponse.redirect(new URL(dest, ctx.request.url));
+        }
+        return null;
+    }
+
     // Para cualquier otra subruta general de administración (/admin/*), se requiere el flag 'admin'
+    // Excepción especial: el rol 'recepcion' puede ingresar a subrutas específicas que validan permisos granulares en el cliente
     if (pathname.startsWith('/admin') && !isRootAdmin) {
-        if (!permisos?.admin) {
+        const isRecepcionAllowedPage = pathname.startsWith('/admin/users') ||
+                                      pathname.startsWith('/admin/plans') ||
+                                      pathname.startsWith('/admin/finance') ||
+                                      pathname.startsWith('/admin/settings');
+                                      
+        const isRecepcionista = ctx.claims.role === 'recepcion';
+
+        if (!permisos?.admin && !(isRecepcionista && isRecepcionAllowedPage)) {
             const dest = isSubdomain 
                 ? '/member/dashboard' 
                 : (gymPrefix ? `/${gymPrefix}/member/dashboard` : '/');

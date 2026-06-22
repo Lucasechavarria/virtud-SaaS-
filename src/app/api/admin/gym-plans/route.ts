@@ -31,9 +31,8 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
         }
 
-        if (requester.rol === 'recepcion' && requester.permisos?.acceso_planes !== true) {
-            return NextResponse.json({ error: 'Forbidden: Sin permisos de acceso a planes' }, { status: 403 });
-        }
+        // Un recepcionista siempre puede consultar planes (GET) para poder vender en mostrador (POS),
+        // pero la creación (POST) queda restringida a roles superiores.
 
         const { searchParams } = new URL(request.url);
         const urlGym = searchParams.get('gymId');
