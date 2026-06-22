@@ -6,12 +6,20 @@ import { Database } from '../../types/supabase';
 export async function createClient(): Promise<SupabaseClient<Database>> {
     const cookieStore = await cookies();
 
-    // 1. Detección perimetral de Cypress en el Servidor (SSR)
+    // 1. Detección perimetral de Cypress en el Servidor (SSR) - Permitido únicamente en desarrollo local con firma de secreto compartida
     let isCypress = false;
     try {
         const userHeaders = await headers();
         const userAgent = userHeaders.get('user-agent') || '';
-        isCypress = userAgent.toLowerCase().includes('cypress');
+        const host = userHeaders.get('host') || 'localhost:3000';
+        const hostWithoutPort = host.split(':')[0];
+        const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
+
+        const cypressSecret = process.env.NEXT_PRIVATE_CYPRESS_SECRET || (isLocalhost ? 'mock-cypress-secret-12345' : undefined);
+        isCypress = 
+            !!cypressSecret &&
+            userHeaders.get('x-cypress-secret') === cypressSecret &&
+            userAgent.toLowerCase().includes('cypress');
     } catch (_) {
         // ignore error
     }

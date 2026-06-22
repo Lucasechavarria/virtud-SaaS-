@@ -115,7 +115,7 @@ export async function GET(request: Request) {
             // Pagos aprobados de este mes
             adminClient.from('pagos')
                 .select('monto')
-                .eq('estado', 'aprobado')
+                .eq('estado', 'approved')
                 .gte('creado_en', startOfMonthISO),
 
             // Distribución de planes de gimnasios activos

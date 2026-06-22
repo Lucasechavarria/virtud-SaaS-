@@ -3,6 +3,8 @@ import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function POST(request: Request) {
     try {
         // 1. Autenticar y requerir rol de 'admin' o 'superadmin'
@@ -14,24 +16,43 @@ export async function POST(request: Request) {
         // 2. Obtener el gimnasio asociado a este perfil de usuario
         const { data: profile, error: profileError } = await adminClient
             .from('perfiles')
-            .select('gimnasio_id')
+            .select('rol, gimnasio_id')
             .eq('id', user.id)
             .single();
 
-        if (profileError || !profile?.gimnasio_id) {
+        if (profileError || !profile) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // 3. Capturar parámetros del body
+        const body = await request.json();
+        const { amount, limiteAlertaSaldo, metodoCobroExcedentes, gymId } = body;
+
+        let targetGymId = profile.gimnasio_id;
+        if (profile.rol === 'superadmin' && gymId) {
+            if (UUID_REGEX.test(gymId)) {
+                targetGymId = gymId;
+            } else {
+                // Resolver slug a UUID
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', gymId)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
+        }
+
+        if (!targetGymId) {
             return NextResponse.json({ error: 'El usuario no pertenece a ningún gimnasio activo.' }, { status: 400 });
         }
 
-        const gymId = profile.gimnasio_id;
-
-        // 3. Capturar parámetros del body
-        const { amount, limiteAlertaSaldo, metodoCobroExcedentes } = await request.json();
 
         // 4. Obtener la configuración actual del gimnasio
         const { data: gym, error: gymError } = await adminClient
             .from('gimnasios')
             .select('nombre, configuracion')
-            .eq('id', gymId)
+            .eq('id', targetGymId)
             .single();
 
         if (gymError || !gym) {
@@ -50,6 +71,12 @@ export async function POST(request: Request) {
         let message = 'Configuraciones de facturación guardadas.';
         
         if (amount && Number(amount) > 0) {
+            // Validar de forma perimetral que solo el superadmin pueda recargar saldo de forma directa.
+            // Si el admin local de gimnasio quiere recargar, debe hacerlo a través de la pasarela de pago o soporte.
+            if (profile.rol !== 'superadmin') {
+                return NextResponse.json({ error: 'Forbidden: Solo los superadministradores pueden recargar saldo directamente' }, { status: 403 });
+            }
+
             const rechargeAmount = Number(amount);
             config.saldo_creditos = Number((Number(config.saldo_creditos) + rechargeAmount).toFixed(2));
             
@@ -111,7 +138,7 @@ export async function POST(request: Request) {
         const { data: updatedGym, error: updateError } = await adminClient
             .from('gimnasios')
             .update({ configuracion: config })
-            .eq('id', gymId)
+            .eq('id', targetGymId)
             .select('id, nombre, configuracion')
             .single();
 

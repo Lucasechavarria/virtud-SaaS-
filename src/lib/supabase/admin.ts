@@ -8,7 +8,14 @@ export function createAdminClient() {
         try {
             const userHeaders = await headers();
             const userAgent = userHeaders.get('user-agent') || '';
-            return userAgent.toLowerCase().includes('cypress');
+            const host = userHeaders.get('host') || 'localhost:3000';
+            const hostWithoutPort = host.split(':')[0];
+            const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
+
+            const cypressSecret = process.env.NEXT_PRIVATE_CYPRESS_SECRET || (isLocalhost ? 'mock-cypress-secret-12345' : undefined);
+            const matchesSecret = !!cypressSecret && userHeaders.get('x-cypress-secret') === cypressSecret;
+
+            return matchesSecret && userAgent.toLowerCase().includes('cypress');
         } catch (_) {
             return false;
         }

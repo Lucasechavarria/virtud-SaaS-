@@ -26,7 +26,7 @@ export async function GET(request: Request) {
                 categoria,
                 creado_en,
                 actualizado_en,
-                perfil:perfiles!usuario_id (nombre_completo, email),
+                perfil:perfiles!usuario_id (nombre_completo, email:correo),
                 gimnasio:gimnasios!gimnasio_id (nombre)
             `)
             .order('creado_en', { ascending: false });

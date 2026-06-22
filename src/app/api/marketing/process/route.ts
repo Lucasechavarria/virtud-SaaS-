@@ -1,8 +1,33 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-export async function POST() {
+export async function POST(request: Request) {
     try {
+        const authHeader = request.headers.get('Authorization');
+
+        // Validar autorización: Exigir Bearer CRON_SECRET en producción.
+        // Permitir bypass si es un superadmin logueado o si no estamos en producción.
+        if (
+            process.env.NODE_ENV === 'production' &&
+            process.env.CRON_SECRET &&
+            authHeader !== `Bearer ${process.env.CRON_SECRET}`
+        ) {
+            const supabaseTemp = await createClient();
+            const { data: { user } } = await supabaseTemp.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabaseTemp
+                    .from('perfiles')
+                    .select('rol')
+                    .eq('id', user.id)
+                    .single();
+                if (profile?.rol !== 'superadmin') {
+                    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+                }
+            } else {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
+        }
+
         const supabase = await createClient();
         const results = {
             pagos_actualizados: 0,

@@ -25,6 +25,29 @@ export async function PUT(
 
         if (updateError) throw updateError;
 
+        // Sincronizar módulos activos en los gimnasios que tienen este plan asignado
+        const caracts = body.caracteristicas || [];
+        const newModules = {
+            rutinas_ia: caracts.includes('Módulo: Rutinas IA'),
+            nutricion_ia: caracts.includes('Módulo: Nutrición IA'),
+            vision_ia: caracts.includes('Módulo: Visión Lab'),
+            pagos_online: caracts.includes('Módulo: Pagos Online'),
+            crm: caracts.includes('Módulo: CRM Ventas'),
+            tienda_pos: caracts.includes('Módulo: Tienda & POS'),
+            equipamiento_ia: caracts.includes('Módulo: Equipamiento (IA)'),
+            gamificacion: caracts.includes('Módulo: Gamificación'),
+            clases_reserva: caracts.includes('Módulo: Clases & Reservas')
+        };
+
+        const { error: syncError } = await supabase
+            .from('gimnasios')
+            .update({ modulos_activos: newModules })
+            .eq('plan_id', params.id);
+
+        if (syncError) {
+            console.error('Error syncing modules to gyms:', syncError);
+        }
+
         return NextResponse.json({ plan: data });
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

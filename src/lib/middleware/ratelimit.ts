@@ -33,6 +33,7 @@ export async function handleRateLimit(request: NextRequest, _response: NextRespo
 
     if (isAuthRoute || (isApiRoute && isMutation)) {
         if (!ratelimit) {
+            console.warn('[Middleware RateLimit] Upstash Redis variables are missing; rate limiting is disabled.');
             return null; // Bypass si no hay configuración de Redis
         }
 

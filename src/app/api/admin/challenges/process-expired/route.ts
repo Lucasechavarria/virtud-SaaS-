@@ -8,17 +8,23 @@ import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
  */
 export async function POST(request: Request) {
     try {
-        const { supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
+        const { profile, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
         if (error) return error;
 
         const now = new Date().toISOString();
 
-        // 1. Obtener desafíos activos expirados
-        const { data: expiredChallenges, error: challengesError } = await supabase!
+        // 1. Obtener desafíos activos expirados del gimnasio del solicitante (aislamiento multi-tenant)
+        let query = supabase!
             .from('desafios')
             .select('*, participantes:participantes_desafio(*)')
             .eq('estado', 'active')
             .lt('fecha_fin', now);
+
+        if (profile?.role !== 'superadmin' && profile?.gimnasio_id) {
+            query = query.eq('gimnasio_id', profile.gimnasio_id);
+        }
+
+        const { data: expiredChallenges, error: challengesError } = await query;
 
         if (challengesError) throw challengesError;
 

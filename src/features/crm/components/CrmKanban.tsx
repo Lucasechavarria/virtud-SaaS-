@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'next/navigation';
 import {
     UserPlus,
     MessageSquare,
@@ -40,6 +41,8 @@ const COLUMNS: { id: ProspectState; label: string; icon: React.ReactNode; color:
 ];
 
 export default function CrmKanban() {
+    const params = useParams();
+    const tenantSlug = (params?.tenantSlug) as string | undefined;
     const [prospects, setProspects] = useState<Prospect[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -62,7 +65,10 @@ export default function CrmKanban() {
 
     const fetchProspects = async () => {
         try {
-            const res = await fetch('/api/admin/crm/leads');
+            const url = tenantSlug
+                ? `/api/admin/crm/leads?gymId=${tenantSlug}`
+                : '/api/admin/crm/leads';
+            const res = await fetch(url);
             if (!res.ok) throw new Error();
             const data = await res.json();
             setProspects(data);
@@ -114,7 +120,10 @@ export default function CrmKanban() {
             const res = await fetch('/api/admin/crm/leads', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({
+                    ...formData,
+                    ...(tenantSlug && { gimnasio_id: tenantSlug })
+                })
             });
 
             if (!res.ok) throw new Error();

@@ -98,7 +98,7 @@ async function sendBulkNotification(studentIds: string[], title: string, message
 async function exportStudentsData(supabase: SupabaseClient<Database>, studentIds: string[]) {
     const { data: students } = await supabase
         .from('perfiles')
-        .select('id, nombre_completo, email, telefono, fecha_nacimiento')
+        .select('id, nombre_completo, email:correo, telefono, fecha_nacimiento')
         .in('id', studentIds);
 
     return {

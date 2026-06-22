@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(request: Request) {
     try {
@@ -11,10 +12,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // 2. Verify Requester is Admin/SuperAdmin
+        // 2. Verify Requester is Admin/SuperAdmin y obtener gimnasio_id para BOLA check
         const { data: requesterProfile } = await supabase
             .from('perfiles')
-            .select('rol')
+            .select('rol, gimnasio_id')
             .eq('id', user.id)
             .single();
 
@@ -40,28 +41,51 @@ export async function POST(request: Request) {
         }
 
         const isSuperAdmin = requesterProfile.rol === 'superadmin';
-        const validRoles = isSuperAdmin 
-            ? ['member', 'coach', 'admin', 'superadmin', 'recepcion'] 
+        const validRoles = isSuperAdmin
+            ? ['member', 'coach', 'admin', 'superadmin', 'recepcion']
             : ['member', 'coach', 'admin', 'recepcion'];
 
         if (!validRoles.includes(role)) {
             return NextResponse.json({ error: 'Invalid role or insufficient permissions' }, { status: 400 });
         }
 
-        // 4. Obtener estado actual para el log
-        const { data: currentProfile } = await (supabase
+        const adminClient = createAdminClient();
+
+        // 4. BOLA Shield: el admin local solo puede cambiar roles de usuarios de su propio gimnasio
+        if (!isSuperAdmin) {
+            if (!requesterProfile.gimnasio_id) {
+                return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
+            }
+
+            const { data: targetProfile } = await adminClient
+                .from('perfiles')
+                .select('gimnasio_id')
+                .eq('id', uid)
+                .single();
+
+            if (!targetProfile) {
+                return NextResponse.json({ error: 'Usuario objetivo no encontrado' }, { status: 404 });
+            }
+
+            if (targetProfile.gimnasio_id !== requesterProfile.gimnasio_id) {
+                return NextResponse.json({ error: 'Forbidden: El usuario no pertenece a tu gimnasio' }, { status: 403 });
+            }
+        }
+
+        // 5. Obtener estado actual para el log
+        const { data: currentProfile } = await (adminClient
             .from('perfiles') as any)
             .select('rol, permisos')
             .eq('id', uid)
             .single();
 
-        // 5. Update Target User Profile
+        // 6. Update Target User Profile
         const updatePayload: any = { rol: role };
         if (permisos !== undefined) {
             updatePayload.permisos = permisos;
         }
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await adminClient
             .from('perfiles')
             .update(updatePayload)
             .eq('id', uid);
@@ -71,12 +95,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Failed to update user role' }, { status: 500 });
         }
 
-        // 6. Registrar en historial
-        await (supabase
+        // 7. Registrar en historial de cambios
+        await (adminClient
             .from('historial_cambios_perfil') as any)
             .insert({
                 perfil_id: uid,
-                cambiado_por: user.id, // ID del administrador autenticado
+                cambiado_por: user.id,
                 campo_cambiado: 'rol',
                 valor_anterior: `${currentProfile?.rol || 'unknown'} (Permisos: ${JSON.stringify(currentProfile?.permisos || {})})`,
                 valor_nuevo: `${role} (Permisos: ${JSON.stringify(permisos || {})})`,
@@ -91,4 +115,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
-

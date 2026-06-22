@@ -3,26 +3,53 @@ import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkGymLimits } from '@/lib/saas/limits';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function GET(request: Request) {
     try {
         // Obtenemos el usuario y su gimnasio
-        const { supabase, error: authError, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { supabase, error: authError, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
         const adminClient = createAdminClient();
 
-        // Obtener ID del gimnasio del perfil
+        // Obtener ID del gimnasio y rol del perfil
         const { data: profile } = await adminClient
             .from('perfiles')
-            .select('gimnasio_id')
+            .select('rol, gimnasio_id, permisos')
             .eq('id', user.id)
             .single();
 
-        if (!profile?.gimnasio_id) {
-            return NextResponse.json({ error: 'Usuario sin gimnasio asignado' }, { status: 400 });
+        if (!profile) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
         }
 
-        const gymId = profile.gimnasio_id;
+        // Si es recepcionista, verificar permiso explícito
+        if (profile.rol === 'recepcion' && !(profile.permisos as any)?.acceso_settings) {
+            return NextResponse.json({ error: 'Forbidden: No tienes permisos para ver la configuración de este gimnasio' }, { status: 403 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const urlGym = searchParams.get('gymId');
+        let targetGymId = profile.gimnasio_id;
+
+        if (profile.rol === 'superadmin' && urlGym) {
+            if (UUID_REGEX.test(urlGym)) {
+                targetGymId = urlGym;
+            } else {
+                // Resolver slug a UUID
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', urlGym)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
+        }
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Usuario sin gimnasio asignado' }, { status: 400 });
+        }
 
         // 1. Obtener info del gimnasio
         const { data: gym, error: gymError } = await adminClient
@@ -36,13 +63,13 @@ export async function GET(request: Request) {
                     limite_sucursales
                 )
             `)
-            .eq('id', gymId)
+            .eq('id', targetGymId)
             .single();
 
         if (gymError) throw gymError;
 
         // 2. Obtener límites actuales
-        const limits = await checkGymLimits(gymId);
+        const limits = await checkGymLimits(targetGymId);
 
         return NextResponse.json({
             success: true,

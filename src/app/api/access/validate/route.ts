@@ -11,41 +11,63 @@ export async function POST(request: Request) {
         if (authError) return authError;
 
         const body = await request.json();
-        const { token } = body;
+        const { token, socioId } = body;
 
-        if (!token) {
-            return NextResponse.json({ error: 'Token requerido' }, { status: 400 });
+        if (!token && !socioId) {
+            return NextResponse.json({ error: 'Token o socioId requerido' }, { status: 400 });
         }
 
         const adminClient = createAdminClient();
+        let student;
+        let qrData: any = null;
 
-        // 1. Buscar el token dinámico y el perfil del alumno correspondiente
-        const { data: qrData, error: qrError } = await adminClient
-            .from('accesos_qr')
-            .select('*, profile:perfiles!alumno_id(*)')
-            .eq('token_dinamico', token)
-            .eq('usado', false)
-            .single();
+        if (token) {
+            // 1. Buscar el token dinámico y el perfil del alumno correspondiente
+            const { data: qrResult, error: qrError } = await adminClient
+                .from('accesos_qr')
+                .select('*, profile:perfiles!alumno_id(*)')
+                .eq('token_dinamico', token)
+                .eq('usado', false)
+                .single();
 
-        if (qrError || !qrData) {
-            return NextResponse.json({
-                status: 'denied',
-                reason: 'invalid',
-                message: 'QR Inválido o ya utilizado'
-            });
+            if (qrError || !qrResult) {
+                return NextResponse.json({
+                    status: 'denied',
+                    reason: 'invalid',
+                    message: 'QR Inválido o ya utilizado'
+                });
+            }
+
+            // 2. Verificar expiración del token (vigencia de 30 segundos)
+            const expiraEn = new Date(qrResult.expira_en);
+            if (expiraEn.getTime() < Date.now()) {
+                return NextResponse.json({
+                    status: 'denied',
+                    reason: 'invalid',
+                    message: 'Código QR Expirado'
+                });
+            }
+
+            student = qrResult.profile;
+            qrData = qrResult;
+        } else {
+            // Cargar directamente el perfil del alumno (búsqueda manual)
+            const { data: studentProfile, error: studentError } = await adminClient
+                .from('perfiles')
+                .select('*')
+                .eq('id', socioId)
+                .single();
+
+            if (studentError || !studentProfile) {
+                return NextResponse.json({
+                    status: 'denied',
+                    reason: 'invalid',
+                    message: 'Socio no encontrado'
+                });
+            }
+            student = studentProfile;
         }
 
-        // 2. Verificar expiración del token (vigencia de 30 segundos)
-        const expiraEn = new Date(qrData.expira_en);
-        if (expiraEn.getTime() < Date.now()) {
-            return NextResponse.json({
-                status: 'denied',
-                reason: 'invalid',
-                message: 'Código QR Expirado'
-            });
-        }
-
-        const student = qrData.profile;
         if (!student) {
             return NextResponse.json({
                 status: 'denied',
@@ -66,10 +88,22 @@ export async function POST(request: Request) {
         }
 
         const memberInfo = {
+            id: student.id,
             nombre: student.nombre_completo || `${student.nombre || ''} ${student.apellido || ''}`.trim() || student.correo || 'Socio sin nombre',
             avatar: student.url_avatar || null,
             plan: planName
         };
+
+        // Validación de Aislamiento de Sucursales (inter-gimnasio QR Access Block)
+        // El alumno solo puede registrar ingreso en la sucursal a la que pertenece
+        if (profile?.gimnasio_id && student.gimnasio_id !== profile.gimnasio_id) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'wrong_gym',
+                message: 'El alumno pertenece a otra sucursal',
+                member: memberInfo
+            });
+        }
 
         // 3. Validación: Membresía Activa
         if (student.estado_membresia !== 'active') {
@@ -127,22 +161,51 @@ export async function POST(request: Request) {
         }
 
         // 6. Autorización Exitosa
-        // A. Quemar el token
-        await adminClient
-            .from('accesos_qr')
-            .update({ usado: true })
-            .eq('id', qrData.id);
+        // A. Quemar el token si se utilizó QR
+        if (token && qrData) {
+            const { error: qrUpdateError } = await adminClient
+                .from('accesos_qr')
+                .update({ usado: true })
+                .eq('id', qrData.id);
+
+            if (qrUpdateError) {
+                console.error('Error al invalidar token QR:', qrUpdateError);
+                return NextResponse.json({
+                    status: 'denied',
+                    reason: 'invalid',
+                    message: 'Error al procesar el código QR'
+                });
+            }
+        }
 
         // B. Registrar asistencia en la base de datos
-        await adminClient
+        const { error: asistenciaError } = await adminClient
             .from('asistencias')
             .insert({
                 usuario_id: student.id,
-                gimnasio_id: qrData.gimnasio_id,
+                gimnasio_id: token && qrData ? qrData.gimnasio_id : student.gimnasio_id,
                 rol_asistencia: 'member',
                 entrada: new Date().toISOString(),
-                source: 'qr'
+                source: token ? 'qr' : 'reception_manual'
             });
+
+        if (asistenciaError) {
+            console.error('Error al insertar asistencia:', asistenciaError);
+            
+            // Rollback del token si se utilizó QR
+            if (token && qrData) {
+                await adminClient
+                    .from('accesos_qr')
+                    .update({ usado: false })
+                    .eq('id', qrData.id);
+            }
+
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'invalid',
+                message: 'Error al registrar la asistencia'
+            });
+        }
 
         // C. Obtener racha actual para felicitar al alumno
         const { data: gamificacion } = await adminClient

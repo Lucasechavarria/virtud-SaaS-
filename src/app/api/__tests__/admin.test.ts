@@ -18,10 +18,16 @@ jest.mock('@/lib/supabase/server', () => ({
                 select: jest.fn(() => ({
                     eq: jest.fn(() => ({
                         single: jest.fn(() => Promise.resolve({
-                            data: { id: 'admin123', rol: 'admin' },
+                            data: { id: 'admin123', rol: 'admin', gimnasio_id: 'gym123' },
                             error: null
                         })),
-                        // Support chaining eq().eq() if needed? Probably not for current usage
+                        order: jest.fn(() => Promise.resolve({
+                            data: [
+                                { id: '1', full_name: 'User 1', role: 'member' },
+                                { id: '2', full_name: 'User 2', role: 'coach' }
+                            ],
+                            error: null
+                        }))
                     })),
                     order: jest.fn(() => Promise.resolve({
                         data: [

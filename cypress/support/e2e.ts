@@ -413,6 +413,11 @@ beforeEach(() => {
         statusCode: 200,
         body: { Key: 'videos-entrenamiento/video-123.mp4' }
     }).as('supabaseUploadVideo');
+
+    // 11. Interceptar todas las solicitudes salientes para inyectar la firma de secreto de Cypress
+    cy.intercept({ url: '**' }, (req) => {
+        req.headers['x-cypress-secret'] = 'mock-cypress-secret-12345';
+    });
 });
 
 

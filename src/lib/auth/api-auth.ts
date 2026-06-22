@@ -33,14 +33,11 @@ export async function authenticateRequest(request: Request) {
             const authHeader = request.headers.get('Authorization');
             if (authHeader && authHeader.startsWith('Bearer ')) {
                 const token = authHeader.substring(7);
-                // Establecer la sesión en el cliente de Supabase usando el token Bearer de forma atómica
-                const sessionResult = await supabase.auth.setSession({
-                    access_token: token,
-                    refresh_token: ''
-                });
+                // Validar el token directamente sin guardar una sesión fantasma
+                const userResult = await supabase.auth.getUser(token);
                 
-                if (!sessionResult.error && sessionResult.data.user) {
-                    user = sessionResult.data.user;
+                if (!userResult.error && userResult.data.user) {
+                    user = userResult.data.user;
                     error = null;
                 }
             }
@@ -94,10 +91,9 @@ export async function requireRole(
 
         // El rol puede estar en 'rol' o 'role' (por compatibilidad)
         // app_metadata es más confiable que user_metadata (que puede ser editado por el usuario)
+        // Se descarta fallback a user_metadata por seguridad (escalada de privilegios)
         let role = user?.app_metadata?.rol ||
-            user?.app_metadata?.role ||
-            user?.user_metadata?.rol ||
-            user?.user_metadata?.role;
+            user?.app_metadata?.role;
 
         // 2. Fallback a base de datos solo si no hay metadata (ej. usuarios viejos no sincronizados)
         if (!role) {
@@ -150,8 +146,7 @@ export async function requireRole(
                 error: NextResponse.json(
                     {
                         error: 'Forbidden',
-                        message: 'No tienes permisos para acceder a este recurso.',
-                        userRole: role || 'unknown'
+                        message: 'No tienes permisos para acceder a este recurso.'
                     },
                     { status: 403 }
                 ),
@@ -160,10 +155,9 @@ export async function requireRole(
         }
 
         // 4. Obtener/Retornar perfil completo enriquecido sin viajes de red redundantes (JWT Hydration)
+        // Se descarta fallback a user_metadata por seguridad (escalada de privilegios)
         let gimnasio_id = user?.app_metadata?.gimnasio_id ||
-            user?.app_metadata?.gimnasioId ||
-            user?.user_metadata?.gimnasio_id ||
-            user?.user_metadata?.gimnasioId;
+            user?.app_metadata?.gimnasioId;
 
         // Fallback a base de datos únicamente ante la ausencia de metadatos de sesión
         if (!gimnasio_id) {

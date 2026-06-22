@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Edit2, Trash2, X, Save, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useParams } from 'next/navigation';
 
 interface ScheduleItem {
     id: string;
@@ -47,6 +48,9 @@ const DAY_INDEX_MAP: Record<number, string> = {
 };
 
 export default function AdminSchedulePage() {
+    const params = useParams();
+    const tenantSlug = (params?.tenantSlug) as string | undefined;
+
     const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -73,29 +77,39 @@ export default function AdminSchedulePage() {
 
     const fetchInitialData = async () => {
         try {
+            const gymParam = tenantSlug ? `?gymId=${tenantSlug}` : '';
+            const gymParamAmp = tenantSlug ? `&gymId=${tenantSlug}` : '';
+
             const [scheduleRes, activitiesRes, coachesRes] = await Promise.all([
-                fetch('/api/schedule'),
-                fetch('/api/admin/activities'),
-                fetch('/api/admin/coaches/list')
+                fetch(`/api/schedule${gymParam}`),
+                fetch(`/api/admin/activities${gymParam}`),
+                fetch(`/api/admin/coaches/list${gymParam}`)
             ]);
 
-            const scheduleData = await scheduleRes.json();
+            // Verificar que /api/schedule no retorne error (requiere gymId)
+            if (!scheduleRes.ok) {
+                console.warn('No se pudo cargar el horario:', await scheduleRes.json());
+                setSchedule([]);
+            } else {
+                const scheduleData = await scheduleRes.json();
+                if (Array.isArray(scheduleData)) {
+                    const mappedSchedule = scheduleData.map((item: any) => ({
+                        id: item.id,
+                        dia_de_la_semana: item.dia_de_la_semana,
+                        hora_inicio: item.hora_inicio,
+                        hora_fin: item.hora_fin,
+                        esta_activa: item.esta_activa,
+                        actividad: item.actividades,
+                        entrenador: item.perfiles,
+                        profesor_texto: item.profesor_texto
+                    }));
+                    setSchedule(mappedSchedule);
+                }
+            }
+
             const activitiesData = await activitiesRes.json();
             const coachesData = await coachesRes.json();
 
-            if (Array.isArray(scheduleData)) {
-                const mappedSchedule = scheduleData.map((item: any) => ({
-                    id: item.id,
-                    dia_de_la_semana: item.dia_de_la_semana,
-                    hora_inicio: item.hora_inicio,
-                    hora_fin: item.hora_fin,
-                    esta_activa: item.esta_activa,
-                    actividad: item.actividades,
-                    entrenador: item.perfiles,
-                    profesor_texto: item.profesor_texto
-                }));
-                setSchedule(mappedSchedule);
-            }
             if (Array.isArray(activitiesData)) setActivities(activitiesData);
             if (coachesData.coaches) setCoaches(coachesData.coaches);
 
@@ -145,7 +159,7 @@ export default function AdminSchedulePage() {
             if (!res.ok) throw new Error();
             const data = await res.json();
             setActivities(prev => [...prev, data]);
-            setFormData(prev => ({ ...prev, activity_id: data.id }));
+            setFormData(prev => ({ ...prev, actividad_id: data.id }));
             setIsCreatingActivity(false);
             setNewActivityData({ name: '', type: 'gym' });
             toast.success('Actividad creada');

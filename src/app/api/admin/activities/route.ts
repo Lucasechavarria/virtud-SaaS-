@@ -1,14 +1,60 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 import { NextResponse } from 'next/server';
 
-// GET: List all activities
-export async function GET() {
-    const supabase = await createClient();
+export const dynamic = 'force-dynamic';
 
+// GET: List activities for the gym (isolated by tenant)
+export async function GET(request: Request) {
     try {
-        const { data, error } = await supabase
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
+        if (authError) return authError;
+
+        const adminClient = createAdminClient();
+
+        // Obtener perfil detallado
+        const { data: requester } = await adminClient
+            .from('perfiles')
+            .select('rol, gimnasio_id, permisos')
+            .eq('id', user.id)
+            .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin o recepcion (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const urlGym = searchParams.get('gymId');
+        let targetGymId = requester?.gimnasio_id;
+
+        // Si es Superadmin, permitir resolver gymId
+        if (!targetGymId && requester?.rol === 'superadmin' && urlGym) {
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
+            if (isUUID) {
+                targetGymId = urlGym;
+            } else {
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', urlGym)
+                    .single();
+                if (gym) targetGymId = gym.id;
+            }
+        }
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
+        }
+
+        const { data, error } = await adminClient
             .from('actividades')
             .select('*')
+            .eq('gimnasio_id', targetGymId)
             .order('nombre', { ascending: true });
 
         if (error) throw error;
@@ -19,21 +65,51 @@ export async function GET() {
     }
 }
 
-// POST: Create a new activity
+// POST: Create a new activity for the gym
 export async function POST(req: Request) {
-    const supabase = await createClient();
-    const body = await req.json();
-
     try {
+        const { error: authError, profile, user } = await authenticateAndRequireRole(req, ['admin', 'superadmin']);
+        if (authError) return authError;
+
+        const adminClient = createAdminClient();
+
+        // Obtener perfil detallado
+        const { data: requester } = await adminClient
+            .from('perfiles')
+            .select('rol, gimnasio_id')
+            .eq('id', user.id)
+            .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
+
+        const body = await req.json();
+
         // Validate required fields
         if (!body.nombre) {
             return NextResponse.json({ error: 'Nombre is required' }, { status: 400 });
         }
 
-        const { data, error } = await supabase
+        let targetGymId = requester.gimnasio_id;
+        if (requester.rol === 'superadmin' && body.gimnasio_id) {
+            targetGymId = body.gimnasio_id;
+        }
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
+        }
+
+        const { data, error } = await adminClient
             .from('actividades')
             .insert([
                 {
+                    gimnasio_id: targetGymId,
                     nombre: body.nombre,
                     tipo: body.tipo || 'CLASS',
                     descripcion: body.descripcion,
@@ -42,8 +118,8 @@ export async function POST(req: Request) {
                     capacidad_maxima: body.capacidad_maxima,
                     url_imagen: body.url_imagen,
                     dificultad: body.dificultad,
-                    color: body.color || '#3b82f6', // Keep existing field
-                    categoria: body.categoria || 'General' // Keep existing field
+                    color: body.color || '#3b82f6',
+                    categoria: body.categoria || 'General'
                 }
             ])
             .select()
@@ -56,16 +132,52 @@ export async function POST(req: Request) {
     }
 }
 
-// PUT: Update an activity
+// PUT: Update an activity (checking ownership)
 export async function PUT(request: Request) {
-    const supabase = await createClient();
     try {
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        if (authError) return authError;
+
+        const adminClient = createAdminClient();
+
+        // Obtener perfil detallado
+        const { data: requester } = await adminClient
+            .from('perfiles')
+            .select('rol, gimnasio_id')
+            .eq('id', user.id)
+            .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
+
         const body = await request.json();
         const { id, ..._updateData } = body;
 
         if (!id) throw new Error('ID is required');
 
-        const { data, error } = await supabase
+        // Verificar pertenencia
+        const { data: activity, error: fetchError } = await adminClient
+            .from('actividades')
+            .select('gimnasio_id')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !activity) {
+            return NextResponse.json({ error: 'Actividad no encontrada' }, { status: 404 });
+        }
+
+        const isAuthorized = requester.rol === 'superadmin' || requester.gimnasio_id === activity.gimnasio_id;
+        if (!isAuthorized) {
+            return NextResponse.json({ error: 'Forbidden: No tienes acceso a esta actividad' }, { status: 403 });
+        }
+
+        const { data, error } = await adminClient
             .from('actividades')
             .update({
                 nombre: body.nombre,
@@ -76,10 +188,10 @@ export async function PUT(request: Request) {
                 capacidad_maxima: body.capacidad_maxima,
                 url_imagen: body.url_imagen,
                 dificultad: body.dificultad,
-                color: body.color, // Keep existing field
-                categoria: body.categoria // Keep existing field
+                color: body.color,
+                categoria: body.categoria
             })
-            .eq('id', body.id)
+            .eq('id', id)
             .select()
             .single();
 
@@ -91,18 +203,54 @@ export async function PUT(request: Request) {
     }
 }
 
-// DELETE: Delete an activity (Caution: Cascades to schedule)
+// DELETE: Delete an activity (checking ownership)
 export async function DELETE(req: Request) {
-    const supabase = await createClient();
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
     try {
+        const { error: authError, profile, user } = await authenticateAndRequireRole(req, ['admin', 'superadmin']);
+        if (authError) return authError;
+
+        const adminClient = createAdminClient();
+
+        // Obtener perfil detallado
+        const { data: requester } = await adminClient
+            .from('perfiles')
+            .select('rol, gimnasio_id')
+            .eq('id', user.id)
+            .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
+
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get('id');
+
         if (!id) {
             return NextResponse.json({ error: 'ID is required' }, { status: 400 });
         }
 
-        const { error } = await supabase
+        // Verificar pertenencia
+        const { data: activity, error: fetchError } = await adminClient
+            .from('actividades')
+            .select('gimnasio_id')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !activity) {
+            return NextResponse.json({ error: 'Actividad no encontrada' }, { status: 404 });
+        }
+
+        const isAuthorized = requester.rol === 'superadmin' || requester.gimnasio_id === activity.gimnasio_id;
+        if (!isAuthorized) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const { error } = await adminClient
             .from('actividades')
             .delete()
             .eq('id', id);

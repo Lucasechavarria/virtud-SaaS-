@@ -9,29 +9,34 @@ import { checkGymLimits } from '@/lib/saas/limits';
  */
 export async function POST(request: Request) {
     try {
-        const { supabase, error: authError, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { supabase, error: authError, user, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (authError) return authError;
 
-        const { email, password, fullName, rol = 'member' } = await request.json();
+        const body = await request.json();
+        const { email, password, fullName, rol = 'member', gymId: bodyGymId } = body;
 
         if (!email || !fullName) {
             return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 });
         }
 
-        const adminClient = createAdminClient();
-
-        // 1. Obtener el gimnasio del admin
-        const { data: profile } = await adminClient
-            .from('perfiles')
-            .select('gimnasio_id')
-            .eq('id', user.id)
-            .single();
-
-        if (!profile?.gimnasio_id) {
-            return NextResponse.json({ error: 'Admin sin gimnasio asignado' }, { status: 403 });
+        // Prevenir escalada de privilegios a superadmin por parte de administradores locales
+        if (profile?.role !== 'superadmin' && rol === 'superadmin') {
+            return NextResponse.json({ error: 'Forbidden: No tienes permisos para crear un superadmin' }, { status: 403 });
         }
 
-        const gymId = profile.gimnasio_id;
+        // 1. Resolver el gimnasio
+        let gymId = profile?.gimnasio_id;
+
+        // Si es superadmin, permitir especificar gymId en el body
+        if (profile?.role === 'superadmin' && bodyGymId) {
+            gymId = bodyGymId;
+        }
+
+        if (!gymId) {
+            return NextResponse.json({ error: 'Forbidden: No tienes un gimnasio asignado o no especificaste uno' }, { status: 403 });
+        }
+
+        const adminClient = createAdminClient();
 
         // 2. VERIFICAR LÍMITES (HARD ENFORCEMENT)
         const limits = await checkGymLimits(gymId);

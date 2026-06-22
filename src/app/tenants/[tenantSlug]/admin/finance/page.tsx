@@ -91,7 +91,10 @@ export default function FinanceHubPage() {
 
     const fetchGymInfo = async () => {
         try {
-            const res = await fetch('/api/admin/gym/info');
+            const url = gymId 
+                ? `/api/admin/gym/info?gymId=${gymId}` 
+                : '/api/admin/gym/info';
+            const res = await fetch(url);
             const data = await res.json();
             if (res.ok && data.success) {
                 setGymInfo(data.gym);
@@ -215,8 +218,10 @@ export default function FinanceHubPage() {
     const fetchFinanceData = async () => {
         setLoading(true);
         try {
+            // gymId de URL tiene prioridad para impersonación, si no hay filtro manual de sucursal
+            const effectiveGymId = selectedGym !== 'all' ? selectedGym : (gymId || undefined);
             const queryParams = new URLSearchParams({
-                ...(selectedGym !== 'all' && { gymId: selectedGym }),
+                ...(effectiveGymId && { gymId: effectiveGymId }),
                 ...(startDate && { startDate }),
                 ...(endDate && { endDate })
             });
@@ -235,7 +240,10 @@ export default function FinanceHubPage() {
 
     const fetchLocalBillingDetails = async () => {
         try {
-            const res = await fetch('/api/admin/gym/billing');
+            const url = gymId 
+                ? `/api/admin/gym/billing?gymId=${gymId}` 
+                : '/api/admin/gym/billing';
+            const res = await fetch(url);
             const data = await res.json();
             if (res.ok && data.bill) {
                 setBillingSummary(data.bill);
@@ -259,7 +267,7 @@ export default function FinanceHubPage() {
             const res = await fetch('/api/admin/gym/wallet/recharge', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: amt })
+                body: JSON.stringify({ amount: amt, ...(gymId && { gymId }) })
             });
             const data = await res.json();
             if (res.ok) {
@@ -283,7 +291,7 @@ export default function FinanceHubPage() {
             const res = await fetch('/api/admin/gym/wallet/recharge', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ limiteAlertaSaldo: threshold, metodoCobroExcedentes: method })
+                body: JSON.stringify({ limiteAlertaSaldo: threshold, metodoCobroExcedentes: method, ...(gymId && { gymId }) })
             });
             const data = await res.json();
             if (res.ok) {

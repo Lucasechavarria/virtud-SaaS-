@@ -28,27 +28,45 @@ export async function POST(request: Request) {
 
         const gymSlug = gym.slug;
 
-        // 1. Intentar registrar el evento de acceso remoto (Auditoría)
-        // Lo envolvemos para que si la tabla no existe no bloquee el acceso
-        try {
-            const adminClient = createAdminClient();
-            await adminClient
-                .from('logs_acceso_remoto')
-                .insert({
-                    superadmin_id: adminUser.id,
-                    gimnasio_id: gymId,
-                    motivo: reason || 'Soporte Técnico / Verificación'
-                });
-        } catch (logError) {
-            console.warn('⚠️ No se pudo registrar el log de auditoría (posiblemente falta la tabla):', logError);
+        // 1. Registrar el evento de acceso remoto (Auditoría) - Fail Closed
+        const adminClient = createAdminClient();
+        const { error: logError } = await adminClient
+            .from('logs_acceso_remoto')
+            .insert({
+                superadmin_id: adminUser.id,
+                gimnasio_id: gymId,
+                motivo: reason || 'Soporte Técnico / Verificación'
+            });
+
+        if (logError) {
+            console.error('❌ Error al registrar log de auditoría de impersonación:', logError);
+            return NextResponse.json({
+                error: 'Auditoria Fallida',
+                message: 'No se pudo registrar el acceso en el log de auditoría obligatorio.'
+            }, { status: 500 });
         }
 
-        // 2. Retornar éxito y la URL de destino basada en el slug del gimnasio
-        return NextResponse.json({
+        // 2. Generar cookie de impersonación segura y de corta duración
+        const response = NextResponse.json({
             success: true,
             message: 'Acceso concedido al entorno del gimnasio',
             redirectUrl: `/${gymSlug}/admin?impersonate=true`
         });
+
+        response.cookies.set('vtd_impersonation', JSON.stringify({
+            superadminId: adminUser.id,
+            targetGymId: gymId,
+            targetGymSlug: gymSlug,
+            expires: Date.now() + 15 * 60 * 1000 // 15 minutos
+        }), {
+            maxAge: 900, // 15 minutos
+            path: '/',
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax'
+        });
+
+        return response;
 
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Error interno del servidor';

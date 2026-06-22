@@ -234,7 +234,43 @@ const tenantIsolationGuard: RBACGuard = (ctx) => {
     const { pathname, isSubdomain, isLocalhost, baseDomain, protocol, hostname, baseDomainWithoutPort } = ctx.network;
     const { role, gymSlug, gymId } = ctx.claims;
 
-    if (role === 'superadmin') return null; // Los Superadmins están excluidos de las validaciones de aislamiento
+    if (role === 'superadmin') {
+        const pathSegments = pathname.split('/').filter(Boolean);
+        let currentGymIdParam = isSubdomain 
+            ? hostname.replace(`.${baseDomainWithoutPort}`, '').replace('www.', '').toLowerCase()
+            : pathSegments[0];
+
+        if (currentGymIdParam === 'tenants' && pathSegments[1]) {
+            currentGymIdParam = pathSegments[1];
+        }
+
+        // Si no es una ruta de gimnasio (está vacía o en EXCLUDED_TENANT_PATHS), permitir acceso
+        if (!currentGymIdParam || (EXCLUDED_TENANT_PATHS.has(currentGymIdParam) && currentGymIdParam !== pathSegments[1])) {
+            return null;
+        }
+
+        // Exigir cookie de impersonación activa para este gimnasio
+        const impersonationCookie = ctx.request.cookies.get('vtd_impersonation')?.value;
+        if (!impersonationCookie) {
+            logDebug(`[Edge Tenancy Shield] Bloqueando superadmin sin cookie de impersonación para ${currentGymIdParam}`);
+            return NextResponse.redirect(new URL('/saas-admin', ctx.request.url));
+        }
+
+        try {
+            const impersonation = JSON.parse(impersonationCookie);
+            const isMatch = impersonation.targetGymSlug?.toLowerCase() === currentGymIdParam.toLowerCase() ||
+                            impersonation.targetGymId === currentGymIdParam;
+            const isExpired = Date.now() > impersonation.expires;
+
+            if (!isMatch || isExpired) {
+                logDebug(`[Edge Tenancy Shield] Impersonación inválida o expirada para superadmin`);
+                return NextResponse.redirect(new URL('/saas-admin', ctx.request.url));
+            }
+            return null; // Conceder acceso
+        } catch (_) {
+            return NextResponse.redirect(new URL('/saas-admin', ctx.request.url));
+        }
+    }
 
     const expectedTenant = gymSlug || gymId;
 
@@ -317,9 +353,28 @@ const adminAreaGuard: RBACGuard = (ctx) => {
         return null;
     }
 
+    // Permitir acceso a la pantalla de control de accesos para recepcionistas / personal de asistencia
+    if (pathname.includes('/admin/recepcion/acceso')) {
+        if (!permisos?.admin && !permisos?.asistencia && ctx.claims.role !== 'recepcion') {
+            const dest = isSubdomain 
+                ? '/member/dashboard' 
+                : (gymPrefix ? `/${gymPrefix}/member/dashboard` : '/');
+            return NextResponse.redirect(new URL(dest, ctx.request.url));
+        }
+        return null;
+    }
+
     // Para cualquier otra subruta general de administración (/admin/*), se requiere el flag 'admin'
+    // Excepción especial: el rol 'recepcion' puede ingresar a subrutas específicas que validan permisos granulares en el cliente
     if (pathname.startsWith('/admin') && !isRootAdmin) {
-        if (!permisos?.admin) {
+        const isRecepcionAllowedPage = pathname.startsWith('/admin/users') ||
+                                      pathname.startsWith('/admin/plans') ||
+                                      pathname.startsWith('/admin/finance') ||
+                                      pathname.startsWith('/admin/settings');
+                                      
+        const isRecepcionista = ctx.claims.role === 'recepcion';
+
+        if (!permisos?.admin && !(isRecepcionista && isRecepcionAllowedPage)) {
             const dest = isSubdomain 
                 ? '/member/dashboard' 
                 : (gymPrefix ? `/${gymPrefix}/member/dashboard` : '/');
@@ -404,6 +459,7 @@ export async function handleRBAC(
             maxAge: 600, // 10 minutos
             path: '/',
             httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax'
         });
 

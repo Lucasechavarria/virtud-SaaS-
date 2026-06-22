@@ -47,6 +47,8 @@ export default function GymsManagementPage() {
 
     const [creating, setCreating] = useState(false);
     const [selectedGym, setSelectedGym] = useState<Gimnasio | null>(null);
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+    const [deleteConfirmName, setDeleteConfirmName] = useState('');
 
     // Estados para el Modal de Impersonación Premium
     const [impersonationTarget, setImpersonationTarget] = useState<{ id: string; nombre: string } | null>(null);
@@ -297,6 +299,8 @@ export default function GymsManagementPage() {
 
     const openConfig = (gym: Gimnasio) => {
         setSelectedGym(gym);
+        setShowDeleteConfirmation(false);
+        setDeleteConfirmName('');
         setConfigData({
             nombre: gym.nombre,
             slug: gym.slug,
@@ -314,6 +318,33 @@ export default function GymsManagementPage() {
             }
         });
         setShowConfigModal(true);
+    };
+
+    const handleDeleteGym = async () => {
+        if (!selectedGym) return;
+        setCreating(true);
+        const toastId = toast.loading(`Eliminando ${selectedGym.nombre} y todos sus registros...`);
+        try {
+            const res = await fetch('/api/admin/gyms/delete', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gymId: selectedGym.id })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Gimnasio eliminado correctamente de la red');
+                setShowConfigModal(false);
+                fetchGyms();
+            } else {
+                toast.error(data.error || 'Error al eliminar el gimnasio');
+            }
+        } catch (err) {
+            console.error('Delete gym error:', err);
+            toast.error('Error de red al intentar eliminar el gimnasio');
+        } finally {
+            toast.dismiss(toastId);
+            setCreating(false);
+        }
     };
 
     const openBranchModal = (gym: Gimnasio) => {
@@ -578,10 +609,11 @@ export default function GymsManagementPage() {
                                 </div>
                             </div>
 
-                            {/* Zona Peligrosa / Acciones Rápidas */}
-                            {configData.estado_pago_saas !== 'active' && (
-                                <div className="p-4 bg-red-600/10 border border-red-500/20 rounded-2xl">
-                                    <p className="text-[10px] font-black text-red-500 uppercase mb-2">Acción de Emergencia</p>
+                            {/* Zona Peligrosa */}
+                            <div className="p-4 bg-red-950/20 border border-red-500/20 rounded-2xl space-y-4">
+                                <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Zona de Peligro</p>
+                                
+                                {configData.estado_pago_saas !== 'active' && (
                                     <button
                                         type="button"
                                         onClick={async () => {
@@ -598,12 +630,55 @@ export default function GymsManagementPage() {
                                             if (res.ok) toast.success('Notificación enviada');
                                             else toast.error('Error al enviar');
                                         }}
-                                        className="w-full py-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:opacity-90 transition-all"
+                                        className="w-full py-2 bg-red-600/20 text-red-400 rounded-xl text-xs font-bold hover:bg-red-600/30 transition-all border border-red-500/20"
                                     >
                                         ⚠️ Enviar Notificación de Urgencia
                                     </button>
-                                </div>
-                            )}
+                                )}
+
+                                {showDeleteConfirmation ? (
+                                    <div className="space-y-3 pt-2 border-t border-red-500/10">
+                                        <p className="text-[10px] font-bold text-gray-400">
+                                            Escribe <span className="text-red-400 font-mono select-all">{selectedGym?.nombre}</span> para confirmar:
+                                        </p>
+                                        <input
+                                            type="text"
+                                            value={deleteConfirmName}
+                                            onChange={(e) => setDeleteConfirmName(e.target.value)}
+                                            placeholder="Nombre del gimnasio"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-red-500/50 transition-all"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowDeleteConfirmation(false);
+                                                    setDeleteConfirmName('');
+                                                }}
+                                                className="flex-1 py-2 bg-white/5 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={deleteConfirmName !== selectedGym?.nombre || creating}
+                                                onClick={handleDeleteGym}
+                                                className="flex-1 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all disabled:opacity-30 disabled:pointer-events-none"
+                                            >
+                                                {creating ? 'Eliminando...' : 'Sí, Eliminar de la Red'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDeleteConfirmation(true)}
+                                        className="w-full py-2 bg-red-950/40 hover:bg-red-600/20 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20"
+                                    >
+                                        Eliminar Gimnasio de la Red
+                                    </button>
+                                )}
+                            </div>
 
                             <div className="flex gap-4 pt-4">
                                 <ModalButton type="button" onClick={() => setShowConfigModal(false)} variant="secondary">Cerrar</ModalButton>
@@ -636,13 +711,15 @@ export default function GymsManagementPage() {
                         </p>
                     </div>
                 </div>
-                <div className="bg-[#1c1c1e] p-6 rounded-[2rem] border border-white/5 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
+                <div className={`bg-[#1c1c1e] p-6 rounded-[2rem] border ${gyms.some(g => g.estado_pago_saas === 'unpaid' || !g.es_activo) ? 'border-amber-500/20' : 'border-white/5'} flex items-center gap-4`}>
+                    <div className={`w-12 h-12 ${gyms.some(g => g.estado_pago_saas === 'unpaid' || !g.es_activo) ? 'bg-amber-500/10 text-amber-500' : 'bg-purple-500/10 text-purple-500'} rounded-2xl flex items-center justify-center`}>
                         <Users size={24} />
                     </div>
                     <div>
                         <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Status del Sistema</p>
-                        <p className="text-2xl font-black text-white">Saludable</p>
+                        <p className={`text-2xl font-black ${gyms.some(g => g.estado_pago_saas === 'unpaid' || !g.es_activo) ? 'text-amber-500' : 'text-white'}`}>
+                            {gyms.some(g => g.estado_pago_saas === 'unpaid' || !g.es_activo) ? 'Alerta' : 'Saludable'}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -724,7 +801,7 @@ export default function GymsManagementPage() {
                                         Configuración Global
                                     </button>
                                     <button
-                                        onClick={() => window.location.href = `/${gym.id}/admin/finance`}
+                                        onClick={() => window.location.href = `/${gym.slug}/admin/finance`}
                                         className="px-8 py-3 bg-white/5 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-widest border border-white/10 hover:bg-white/10 transition-all"
                                     >
                                         Ver Estadísticas

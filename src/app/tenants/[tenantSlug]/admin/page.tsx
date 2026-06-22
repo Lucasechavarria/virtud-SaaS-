@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import SuperAdminTabs from '@/features/admin/components/SuperAdminTabs';
 import GymAdminDashboard from '@/features/admin/components/GymAdminDashboard';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 
 export default async function AdminDashboard({
     params,
@@ -60,13 +61,27 @@ export default async function AdminDashboard({
         return <GymAdminDashboard gymId={profile?.gimnasio_id || ''} />;
     }
 
-    // Roles que no deben estar aquí → redirigir
+    // Detectar si estamos bajo un subdominio o desarrollo local (modo subruta)
+    const reqHeaders = await headers();
+    const host = reqHeaders.get('host') || '';
+    const hostWithoutPort = host.split(':')[0];
+    const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
+    
+    let baseDomainWithoutPort = process.env.NEXT_PUBLIC_APP_DOMAIN;
+    if (!baseDomainWithoutPort) {
+        baseDomainWithoutPort = isLocalhost ? 'localhost' : (hostWithoutPort.endsWith('vercel.app') ? hostWithoutPort : 'virtud.fit');
+    }
+    const isSubdomain = hostWithoutPort !== baseDomainWithoutPort && hostWithoutPort !== `www.${baseDomainWithoutPort}`;
+
+    // Roles que no deben estar aquí → redirigir inteligentemente
     if (profile?.rol === 'coach') {
-        redirect('/coach');
+        const dest = isSubdomain ? '/coach' : `/${tenantSlug}/coach`;
+        redirect(dest);
     }
 
     if (profile?.rol === 'member') {
-        redirect('/dashboard');
+        const dest = isSubdomain ? '/member/dashboard' : `/${tenantSlug}/member/dashboard`;
+        redirect(dest);
     }
 
     // Fallback: Sin perfil o rol desconocido

@@ -1,2 +1,2 @@
-Status: 500
-Body: {"error":"unusable"}
+Status: 404
+Body: {"error":"Usuario objetivo no encontrado"}

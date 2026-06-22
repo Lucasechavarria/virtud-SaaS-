@@ -1,6 +1,31 @@
 import { NextRequest } from 'next/server';
 import { POST } from '../auth/set-role/route';
 
+// Mock de Supabase Admin
+jest.mock('@/lib/supabase/admin', () => ({
+    createAdminClient: jest.fn(() => ({
+        from: jest.fn(() => ({
+            select: jest.fn(() => ({
+                eq: jest.fn(() => ({
+                    single: jest.fn(() => Promise.resolve({
+                        data: { id: '123', rol: 'coach', gimnasio_id: 'gym123', permisos: {} },
+                        error: null
+                    }))
+                }))
+            })),
+            update: jest.fn(() => ({
+                eq: jest.fn(() => Promise.resolve({
+                    error: null
+                }))
+            })),
+            insert: jest.fn(() => Promise.resolve({
+                data: null,
+                error: null
+            }))
+        }))
+    }))
+}));
+
 // Mock de Supabase
 jest.mock('@/lib/supabase/server', () => ({
     createClient: jest.fn(() => ({
@@ -14,7 +39,7 @@ jest.mock('@/lib/supabase/server', () => ({
             select: jest.fn(() => ({
                 eq: jest.fn(() => ({
                     single: jest.fn(() => Promise.resolve({
-                        data: { id: '123', rol: 'admin' },
+                        data: { id: '123', rol: 'admin', gimnasio_id: 'gym123' },
                         error: null
                     }))
                 }))

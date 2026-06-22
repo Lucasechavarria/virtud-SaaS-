@@ -68,16 +68,16 @@ async function exportStudents(supabase: any, coachId: string) {
     const { data } = await supabase
         .from('relacion_alumno_coach')
         .select(`
-            user_id,
-            perfiles!inner(nombre_completo, email, telefono, fecha_nacimiento)
+            usuario_id,
+            perfiles!inner(nombre_completo, email:correo, telefono, fecha_nacimiento)
         `)
-        .eq('coach_id', coachId)
-        .eq('is_active', true);
+        .eq('entrenador_id', coachId)
+        .eq('esta_activo', true);
 
     if (!data) return [];
 
     return data.map((item: any) => ({
-        ID: item.user_id,
+        ID: item.usuario_id,
         Nombre: item.perfiles.nombre_completo,
         Email: item.perfiles.email,
         Teléfono: item.perfiles.telefono || 'N/A',
@@ -89,11 +89,11 @@ async function exportAttendance(supabase: any, coachId: string) {
     // Obtener alumnos del coach
     const { data: students } = await supabase
         .from('relacion_alumno_coach')
-        .select('user_id')
-        .eq('coach_id', coachId)
-        .eq('is_active', true);
+        .select('usuario_id')
+        .eq('entrenador_id', coachId)
+        .eq('esta_activo', true);
 
-    const studentIds = students?.map((s: any) => s.user_id) || [];
+    const studentIds = students?.map((s: any) => s.usuario_id) || [];
 
     if (studentIds.length === 0) return [];
 
@@ -122,11 +122,11 @@ async function exportPerformance(supabase: any, coachId: string) {
     // Obtener alumnos del coach
     const { data: students } = await supabase
         .from('relacion_alumno_coach')
-        .select('user_id')
-        .eq('coach_id', coachId)
-        .eq('is_active', true);
+        .select('usuario_id')
+        .eq('entrenador_id', coachId)
+        .eq('esta_activo', true);
 
-    const studentIds = students?.map((s: any) => s.user_id) || [];
+    const studentIds = students?.map((s: any) => s.usuario_id) || [];
 
     if (studentIds.length === 0) return [];
 

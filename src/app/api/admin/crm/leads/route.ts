@@ -10,6 +10,11 @@ export async function GET(request: Request) {
         const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'recepcion', 'superadmin']);
         if (authError) return authError;
 
+        // Blindaje contra gimnasio_id NULL para admin locales / recepcion
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
+        }
+
         const adminClient = createAdminClient();
         let targetGymId = profile?.gimnasio_id;
 
@@ -35,10 +40,14 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
         }
 
+        const queryLimitDate = new Date();
+        queryLimitDate.setDate(queryLimitDate.getDate() - 90);
+
         const { data: leads, error } = await adminClient
             .from('crm_prospectos')
             .select('*')
             .eq('gimnasio_id', targetGymId)
+            .gte('creado_en', queryLimitDate.toISOString())
             .order('creado_en', { ascending: false });
 
         if (error) throw error;
@@ -55,6 +64,11 @@ export async function POST(request: Request) {
     try {
         const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'recepcion', 'superadmin']);
         if (authError) return authError;
+
+        // Blindaje contra gimnasio_id NULL para admin locales / recepcion
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
+        }
 
         const adminClient = createAdminClient();
         let targetGymId = profile?.gimnasio_id;
@@ -102,6 +116,11 @@ export async function PATCH(request: Request) {
     try {
         const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'recepcion', 'superadmin']);
         if (authError) return authError;
+
+        // Blindaje contra gimnasio_id NULL para admin locales / recepcion
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
+        }
 
         const adminClient = createAdminClient();
         const body = await request.json();
@@ -192,6 +211,11 @@ export async function DELETE(request: Request) {
     try {
         const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (authError) return authError;
+
+        // Blindaje contra gimnasio_id NULL para admin locales
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
+        }
 
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');

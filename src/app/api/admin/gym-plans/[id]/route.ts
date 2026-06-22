@@ -11,7 +11,7 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (authError) return authError;
 
         const resolvedParams = params instanceof Promise ? await params : params;
@@ -24,8 +24,17 @@ export async function PUT(
         const { data: requester } = await adminClient
             .from('perfiles')
             .select('rol, gimnasio_id')
-            .eq('id', profile.id)
+            .eq('id', user.id)
             .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
 
         // 2. Verificar que el plan pertenezca al mismo gimnasio
         const { data: plan, error: fetchError } = await adminClient
@@ -77,7 +86,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin']);
         if (authError) return authError;
 
         const resolvedParams = params instanceof Promise ? await params : params;
@@ -89,8 +98,17 @@ export async function DELETE(
         const { data: requester } = await adminClient
             .from('perfiles')
             .select('rol, gimnasio_id')
-            .eq('id', profile.id)
+            .eq('id', user.id)
             .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL para admin (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
 
         // 2. Verificar pertenencia
         const { data: plan, error: fetchError } = await adminClient

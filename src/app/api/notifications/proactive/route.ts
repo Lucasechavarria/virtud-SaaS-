@@ -8,6 +8,22 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
     try {
         const supabase = await createClient();
+
+        // Validar autorización (Sesión de Supabase o Bearer con la key de Service Role)
+        const { data: { user } } = await supabase.auth.getUser();
+        let isAuthorized = !!user;
+
+        if (!isAuthorized) {
+            const authHeader = req.headers.get('Authorization');
+            if (authHeader && authHeader === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) {
+                isAuthorized = true;
+            }
+        }
+
+        if (!isAuthorized) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { studentId, reportData } = await req.json();
 
         if (!studentId || !reportData) {
@@ -28,7 +44,7 @@ export async function POST(req: NextRequest) {
         // 2. Obtener los coaches primarios del alumno
         const { data: assignments, error: coachError } = await (supabase
             .from('relacion_alumno_coach')
-            .select('entrenador_id, perfiles:entrenador_id(nombre_completo)')
+            .select('entrenador_id')
             .eq('usuario_id', studentId)
             .eq('es_principal', true)
             .eq('esta_activo', true) as any);

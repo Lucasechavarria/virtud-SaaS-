@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Save, Clock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'next/navigation';
 
 interface Activity {
     id: string;
@@ -19,6 +20,9 @@ interface Activity {
 }
 
 export default function AdminActivitiesPage() {
+    const params = useParams();
+    const tenantSlug = params?.tenantSlug;
+
     const [activities, setActivities] = useState<Activity[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,11 +39,12 @@ export default function AdminActivitiesPage() {
 
     useEffect(() => {
         fetchActivities();
-    }, []);
+    }, [tenantSlug]);
 
     const fetchActivities = async () => {
         try {
-            const res = await fetch('/api/admin/activities');
+            const url = tenantSlug ? `/api/admin/activities?gymId=${tenantSlug}` : '/api/admin/activities';
+            const res = await fetch(url);
             const data = await res.json();
             if (Array.isArray(data)) setActivities(data);
         } catch (_error) {
@@ -78,7 +83,8 @@ export default function AdminActivitiesPage() {
                 body: JSON.stringify({
                     ...body,
                     categoria: body.categoria || 'Fitness',
-                    tipo: body.tipo || 'CLASS'
+                    tipo: body.tipo || 'CLASS',
+                    gimnasio_id: tenantSlug
                 })
             });
 
@@ -100,7 +106,8 @@ export default function AdminActivitiesPage() {
         if (!confirm('¿Estás seguro? Esto eliminará también los horarios asociados a esta actividad.')) return;
 
         try {
-            const res = await fetch(`/api/admin/activities?id=${id}`, { method: 'DELETE' });
+            const url = `/api/admin/activities?id=${id}` + (tenantSlug ? `&gymId=${tenantSlug}` : '');
+            const res = await fetch(url, { method: 'DELETE' });
             if (!res.ok) throw new Error('Error al eliminar');
 
             toast.success('Actividad eliminada');

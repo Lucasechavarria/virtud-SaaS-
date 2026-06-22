@@ -11,11 +11,28 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
+        const { profile, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
         if (error) return error;
 
         const { id: challengeId } = await params;
         const { winnerId, status, endDate } = await request.json();
+
+        // Validar pertenencia del desafío al gimnasio del solicitante (aislamiento multi-tenant)
+        if (profile?.role !== 'superadmin') {
+            const { data: challengeCheck, error: checkError } = await supabase!
+                .from('desafios')
+                .select('gimnasio_id')
+                .eq('id', challengeId)
+                .single();
+
+            if (checkError || !challengeCheck) {
+                return NextResponse.json({ error: 'Desafío no encontrado o no autorizado' }, { status: 404 });
+            }
+
+            if (challengeCheck.gimnasio_id !== profile?.gimnasio_id) {
+                return NextResponse.json({ error: 'Acceso denegado: El desafío pertenece a otra sucursal' }, { status: 403 });
+            }
+        }
 
         // 1. Actualizar estado del desafío (columnas en español)
         const updateData: any = { estado: status || 'finished' };

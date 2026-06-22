@@ -288,7 +288,13 @@ export function UniversalSidebar({
         const isTenantsPath = segments[0] === 'tenants';
         const urlGymId = isTenantsPath ? segments[1] : (segments[0] !== 'admin' && segments[0] !== 'saas-admin' && segments[0] !== 'member' && segments[0] !== 'coach' ? segments[0] : null);
 
-        const activeGym = urlGymId || userGymPrefix;
+        let activeGym = urlGymId || userGymPrefix;
+
+        // Sanear activeGym: Si es un UUID pero tenemos el slug en userGymPrefix, priorizar el slug
+        const isUUID = (str: string | null) => str ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str) : false;
+        if (isUUID(activeGym) && userGymPrefix && !isUUID(userGymPrefix)) {
+            activeGym = userGymPrefix;
+        }
 
         if (activeGym && activeGym !== 'admin' && activeGym !== 'saas-admin') {
             return { ...item, href: `/${activeGym}${finalHref}` };

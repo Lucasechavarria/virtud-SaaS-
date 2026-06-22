@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'next/navigation';
 import {
     UserX,
     Phone,
@@ -27,6 +28,8 @@ interface ChurnRiskStudent {
 }
 
 export default function ChurnAnalysis() {
+    const params = useParams();
+    const tenantSlug = (params?.tenantSlug) as string | undefined;
     const [risks, setRisks] = useState<ChurnRiskStudent[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -37,7 +40,10 @@ export default function ChurnAnalysis() {
 
     const fetchChurnData = async () => {
         try {
-            const res = await fetch('/api/admin/crm/churn');
+            const url = tenantSlug
+                ? `/api/admin/crm/churn?gymId=${tenantSlug}`
+                : '/api/admin/crm/churn';
+            const res = await fetch(url);
             if (!res.ok) throw new Error();
             const data = await res.json();
             setRisks(data);

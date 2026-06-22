@@ -55,11 +55,18 @@ export default function SaaSAdminSupportPage() {
     }, []);
 
     useEffect(() => {
-        if (selectedTicket) {
-            fetchMessages(selectedTicket.id);
-        } else {
+        if (!selectedTicket) {
             setMessages([]);
+            return;
         }
+
+        fetchMessages(selectedTicket.id);
+
+        const interval = setInterval(() => {
+            fetchMessages(selectedTicket.id, true);
+        }, 10000);
+
+        return () => clearInterval(interval);
     }, [selectedTicket]);
 
     useEffect(() => {
@@ -68,8 +75,8 @@ export default function SaaSAdminSupportPage() {
         }
     }, [messages, loadingMessages]);
 
-    const fetchMessages = async (ticketId: string) => {
-        setLoadingMessages(true);
+    const fetchMessages = async (ticketId: string, silent = false) => {
+        if (!silent) setLoadingMessages(true);
         try {
             const res = await fetch(`/api/saas/support/${ticketId}/messages`);
             const data = await res.json();
@@ -79,7 +86,7 @@ export default function SaaSAdminSupportPage() {
         } catch (error) {
             console.error('Error fetching support messages:', error);
         } finally {
-            setLoadingMessages(false);
+            if (!silent) setLoadingMessages(false);
         }
     };
 

@@ -7,9 +7,21 @@ import { createMiddlewareClient } from '@/lib/supabase/middleware';
 export async function handleAuth(request: NextRequest, response: NextResponse) {
     const supabase = createMiddlewareClient(request, response);
     
-    // 1. Bypass seguro de sesión mockeada para entorno Cypress / Testing
+    // 1. Bypass seguro de sesión mockeada para entorno Cypress / Testing con secreto compartido
     const userAgent = request.headers.get('user-agent') || '';
-    const isCypress = userAgent.toLowerCase().includes('cypress');
+    const host = request.headers.get('host') || 'localhost:3000';
+    const hostWithoutPort = host.split(':')[0];
+    const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
+
+    // En entornos locales (desarrollo o CI local), si no está definido el secreto privado, usamos un mock por defecto.
+    // En producción (ej. Vercel), se requiere obligatoriamente que esté seteada la variable de entorno,
+    // garantizando que no haya bypass no autorizado en producción.
+    const cypressSecret = process.env.NEXT_PRIVATE_CYPRESS_SECRET || (isLocalhost ? 'mock-cypress-secret-12345' : undefined);
+
+    const isCypress = 
+        !!cypressSecret &&
+        request.headers.get('x-cypress-secret') === cypressSecret &&
+        userAgent.toLowerCase().includes('cypress');
 
     if (isCypress) {
         // Intentar obtener la cookie de Supabase para extraer el usuario simulado de forma atómica en Edge
@@ -121,10 +133,11 @@ export async function handleAuth(request: NextRequest, response: NextResponse) {
     }
 
 
-    // Debug: Ver exactamente qué cookies están llegando al servidor
-    const cookieNames = request.cookies.getAll().map(c => c.name).join(', ');
-    const rawCookie = request.headers.get('cookie') || 'REALLY_EMPTY';
-    console.warn(`[DEBUG_AUTH] Path: ${request.nextUrl.pathname} | Cookies: [${cookieNames}] | Raw: ${rawCookie}`);
+    // Debug: Ver exactamente qué cookies están llegando al servidor en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+        const cookieNames = request.cookies.getAll().map(c => c.name).join(', ');
+        console.warn(`[DEBUG_AUTH] Path: ${request.nextUrl.pathname} | Cookies (nombres únicamente): [${cookieNames}]`);
+    }
 
     try {
         const { data: { user }, error } = await supabase.auth.getUser();

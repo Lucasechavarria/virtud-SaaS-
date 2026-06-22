@@ -11,12 +11,20 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { user, supabase, error } = await authenticateAndRequireRole(
+        const { user, profile, supabase, error } = await authenticateAndRequireRole(
             request,
             ['admin']
         );
 
         if (error) return error;
+
+        // Blindaje contra gimnasio_id NULL para admin
+        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'Administrador sin gimnasio asignado'
+            }, { status: 403 });
+        }
 
         const { id } = await params;
         const userId = id;
@@ -38,12 +46,82 @@ export async function PUT(
             }, { status: 400 });
         }
 
-        // Obtener perfil actual del usuario
-        const { data: targetProfile } = await supabase
+        // Obtener perfil actual del usuario y verificar pertenencia al mismo gimnasio
+        const { data: targetProfile, error: targetError } = await supabase
             .from('perfiles')
-            .select('rol')
+            .select('rol, gimnasio_id')
             .eq('id', userId)
             .single();
+
+        if (targetError || !targetProfile) {
+            return NextResponse.json({
+                error: 'User not found',
+                message: 'Usuario no encontrado'
+            }, { status: 404 });
+        }
+
+        if (profile?.role !== 'superadmin' && targetProfile.gimnasio_id !== profile?.gimnasio_id) {
+            return NextResponse.json({
+                error: 'Forbidden',
+                message: 'El usuario pertenece a otra sucursal'
+            }, { status: 403 });
+        }
+
+        // Obtener límites y plan del gimnasio
+        const { data: gymPlan, error: planError } = await supabase
+            .from('gimnasios')
+            .select(`
+                plan_id,
+                planes_suscripcion (
+                    limite_usuarios,
+                    limite_coaches
+                )
+            `)
+            .eq('id', targetProfile.gimnasio_id)
+            .single();
+
+        if (planError || !gymPlan) {
+            return NextResponse.json({
+                error: 'Internal Error',
+                message: 'No se pudo verificar el plan del gimnasio'
+            }, { status: 500 });
+        }
+
+        const plan = gymPlan.planes_suscripcion;
+
+        // Validar límite si se cambia a coach
+        if (role === 'coach') {
+            const limitCoaches = plan?.limite_coaches || 0;
+            const { count: currentCoaches } = await supabase
+                .from('perfiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('gimnasio_id', targetProfile.gimnasio_id)
+                .eq('rol', 'coach');
+
+            if (currentCoaches !== null && currentCoaches >= limitCoaches) {
+                return NextResponse.json({
+                    error: 'LimitExceeded',
+                    message: `Límite operativo de profesores alcanzado para este plan (${limitCoaches}). Solicite un upgrade.`
+                }, { status: 400 });
+            }
+        }
+
+        // Validar límite si se cambia a member (alumno)
+        if (role === 'member') {
+            const limitUsers = plan?.limite_usuarios || 0;
+            const { count: currentUsers } = await supabase
+                .from('perfiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('gimnasio_id', targetProfile.gimnasio_id)
+                .eq('rol', 'member');
+
+            if (currentUsers !== null && currentUsers >= limitUsers) {
+                return NextResponse.json({
+                    error: 'LimitExceeded',
+                    message: `Límite operativo de alumnos alcanzado para este plan (${limitUsers}). Solicite un upgrade.`
+                }, { status: 400 });
+            }
+        }
 
         // Actualizar rol
         const { error: updateError } = await supabase

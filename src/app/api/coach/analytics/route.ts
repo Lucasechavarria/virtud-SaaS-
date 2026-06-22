@@ -87,33 +87,33 @@ export async function GET(req: Request) {
         let attendanceQuery = supabase
             .from('reservas_de_clase')
             .select('fecha, estado')
-            .in('estado', ['attended', 'confirmed', 'no_show']);
+            .in('estado', ['asistida', 'reservada', 'no_show']);
 
         if (isIndividual) {
             attendanceQuery = attendanceQuery.eq('usuario_id', studentId);
         }
 
         const measurementsPromise = isIndividual
-            ? supabase.from('mediciones')
+            ? (supabase as any).from('mediciones')
                 .select('*')
-                .eq('user_id', studentId)
+                .eq('usuario_id', studentId)
                 .order('registrado_en', { ascending: true })
             : Promise.resolve({ data: [] });
 
         const recentRoutinesPromise = isIndividual
             ? (supabase.from('rutinas') as any)
                 .select('*, ejercicios:ejercicios_rutina(series, repeticiones)')
-                .eq('user_id', studentId)
+                .eq('usuario_id', studentId)
                 .order('creado_en', { ascending: false })
                 .limit(5)
             : Promise.resolve({ data: [] });
 
         const activeRoutinesQuery = (supabase.from('rutinas') as any)
-            .select('id, nombre, user_id, ejercicios:ejercicios_rutina(series, repeticiones)')
+            .select('id, nombre, usuario_id, ejercicios:ejercicios_rutina(series, repeticiones)')
             .eq('esta_activa', true);
 
         const activeRoutinesPromise = isIndividual
-            ? activeRoutinesQuery.eq('user_id', studentId)
+            ? activeRoutinesQuery.eq('usuario_id', studentId)
             : activeRoutinesQuery;
 
         // Ejecutar paralelamente en un solo viaje de red concurrente
@@ -150,7 +150,7 @@ export async function GET(req: Request) {
                 prescribedVolume: totalPrescribedVolume,
                 summary: {
                     attendanceRate: calculateAttendanceRate(bookingsData),
-                    totalAttended: bookingsData.filter(b => b.estado === 'attended').length,
+                    totalAttended: bookingsData.filter(b => b.estado === 'asistida').length,
                 }
             }
         });
@@ -207,7 +207,7 @@ function processAttendance(bookings: Pick<ClassBooking, 'fecha' | 'estado'>[]): 
         if (!acc[month]) acc[month] = { month, attended: 0, total: 0 };
 
         acc[month].total++;
-        if (booking.estado === 'attended') {
+        if (booking.estado === 'asistida') {
             acc[month].attended++;
         }
         return acc;
@@ -227,6 +227,6 @@ function processAttendance(bookings: Pick<ClassBooking, 'fecha' | 'estado'>[]): 
 function calculateAttendanceRate(bookings: Pick<ClassBooking, 'estado'>[]): number {
     if (!Array.isArray(bookings) || bookings.length === 0) return 0;
     
-    const attended = bookings.filter(b => b && b.estado === 'attended').length;
+    const attended = bookings.filter(b => b && b.estado === 'asistida').length;
     return Math.round((attended / bookings.length) * 100);
 }

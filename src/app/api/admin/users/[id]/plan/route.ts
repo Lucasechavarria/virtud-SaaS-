@@ -12,7 +12,7 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
     try {
-        const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
+        const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
         const resolvedParams = params instanceof Promise ? await params : params;
@@ -26,8 +26,17 @@ export async function PUT(
         const { data: requester } = await adminClient
             .from('perfiles')
             .select('rol, permisos, gimnasio_id')
-            .eq('id', profile.id)
+            .eq('id', user.id)
             .single();
+
+        if (!requester) {
+            return NextResponse.json({ error: 'Perfil del solicitante no encontrado' }, { status: 404 });
+        }
+
+        // Blindaje contra gimnasio_id NULL (acordado en /grill-me)
+        if (requester.rol !== 'superadmin' && !requester.gimnasio_id) {
+            return NextResponse.json({ error: 'Forbidden: Gimnasio no asignado' }, { status: 403 });
+        }
 
         if (requester?.rol === 'recepcion' && requester.permisos?.acceso_usuarios !== true) {
             return NextResponse.json({ error: 'Forbidden: Requiere permiso de acceso a usuarios' }, { status: 403 });
@@ -95,7 +104,7 @@ export async function PUT(
             .from('historial_cambios_perfil')
             .insert({
                 profile_id: userId,
-                changed_by: profile.id,
+                changed_by: user.id,
                 field_changed: 'plan_id',
                 old_value: targetProfile.plan_id || 'ninguno',
                 new_value: planId || 'ninguno',

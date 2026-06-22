@@ -20,7 +20,7 @@ export default function VisionLabPage() {
         const fetchStudents = async () => {
             const { data } = await supabase
                 .from('perfiles')
-                .select('id, nombre_completo, email')
+                .select('id, nombre_completo, email:correo')
                 .eq('rol', 'member');
             if (data) setStudents(data);
         };

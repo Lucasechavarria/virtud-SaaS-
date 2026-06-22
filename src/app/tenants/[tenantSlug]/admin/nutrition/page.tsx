@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Toaster, toast } from 'react-hot-toast';
+import { useParams } from 'next/navigation';
 
 interface NutritionPlan {
     id: string;
@@ -25,6 +26,8 @@ interface NutritionPlan {
 }
 
 export default function AdminNutritionPage() {
+    const params = useParams();
+    const tenantSlug = (params?.tenantSlug) as string | undefined;
     const [plans, setPlans] = useState<NutritionPlan[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -34,7 +37,10 @@ export default function AdminNutritionPage() {
 
     const fetchPlans = async () => {
         try {
-            const res = await fetch('/api/admin/nutrition');
+            const url = tenantSlug
+                ? `/api/admin/nutrition?gymId=${tenantSlug}`
+                : '/api/admin/nutrition';
+            const res = await fetch(url);
             const data = await res.json();
             if (res.ok) {
                 setPlans(data);
