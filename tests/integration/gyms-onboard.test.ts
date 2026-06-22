@@ -329,16 +329,9 @@ describe('Onboarding de Gimnasio API - Tests de Integración', () => {
      * TC-ONB-005: Edge Case - Robustez ante entradas inválidas o incompletas
      * Valida cómo reacciona la API ante la ausencia de datos requeridos en el payload.
      */
-    test('TC-ONB-005: Debe reaccionar de forma controlada o devolver error de base de datos si faltan campos obligatorios', async () => {
+    test('TC-ONB-005: Debe reaccionar de forma controlada devolviendo HTTP 400 si faltan campos obligatorios', async () => {
         // GIVEN: El payload carece de campos obligatorios para la DB (ej: 'nombre' es null)
         const dirtyPayload = { ...validPayload, nombre: null };
-
-        // Simulamos que la DB rechaza la inserción por constraint NOT NULL
-        mockSelectSingle.mockResolvedValue({ data: null, error: { code: 'PGRST116' } });
-        mockGymsInsert.mockReturnValue({
-            data: null,
-            error: new Error('null value in column "nombre" violates not-null constraint')
-        });
 
         // WHEN: Enviamos la petición POST
         const request = new Request('http://localhost/api/admin/gyms/onboard', {
@@ -349,8 +342,8 @@ describe('Onboarding de Gimnasio API - Tests de Integración', () => {
         const response = await POST(request);
         const data = await response.json();
 
-        // THEN: Devuelve error de integración (500) por constraint no satisfecha
-        expect(response.status).toBe(500);
-        expect(data.error).toContain('not-null constraint');
+        // THEN: Devuelve error de validación (400)
+        expect(response.status).toBe(400);
+        expect(data.error).toContain('El nombre del gimnasio debe tener al menos 3 caracteres.');
     });
 });

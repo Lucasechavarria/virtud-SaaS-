@@ -4,7 +4,7 @@ import { ROLES } from '@/lib/constants/app';
 import { UniversalLayoutWrapper } from '@/components/layout/UniversalLayoutWrapper';
 import { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
-import SaaSGuard from '@/components/auth/SaaSGuard';
+import SuperAdminSessionCheck from '../../../components/auth/SuperAdminSessionCheck'; // Client-side session verification
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -45,9 +45,8 @@ export default async function SaaSAdminLayout({
             <div className="aurora-bg" />
 
             <UniversalLayoutWrapper profileName={profile.nombre_completo} profileRole={profile.rol}>
-                <SaaSGuard>
-                    {children}
-                </SaaSGuard>
+                <SuperAdminSessionCheck />
+                {children}
             </UniversalLayoutWrapper>
 
             <Toaster position="top-center" toastOptions={{

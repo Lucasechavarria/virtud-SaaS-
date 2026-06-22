@@ -12,6 +12,30 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { nombre, slug, plan_id, modulos, admin_nombre, admin_email, admin_password, configuracion, sucursal_nombre, direccion } = body;
 
+        // Validaciones estrictas en el Backend
+        if (!nombre || nombre.trim().length < 3) {
+            return NextResponse.json({ error: 'El nombre del gimnasio debe tener al menos 3 caracteres.' }, { status: 400 });
+        }
+
+        const slugRegex = /^[a-z0-9-]+$/;
+        if (!slug || !slugRegex.test(slug.toLowerCase())) {
+            return NextResponse.json({ error: 'El identificador (slug) sólo puede contener letras minúsculas, números y guiones.' }, { status: 400 });
+        }
+
+        if (!admin_nombre || admin_nombre.trim().length < 3) {
+            return NextResponse.json({ error: 'El nombre del administrador debe tener al menos 3 caracteres.' }, { status: 400 });
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!admin_email || !emailRegex.test(admin_email)) {
+            return NextResponse.json({ error: 'El correo electrónico del administrador no tiene un formato válido.' }, { status: 400 });
+        }
+
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (!admin_password || !passwordRegex.test(admin_password)) {
+            return NextResponse.json({ error: 'La contraseña de administrador debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula, un número y un carácter especial (@$!%*?&).' }, { status: 400 });
+        }
+
         // 1. Validar slug único
         const { data: existingGym } = await adminSupabase
             .from('gimnasios')

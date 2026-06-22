@@ -11,6 +11,7 @@ import {
     CheckCircle2,
     XCircle,
     Eye,
+    EyeOff,
     ShieldAlert
 } from 'lucide-react';
 import Image from 'next/image';
@@ -44,6 +45,7 @@ export default function GymsManagementPage() {
     const [showBranchModal, setShowBranchModal] = useState(false);
     const [showConfigModal, setShowConfigModal] = useState(false);
     const [isOnboardMode, setIsOnboardMode] = useState(false);
+    const [showOnboardPassword, setShowOnboardPassword] = useState(false);
 
     const [creating, setCreating] = useState(false);
     const [selectedGym, setSelectedGym] = useState<Gimnasio | null>(null);
@@ -52,7 +54,8 @@ export default function GymsManagementPage() {
 
     // Estados para el Modal de Impersonación Premium
     const [impersonationTarget, setImpersonationTarget] = useState<{ id: string; nombre: string } | null>(null);
-    const [impersonationReason, setImpersonationReason] = useState('Soporte Técnico / Verificación');
+    const [impersonationReason, setImpersonationReason] = useState('');
+    const [impersonationPassword, setImpersonationPassword] = useState('');
     const [isImpersonatingApi, setIsImpersonatingApi] = useState(false);
 
     // Form states
@@ -94,6 +97,50 @@ export default function GymsManagementPage() {
     });
 
     const [plans, setPlans] = useState<{ id: string; nombre: string; precio_mensual: number }[]>([]);
+    const [activeImpersonation, setActiveImpersonation] = useState<{ id: string; nombre: string; expires: number } | null>(null);
+
+    useEffect(() => {
+        const checkActiveImpersonation = () => {
+            const data = localStorage.getItem('vtd_active_impersonation');
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (Date.now() < parsed.expires) {
+                        setActiveImpersonation(parsed);
+                    } else {
+                        localStorage.removeItem('vtd_active_impersonation');
+                        setActiveImpersonation(null);
+                    }
+                } catch (_) {
+                    setActiveImpersonation(null);
+                }
+            } else {
+                setActiveImpersonation(null);
+            }
+        };
+
+        checkActiveImpersonation();
+        const interval = setInterval(checkActiveImpersonation, 5000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleExitActiveImpersonation = async () => {
+        const toastId = toast.loading('Finalizando acceso remoto activo...');
+        try {
+            const res = await fetch('/api/admin/impersonate/exit', { method: 'POST' });
+            if (res.ok) {
+                toast.success('Acceso remoto finalizado correctamente.');
+                localStorage.removeItem('vtd_active_impersonation');
+                setActiveImpersonation(null);
+            } else {
+                toast.error('Error al finalizar el acceso remoto.');
+            }
+        } catch (_) {
+            toast.error('Error de red.');
+        } finally {
+            toast.dismiss(toastId);
+        }
+    };
 
     useEffect(() => {
         fetchGyms();
@@ -102,11 +149,21 @@ export default function GymsManagementPage() {
 
     const handleImpersonate = (gymId: string, gymName: string) => {
         setImpersonationTarget({ id: gymId, nombre: gymName });
-        setImpersonationReason('Soporte Técnico / Verificación');
+        setImpersonationReason('');
+        setImpersonationPassword('');
     };
 
     const executeImpersonation = async () => {
         if (!impersonationTarget) return;
+        if (!impersonationReason || impersonationReason.trim().length < 10) {
+            toast.error('Debes proporcionar una justificación detallada de soporte (mínimo 10 caracteres).');
+            return;
+        }
+        if (!impersonationPassword) {
+            toast.error('Por favor ingresa tu contraseña de Superadmin para continuar.');
+            return;
+        }
+
         setIsImpersonatingApi(true);
         const loadingToast = toast.loading(`Accediendo remotamente al entorno de ${impersonationTarget.nombre}...`);
         try {
@@ -115,16 +172,45 @@ export default function GymsManagementPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     gymId: impersonationTarget.id, 
-                    reason: impersonationReason || 'Soporte Técnico / Verificación' 
+                    reason: impersonationReason,
+                    password: impersonationPassword
                 })
             });
 
             const data = await res.json();
             if (res.ok) {
                 toast.success(data.message);
-                window.open(data.redirectUrl, '_blank');
+                localStorage.setItem('vtd_active_impersonation', JSON.stringify({
+                    id: impersonationTarget.id,
+                    nombre: impersonationTarget.nombre,
+                    expires: Date.now() + 15 * 60 * 1000
+                }));
+                
+                // Intentar abrir en nueva pestaña
+                const newWindow = window.open(data.redirectUrl, '_blank');
+                
+                // Si el navegador bloqueó el popup, alertar y mostrar el link para abrir manualmente
+                if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                    toast((t) => (
+                        <div className="flex flex-col gap-2 p-1">
+                            <span className="text-xs font-bold text-white">⚠️ Popup bloqueado por el navegador</span>
+                            <span className="text-[10px] text-gray-400">Haz click abajo para ingresar al panel remoto:</span>
+                            <a 
+                                href={data.redirectUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                onClick={() => toast.dismiss(t.id)}
+                                className="px-3 py-1.5 bg-amber-500 text-black text-[10px] font-black uppercase tracking-wider rounded-lg text-center block"
+                            >
+                                Abrir Enlace Manualmente
+                            </a>
+                        </div>
+                    ), { duration: 15000, position: 'bottom-right' });
+                }
+
                 setImpersonationTarget(null);
-                setImpersonationReason('Soporte Técnico / Verificación');
+                setImpersonationReason('');
+                setImpersonationPassword('');
             } else {
                 toast.error(data.error || 'Error al intentar el acceso remoto');
             }
@@ -166,6 +252,37 @@ export default function GymsManagementPage() {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         setCreating(true);
+
+        // Validaciones generales de formulario
+        const slugRegex = /^[a-z0-9-]+$/;
+        if (!slugRegex.test(formData.slug.toLowerCase())) {
+            toast.error('El identificador (slug) sólo puede contener letras minúsculas, números y guiones.');
+            setCreating(false);
+            return;
+        }
+
+        if (isOnboardMode) {
+            if (!formData.admin_nombre || formData.admin_nombre.trim().length < 3) {
+                toast.error('El nombre del administrador debe tener al menos 3 caracteres.');
+                setCreating(false);
+                return;
+            }
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(formData.admin_email)) {
+                toast.error('Por favor ingresa un correo electrónico de administrador válido.');
+                setCreating(false);
+                return;
+            }
+
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+            if (!passwordRegex.test(formData.admin_password)) {
+                toast.error('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula, un número y un carácter especial (@$!%*?&).');
+                setCreating(false);
+                return;
+            }
+        }
+
         try {
             const url = isOnboardMode ? '/api/admin/gyms/onboard' : '/api/admin/gyms/create';
             
@@ -353,7 +470,35 @@ export default function GymsManagementPage() {
     };
 
     return (
-        <div className="space-y-8 p-4 md:p-8">
+        <div className="space-y-8 p-4 md:p-8 w-full">
+            {/* Banner de Impersonación Activa */}
+            {activeImpersonation && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="overflow-hidden rounded-[1.5rem] border border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-amber-600/5 to-transparent p-5 backdrop-blur-xl shadow-[0_0_50px_rgba(245,158,11,0.05)] w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center border border-amber-500/30 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse">
+                            <ShieldAlert size={22} />
+                        </div>
+                        <div>
+                            <h3 className="text-white text-sm font-black italic uppercase tracking-tight">
+                                🔍 Tienes un Acceso Remoto Activo
+                            </h3>
+                            <p className="text-[10px] text-amber-400/80 font-black uppercase tracking-widest mt-1">
+                                Gimnasio: <span className="text-white font-black">{activeImpersonation.nombre}</span> | Expira en {Math.max(1, Math.ceil((activeImpersonation.expires - Date.now()) / 60000))} minutos
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleExitActiveImpersonation}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(245,158,11,0.25)] shrink-0"
+                    >
+                        Terminar Sesión de Soporte
+                    </button>
+                </motion.div>
+            )}
             {/* Header section with Stats */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
@@ -424,7 +569,23 @@ export default function GymsManagementPage() {
                                             <Input label="Nombre Administrador" value={formData.admin_nombre} onChange={v => setFormData({ ...formData, admin_nombre: v })} placeholder="Ej: Juan Pérez" />
                                             <Input label="Email Administrador" value={formData.admin_email} onChange={v => setFormData({ ...formData, admin_email: v })} placeholder="juan@gimnasio.com" />
                                         </div>
-                                        <Input label="Contraseña Inicial" value={formData.admin_password} onChange={v => setFormData({ ...formData, admin_password: v })} placeholder="Clave temporal" className="font-mono text-sm" />
+                                         <div className="relative">
+                                             <Input 
+                                                 label="Contraseña Inicial" 
+                                                 value={formData.admin_password} 
+                                                 onChange={v => setFormData({ ...formData, admin_password: v })} 
+                                                 placeholder="Clave temporal" 
+                                                 className="font-mono text-sm pr-12" 
+                                                 type={showOnboardPassword ? "text" : "password"}
+                                             />
+                                             <button
+                                                 type="button"
+                                                 onClick={() => setShowOnboardPassword(!showOnboardPassword)}
+                                                 className="absolute right-4 bottom-3.5 text-gray-500 hover:text-white transition-colors"
+                                             >
+                                                 {showOnboardPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                             </button>
+                                         </div>
 
                                         <div className="border-b border-white/5 pb-2 pt-2">
                                             <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Plan & Módulos Activos</h4>
@@ -852,6 +1013,16 @@ export default function GymsManagementPage() {
                                     <p className="text-xl font-black text-white italic uppercase tracking-tight mt-1">{impersonationTarget.nombre}</p>
                                 </div>
 
+                                {/* Advertencia de acciones */}
+                                <div className="p-4 bg-red-950/20 border border-red-500/20 rounded-2xl text-[10px] text-gray-400 space-y-2">
+                                    <p className="font-black uppercase text-red-400">⚠️ ADVERTENCIAS DE SEGURIDAD:</p>
+                                    <ul className="list-disc list-inside space-y-1">
+                                        <li>El acceso expira automáticamente tras 15 minutos de inactividad.</li>
+                                        <li>Todas las operaciones (creaciones, modificaciones o borrados) se registrarán asociadas a tu cuenta de Superadmin de forma inmutable.</li>
+                                        <li>Se registrará automáticamente la fecha y hora de tu salida en el log de auditoría.</li>
+                                    </ul>
+                                </div>
+
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Motivo / Justificación de Soporte</label>
                                     <textarea
@@ -863,8 +1034,20 @@ export default function GymsManagementPage() {
                                         required
                                     />
                                     <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest leading-none mt-1">
-                                        * Esta justificación será guardada de forma inmutable en el historial de auditoría global.
+                                        * Esta justificación requiere un mínimo de 10 caracteres.
                                     </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Contraseña de Superadmin (Confirmación)</label>
+                                    <input
+                                        type="password"
+                                        value={impersonationPassword}
+                                        onChange={e => setImpersonationPassword(e.target.value)}
+                                        placeholder="Ingresa tu contraseña para re-autenticar"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-all text-xs font-mono"
+                                        required
+                                    />
                                 </div>
 
                                 <div className="flex gap-4 pt-4">
@@ -918,12 +1101,12 @@ function Modal({ children, onClose, title }: { children: React.ReactNode, onClos
     );
 }
 
-function Input({ label, value, onChange, placeholder, className = "" }: { label: string, value: string, onChange: (v: string) => void, placeholder?: string, className?: string }) {
+function Input({ label, value, onChange, placeholder, className = "", type = "text" }: { label: string, value: string, onChange: (v: string) => void, placeholder?: string, className?: string, type?: string }) {
     return (
         <div className="space-y-2">
             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">{label}</label>
             <input
-                type="text"
+                type={type}
                 placeholder={placeholder}
                 className={`w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-primary outline-none transition-all ${className}`}
                 value={value}

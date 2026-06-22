@@ -15,7 +15,13 @@ function BannerContent() {
 
     if (!isImpersonating) return null;
 
-    const handleExit = () => {
+    const handleExit = async () => {
+        try {
+            await fetch('/api/admin/impersonate/exit', { method: 'POST' });
+            localStorage.removeItem('vtd_active_impersonation');
+        } catch (error) {
+            console.error('Error al registrar la salida de impersonación:', error);
+        }
         const destination = tenantSlug ? `/tenants/${tenantSlug}/admin` : '/admin';
         router.push(destination);
     };
