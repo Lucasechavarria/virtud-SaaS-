@@ -47,7 +47,7 @@ export default function AdminBillingPage() {
     const [activeTab, setActiveTab] = useState<'billing' | 'plans'>('billing');
     const [searchTerm, setSearchTerm] = useState('');
     const [updating, setUpdating] = useState(false);
-    const [editedDiscounts, setEditedDiscounts] = useState<Record<string, number>>({});
+    const [editedDiscounts, setEditedDiscounts] = useState<Record<string, number | string>>({});
 
     // CRUD Plan States
     const [showPlanModal, setShowPlanModal] = useState(false);
@@ -452,13 +452,35 @@ export default function AdminBillingPage() {
                                                             type="number"
                                                             className="w-14 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white font-bold outline-none"
                                                             value={editedDiscounts[gym.id] !== undefined ? editedDiscounts[gym.id] : gym.descuento_saas}
-                                                            onChange={(e) => setEditedDiscounts({ ...editedDiscounts, [gym.id]: parseInt(e.target.value) || 0 })}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setEditedDiscounts({ ...editedDiscounts, [gym.id]: val === '' ? '' : parseInt(val) || 0 });
+                                                            }}
+                                                            onBlur={() => {
+                                                                const val = editedDiscounts[gym.id];
+                                                                if (val !== undefined) {
+                                                                    const discountNum = val === '' ? 0 : Number(val);
+                                                                    if (discountNum !== gym.descuento_saas) {
+                                                                        handleUpdateDiscount(gym.id, discountNum);
+                                                                    }
+                                                                    const updated = { ...editedDiscounts };
+                                                                    delete updated[gym.id];
+                                                                    setEditedDiscounts(updated);
+                                                                }
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.currentTarget.blur();
+                                                                }
+                                                            }}
                                                         />
-                                                        {editedDiscounts[gym.id] !== undefined && editedDiscounts[gym.id] !== gym.descuento_saas && (
+                                                        {editedDiscounts[gym.id] !== undefined && (editedDiscounts[gym.id] === '' ? 0 : Number(editedDiscounts[gym.id])) !== gym.descuento_saas && (
                                                             <div className="flex gap-1">
                                                                 <button
                                                                     onClick={() => {
-                                                                        handleUpdateDiscount(gym.id, editedDiscounts[gym.id]);
+                                                                        const val = editedDiscounts[gym.id];
+                                                                        const discountNum = val === '' ? 0 : Number(val);
+                                                                        handleUpdateDiscount(gym.id, discountNum);
                                                                         const updated = { ...editedDiscounts };
                                                                         delete updated[gym.id];
                                                                         setEditedDiscounts(updated);

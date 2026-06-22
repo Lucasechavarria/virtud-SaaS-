@@ -8,14 +8,37 @@ export async function POST(request: Request) {
         const { error: authError, user: adminUser } = await authenticateAndRequireRole(request, ['superadmin']);
         if (authError || !adminUser) return authError || NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const { gymId, reason } = await request.json();
+        const { gymId, reason, password } = await request.json();
 
         if (!gymId) {
             return NextResponse.json({ error: 'Missing gymId' }, { status: 400 });
         }
 
+        if (!password) {
+            return NextResponse.json({ error: 'Se requiere la contraseña del Superadmin para re-autenticar la sesión.' }, { status: 401 });
+        }
+
+        if (!reason || reason.trim().length < 10) {
+            return NextResponse.json({ error: 'Debes proporcionar una justificación detallada de soporte (mínimo 10 caracteres).' }, { status: 400 });
+        }
+
         // Obtener el slug del gimnasio en Supabase para una redirección correcta basada en slug
         const supabase = await createClient();
+
+        // Validar contraseña del superadmin (Re-autenticación)
+        if (adminUser.email) {
+            const { error: reAuthError } = await supabase.auth.signInWithPassword({
+                email: adminUser.email,
+                password: password
+            });
+
+            if (reAuthError) {
+                return NextResponse.json({ error: 'Contraseña de Superadmin incorrecta. Acceso Denegado.' }, { status: 401 });
+            }
+        } else {
+            return NextResponse.json({ error: 'No se pudo verificar el correo electrónico del Superadmin.' }, { status: 500 });
+        }
+
         const { data: gym, error: gymError } = await supabase
             .from('gimnasios')
             .select('slug')
