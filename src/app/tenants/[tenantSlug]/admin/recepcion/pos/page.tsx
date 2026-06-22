@@ -318,8 +318,9 @@ export default function POSPage() {
                                 gain.gain.setValueAtTime(0.04, ctx.currentTime);
                                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
                                 osc.start();
-                                osc.stop(ctx.currentTime + 0.1);
-                            } catch (_) {}
+                            } catch (_) {
+                                // Ignorar si el AudioContext falla o está bloqueado por el navegador
+                            }
                         }
                     }
                     buffer = '';
