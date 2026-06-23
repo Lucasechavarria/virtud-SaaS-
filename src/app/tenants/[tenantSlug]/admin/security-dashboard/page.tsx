@@ -44,12 +44,25 @@ export default function SecurityDashboardPage() {
     });
 
     const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
+    const [accessByHour, setAccessByHour] = useState<any[]>([]);
+    const [accessByDay, setAccessByDay] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({
         dateRange: '24h',
         status: 'all',
         search: ''
     });
+
+    // Estado local para búsqueda con debounce
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Debounce de búsqueda de 500ms
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setFilter(prev => ({ ...prev, search: searchTerm }));
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
 
     useEffect(() => {
         loadSecurityData();
@@ -58,41 +71,28 @@ export default function SecurityDashboardPage() {
     const loadSecurityData = async () => {
         setLoading(true);
         try {
-            const url = tenantSlug
+            const queryParams = new URLSearchParams({
+                dateRange: filter.dateRange,
+                status: filter.status,
+                search: filter.search
+            });
+            const baseUrl = tenantSlug
                 ? `/api/admin/security/dashboard?gymId=${tenantSlug}`
                 : '/api/admin/security/dashboard';
+            const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${queryParams.toString()}`;
             const response = await fetch(url);
             const data = await response.json();
 
             setMetrics(data.metrics);
             setAccessLogs(data.logs);
+            setAccessByHour(data.accessByHour || []);
+            setAccessByDay(data.accessByDay || []);
         } catch (error) {
             console.error('Error loading security data:', error);
         } finally {
             setLoading(false);
         }
     };
-
-    // Datos para gráfico de accesos por hora
-    const accessByHourData = [
-        { time: '00:00', Accesos: 12 },
-        { time: '04:00', Accesos: 19 },
-        { time: '08:00', Accesos: 45 },
-        { time: '12:00', Accesos: 78 },
-        { time: '16:00', Accesos: 56 },
-        { time: '20:00', Accesos: 34 }
-    ];
-
-    // Datos para gráfico de accesos por día
-    const accessByDayData = [
-        { day: 'Lun', Exitosos: 245, Fallidos: 12 },
-        { day: 'Mar', Exitosos: 289, Fallidos: 15 },
-        { day: 'Mié', Exitosos: 312, Fallidos: 8 },
-        { day: 'Jue', Exitosos: 298, Fallidos: 23 },
-        { day: 'Vie', Exitosos: 267, Fallidos: 18 },
-        { day: 'Sáb', Exitosos: 156, Fallidos: 9 },
-        { day: 'Dom', Exitosos: 123, Fallidos: 5 }
-    ];
 
     return (
         <div className="p-6 bg-[#0a0a0a] min-h-screen">
@@ -133,41 +133,53 @@ export default function SecurityDashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
                     <h2 className="text-xl font-bold text-white mb-4">Accesos por Hora (Últimas 24h)</h2>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={accessByHourData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="time" stroke="#9ca3af" />
-                                <YAxis stroke="#9ca3af" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                />
-                                <Legend />
-                                <RechartsLine type="monotone" dataKey="Accesos" stroke="#ff5722" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
+                    {loading ? (
+                        <div className="h-[300px] w-full bg-gray-700/20 rounded-lg animate-pulse flex items-center justify-center border border-gray-700">
+                            <span className="text-zinc-500 font-bold text-xs uppercase tracking-widest">Generando curvas de acceso...</span>
+                        </div>
+                    ) : (
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={accessByHour} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis dataKey="time" stroke="#9ca3af" />
+                                    <YAxis stroke="#9ca3af" />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                                        itemStyle={{ color: '#fff' }}
+                                    />
+                                    <Legend />
+                                    <RechartsLine type="monotone" dataKey="Accesos" stroke="#ff5722" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
                     <h2 className="text-xl font-bold text-white mb-4">Accesos por Día (Última Semana)</h2>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={accessByDayData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                                <XAxis dataKey="day" stroke="#9ca3af" />
-                                <YAxis stroke="#9ca3af" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
-                                    cursor={{ fill: '#374151', opacity: 0.4 }}
-                                />
-                                <Legend />
-                                <RechartsBar dataKey="Exitosos" fill="#4caf50" radius={[4, 4, 0, 0]} />
-                                <RechartsBar dataKey="Fallidos" fill="#f44336" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+                    {loading ? (
+                        <div className="h-[300px] w-full bg-gray-700/20 rounded-lg animate-pulse flex items-center justify-center border border-gray-700">
+                            <span className="text-zinc-500 font-bold text-xs uppercase tracking-widest">Calculando actividad por día...</span>
+                        </div>
+                    ) : (
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={accessByDay} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                                    <XAxis dataKey="day" stroke="#9ca3af" />
+                                    <YAxis stroke="#9ca3af" />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                                        cursor={{ fill: '#374151', opacity: 0.4 }}
+                                    />
+                                    <Legend />
+                                    <RechartsBar dataKey="Exitosos" fill="#4caf50" radius={[4, 4, 0, 0]} />
+                                    <RechartsBar dataKey="Fallidos" fill="#f44336" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -212,8 +224,8 @@ export default function SecurityDashboardPage() {
                         </label>
                         <input
                             type="text"
-                            value={filter.search}
-                            onChange={(e) => setFilter({ ...filter, search: e.target.value })}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Usuario, IP, acción..."
                             className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600"
                         />

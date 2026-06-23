@@ -32,6 +32,7 @@ async function fetchGymBranding(slug: string): Promise<GymBranding> {
             .from('gimnasios')
             .select('color_primario, color_secundario, logo_url, config_visual')
             .eq(queryField, slug)
+            .is('deleted_at', null)
             .single();
 
         if (error || !gym) {

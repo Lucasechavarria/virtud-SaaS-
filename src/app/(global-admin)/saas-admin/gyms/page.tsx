@@ -12,7 +12,11 @@ import {
     XCircle,
     Eye,
     EyeOff,
-    ShieldAlert
+    ShieldAlert,
+    Search,
+    X,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -52,11 +56,43 @@ export default function GymsManagementPage() {
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const [deleteConfirmName, setDeleteConfirmName] = useState('');
 
+    // Nuevos estados para Backup y Borrado Seguro
+    const [backupData, setBackupData] = useState<any>(null);
+    const [backupStats, setBackupStats] = useState<any>(null);
+    const [loadingBackup, setLoadingBackup] = useState(false);
+    const [isBackupDownloaded, setIsBackupDownloaded] = useState(false);
+
+    // Nuevos estados para Cambio de Slug Seguro
+    const [showSlugConfirmModal, setShowSlugConfirmModal] = useState(false);
+    const [slugConfirmText, setSlugConfirmText] = useState('');
+
+    // Nuevos estados para Notificaciones de Urgencia Personalizadas
+    const [showUrgentModal, setShowUrgentModal] = useState(false);
+    const [urgentTitle, setUrgentTitle] = useState('');
+    const [urgentMessage, setUrgentMessage] = useState('');
+    const [sendingUrgent, setSendingUrgent] = useState(false);
+
     // Estados para el Modal de Impersonación Premium
     const [impersonationTarget, setImpersonationTarget] = useState<{ id: string; nombre: string } | null>(null);
     const [impersonationReason, setImpersonationReason] = useState('');
     const [impersonationPassword, setImpersonationPassword] = useState('');
     const [isImpersonatingApi, setIsImpersonatingApi] = useState(false);
+
+    // Estados para Paginación y Búsqueda del listado
+    const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
+    const [totalGyms, setTotalGyms] = useState(0);
+
+    // Debounce de búsqueda (400ms)
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(search);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [search]);
 
     // Form states
     const [formData, setFormData] = useState({
@@ -143,7 +179,10 @@ export default function GymsManagementPage() {
     };
 
     useEffect(() => {
-        fetchGyms();
+        fetchGyms(debouncedSearch, page, limit);
+    }, [debouncedSearch, page, limit]);
+
+    useEffect(() => {
         fetchPlans();
     }, []);
 
@@ -232,12 +271,23 @@ export default function GymsManagementPage() {
         }
     };
 
-    const fetchGyms = async () => {
+    const fetchGyms = async (currentSearch = debouncedSearch, currentPage = page, currentLimit = limit) => {
+        setLoading(true);
         try {
-            const res = await fetch('/api/admin/gyms/list');
+            const offset = (currentPage - 1) * currentLimit;
+            const res = await fetch(`/api/admin/gyms/list?limit=${currentLimit}&offset=${offset}&search=${encodeURIComponent(currentSearch)}`);
             const data = await res.json();
             if (res.ok) {
-                setGyms(data.gyms || []);
+                const fetchedGyms = data.gyms || [];
+                const fetchedTotal = data.total || 0;
+                setGyms(fetchedGyms);
+                setTotalGyms(fetchedTotal);
+
+                // Auto-correct page if current page has no results but there are items globally
+                const maxPage = Math.ceil(fetchedTotal / currentLimit);
+                if (currentPage > 1 && fetchedGyms.length === 0 && fetchedTotal > 0) {
+                    setPage(Math.max(1, maxPage));
+                }
             } else {
                 toast.error(data.error || 'Error al cargar gimnasios');
             }
@@ -335,7 +385,9 @@ export default function GymsManagementPage() {
                         gamificacion: false
                     }
                 });
-                fetchGyms();
+                setSearch('');
+                setPage(1);
+                fetchGyms('', 1, limit);
             } else {
                 toast.error(data.error || 'Error al procesar la solicitud');
             }
@@ -374,9 +426,43 @@ export default function GymsManagementPage() {
         }
     };
 
-    const handleUpdateGym = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleDownloadBackup = () => {
+        if (!backupData || !selectedGym) return;
+        try {
+            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+                JSON.stringify(backupData, null, 2)
+            )}`;
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute('href', jsonString);
+            downloadAnchor.setAttribute(
+                'download',
+                `backup_${selectedGym.slug}_${Date.now()}.json`
+            );
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            
+            setIsBackupDownloaded(true);
+            toast.success('Copia de respaldo descargada correctamente. Proceda a confirmar el borrado.');
+        } catch (_) {
+            toast.error('Error al generar el archivo de respaldo.');
+        }
+    };
+
+    const handleUpdateGym = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         if (!selectedGym) return;
+
+        // Validar si el slug cambió
+        const isSlugModified = configData.slug !== selectedGym.slug;
+
+        // Si el slug cambió y no se ha confirmado mediante el modal secundario, mostrarlo
+        if (isSlugModified && !showSlugConfirmModal) {
+            setSlugConfirmText('');
+            setShowSlugConfirmModal(true);
+            return;
+        }
+
         setCreating(true);
         try {
             const res = await fetch('/api/admin/gyms/update', {
@@ -399,8 +485,9 @@ export default function GymsManagementPage() {
                 })
             });
             if (res.ok) {
-                toast.success('Configuración actualizada');
+                toast.success('Configuración actualizada con éxito');
                 setShowConfigModal(false);
+                setShowSlugConfirmModal(false);
                 fetchGyms();
             } else {
                 const data = await res.json();
@@ -418,6 +505,12 @@ export default function GymsManagementPage() {
         setSelectedGym(gym);
         setShowDeleteConfirmation(false);
         setDeleteConfirmName('');
+        setBackupData(null);
+        setBackupStats(null);
+        setLoadingBackup(false);
+        setIsBackupDownloaded(false);
+        setShowSlugConfirmModal(false);
+        setSlugConfirmText('');
         setConfigData({
             nombre: gym.nombre,
             slug: gym.slug,
@@ -440,7 +533,7 @@ export default function GymsManagementPage() {
     const handleDeleteGym = async () => {
         if (!selectedGym) return;
         setCreating(true);
-        const toastId = toast.loading(`Eliminando ${selectedGym.nombre} y todos sus registros...`);
+        const toastId = toast.loading(`Archivando y desactivando ${selectedGym.nombre}...`);
         try {
             const res = await fetch('/api/admin/gyms/delete', {
                 method: 'DELETE',
@@ -449,18 +542,58 @@ export default function GymsManagementPage() {
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success('Gimnasio eliminado correctamente de la red');
+                toast.success('Gimnasio archivado correctamente de la red');
                 setShowConfigModal(false);
+                setIsBackupDownloaded(false);
+                setBackupStats(null);
+                setBackupData(null);
                 fetchGyms();
             } else {
-                toast.error(data.error || 'Error al eliminar el gimnasio');
+                toast.error(data.error || 'Error al archivar el gimnasio');
             }
         } catch (err) {
             console.error('Delete gym error:', err);
-            toast.error('Error de red al intentar eliminar el gimnasio');
+            toast.error('Error de red al intentar archivar el gimnasio');
         } finally {
             toast.dismiss(toastId);
             setCreating(false);
+        }
+    };
+
+    const handleSendUrgentNotification = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedGym || !urgentTitle.trim() || !urgentMessage.trim()) {
+            toast.error('El título y mensaje de notificación son obligatorios.');
+            return;
+        }
+
+        setSendingUrgent(true);
+        const toastId = toast.loading('Enviando notificación urgente...');
+        try {
+            const res = await fetch('/api/admin/gyms/notify-urgent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gymId: selectedGym.id,
+                    titulo: urgentTitle,
+                    mensaje: urgentMessage
+                })
+            });
+            if (res.ok) {
+                toast.success('Notificación urgente enviada con éxito');
+                setShowUrgentModal(false);
+                setUrgentTitle('');
+                setUrgentMessage('');
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Error al enviar la notificación');
+            }
+        } catch (err) {
+            console.error('Error sending notification:', err);
+            toast.error('Error de red al intentar enviar');
+        } finally {
+            toast.dismiss(toastId);
+            setSendingUrgent(false);
         }
     };
 
@@ -524,7 +657,7 @@ export default function GymsManagementPage() {
             {/* Modal de Creación de Gimnasio */}
             <AnimatePresence>
                 {showCreateModal && (
-                    <Modal onClose={() => setShowCreateModal(false)} title="Nueva Entidad Gym">
+                    <Modal onClose={() => setShowCreateModal(false)} title="Nuevo Gimnasio">
                         <form onSubmit={handleCreate} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2">
                             <Input label="Nombre Comercial" value={formData.nombre} onChange={v => setFormData({ ...formData, nombre: v })} placeholder="Ej: PowerBox S.A." />
                             <Input label="Identificador (Slug)" value={formData.slug} onChange={v => setFormData({ ...formData, slug: v })} placeholder="ej: powerbox" className="font-mono text-sm" />
@@ -534,7 +667,7 @@ export default function GymsManagementPage() {
                             {/* Switch de Onboarding Completo */}
                             <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 my-4">
                                 <div className="pr-4">
-                                    <p className="text-xs font-black uppercase text-white leading-none">Modo Onboarding Completo</p>
+                                    <p className="text-xs font-black uppercase text-white leading-none">Modo de Onboarding Completo</p>
                                     <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-1.5 leading-tight">
                                         Inicializa simultáneamente la cuenta del administrador, el plan de suscripción y sus módulos autorizados.
                                     </p>
@@ -639,8 +772,8 @@ export default function GymsManagementPage() {
                                             <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pasarela MercadoPago (Opcional)</h4>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <Input label="Access Token MP" value={formData.mp_access_token} onChange={v => setFormData({ ...formData, mp_access_token: v })} placeholder="APP_USR-..." className="text-xs" />
-                                            <Input label="Public Key MP" value={formData.mp_public_key} onChange={v => setFormData({ ...formData, mp_public_key: v })} placeholder="APP_USR-..." className="text-xs" />
+                                            <Input label="Token de Acceso MercadoPago (MP)" value={formData.mp_access_token} onChange={v => setFormData({ ...formData, mp_access_token: v })} placeholder="APP_USR-..." className="text-xs" />
+                                            <Input label="Clave Pública MercadoPago (MP)" value={formData.mp_public_key} onChange={v => setFormData({ ...formData, mp_public_key: v })} placeholder="APP_USR-..." className="text-xs" />
                                         </div>
                                     </motion.div>
                                 )}
@@ -670,7 +803,7 @@ export default function GymsManagementPage() {
 
                 {/* Modal de Configuración Global */}
                 {showConfigModal && (
-                    <Modal onClose={() => setShowConfigModal(false)} title="Configuración SaaS">
+                    <Modal onClose={() => setShowConfigModal(false)} title="Configuración del Gimnasio">
                         <form onSubmit={handleUpdateGym} className="space-y-4">
                             <Input label="Nombre Comercial" value={configData.nombre} onChange={v => setConfigData({ ...configData, nombre: v })} />
                             <Input label="Slug" value={configData.slug} onChange={v => setConfigData({ ...configData, slug: v })} />
@@ -774,41 +907,71 @@ export default function GymsManagementPage() {
                             <div className="p-4 bg-red-950/20 border border-red-500/20 rounded-2xl space-y-4">
                                 <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Zona de Peligro</p>
                                 
-                                {configData.estado_pago_saas !== 'active' && (
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            if (!selectedGym) return;
-                                            const res = await fetch('/api/admin/gyms/notify-urgent', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    gymId: selectedGym.id,
-                                                    titulo: 'Problema con tu suscripción',
-                                                    mensaje: 'Tu cuenta presenta un problema de cobro. Por favor regulariza tu situación para evitar la suspensión del servicio.'
-                                                })
-                                            });
-                                            if (res.ok) toast.success('Notificación enviada');
-                                            else toast.error('Error al enviar');
-                                        }}
-                                        className="w-full py-2 bg-red-600/20 text-red-400 rounded-xl text-xs font-bold hover:bg-red-600/30 transition-all border border-red-500/20"
-                                    >
-                                        ⚠️ Enviar Notificación de Urgencia
-                                    </button>
-                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!selectedGym) return;
+                                        setUrgentTitle(configData.estado_pago_saas !== 'active' ? 'Problema con tu suscripción' : 'Aviso de Mantenimiento');
+                                        setUrgentMessage(configData.estado_pago_saas !== 'active' 
+                                            ? 'Tu cuenta presenta un problema de cobro. Por favor regulariza tu situación para evitar la suspensión del servicio.' 
+                                            : 'El sistema estará en mantenimiento el día de hoy por mejoras técnicas. El servicio se pausará temporalmente por 15 minutos.'
+                                        );
+                                        setShowUrgentModal(true);
+                                    }}
+                                    className="w-full py-2 bg-red-600/20 text-red-400 rounded-xl text-xs font-bold hover:bg-red-600/30 transition-all border border-red-500/20"
+                                >
+                                    ⚠️ Enviar Notificación de Urgencia
+                                </button>
 
                                 {showDeleteConfirmation ? (
-                                    <div className="space-y-3 pt-2 border-t border-red-500/10">
-                                        <p className="text-[10px] font-bold text-gray-400">
-                                            Escribe <span className="text-red-400 font-mono select-all">{selectedGym?.nombre}</span> para confirmar:
-                                        </p>
-                                        <input
-                                            type="text"
-                                            value={deleteConfirmName}
-                                            onChange={(e) => setDeleteConfirmName(e.target.value)}
-                                            placeholder="Nombre del gimnasio"
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-red-500/50 transition-all"
-                                        />
+                                    <div className="space-y-4 pt-2 border-t border-red-500/10">
+                                        {loadingBackup ? (
+                                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider animate-pulse text-center py-2">
+                                                Preparando copia de seguridad y analizando impacto...
+                                            </p>
+                                        ) : backupStats ? (
+                                            <div className="p-3 bg-red-950/20 border border-red-500/10 rounded-xl space-y-2">
+                                                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none">
+                                                    Impacto de la desactivación:
+                                                </p>
+                                                <div className="grid grid-cols-2 gap-2 text-[9px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
+                                                    <div>👥 Socios: <span className="text-white font-black">{backupStats.sociosCount}</span></div>
+                                                    <div>🏢 Sedes: <span className="text-white font-black">{backupStats.sucursalesCount}</span></div>
+                                                    <div>🏋️ Actividades: <span className="text-white font-black">{backupStats.actividadesCount}</span></div>
+                                                    <div>💳 Transacciones: <span className="text-white font-black">{backupStats.pagosCount}</span></div>
+                                                </div>
+                                                <p className="text-[8px] text-zinc-500 leading-normal">
+                                                    * Los datos se mantendrán archivados de forma inmutable, pero los usuarios no podrán volver a ingresar y el identificador (slug) quedará libre.
+                                                </p>
+                                            </div>
+                                        ) : null}
+
+                                        <button
+                                            type="button"
+                                            onClick={handleDownloadBackup}
+                                            disabled={!backupData || loadingBackup}
+                                            className={`w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border text-center ${
+                                                isBackupDownloaded
+                                                    ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                                                    : 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20 disabled:opacity-30'
+                                            }`}
+                                        >
+                                            {isBackupDownloaded ? '✓ Respaldo Descargado con Éxito' : '⬇ Descargar Respaldo Obligatorio'}
+                                        </button>
+
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-bold text-gray-400">
+                                                Escribe <span className="text-red-400 font-mono select-all">{selectedGym?.nombre}</span> para confirmar:
+                                            </p>
+                                            <input
+                                                type="text"
+                                                value={deleteConfirmName}
+                                                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                                                placeholder="Nombre del gimnasio"
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-red-500/50 transition-all"
+                                            />
+                                        </div>
+
                                         <div className="flex gap-2">
                                             <button
                                                 type="button"
@@ -822,18 +985,39 @@ export default function GymsManagementPage() {
                                             </button>
                                             <button
                                                 type="button"
-                                                disabled={deleteConfirmName !== selectedGym?.nombre || creating}
+                                                disabled={deleteConfirmName !== selectedGym?.nombre || !isBackupDownloaded || creating}
                                                 onClick={handleDeleteGym}
                                                 className="flex-1 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all disabled:opacity-30 disabled:pointer-events-none"
                                             >
-                                                {creating ? 'Eliminando...' : 'Sí, Eliminar de la Red'}
+                                                {creating ? 'Archivando...' : 'Sí, Archivar de la Red'}
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
                                     <button
                                         type="button"
-                                        onClick={() => setShowDeleteConfirmation(true)}
+                                        onClick={async () => {
+                                            setShowDeleteConfirmation(true);
+                                            setIsBackupDownloaded(false);
+                                            setDeleteConfirmName('');
+                                            if (selectedGym) {
+                                                setLoadingBackup(true);
+                                                try {
+                                                    const res = await fetch(`/api/admin/gyms/backup?gymId=${selectedGym.id}`);
+                                                    const data = await res.json();
+                                                    if (res.ok) {
+                                                        setBackupStats(data.summary);
+                                                        setBackupData(data.data);
+                                                    } else {
+                                                        toast.error('Error al cargar datos del respaldo: ' + (data.error || 'Desconocido'));
+                                                    }
+                                                } catch (_) {
+                                                    toast.error('Error de red al cargar el respaldo.');
+                                                } finally {
+                                                    setLoadingBackup(false);
+                                                }
+                                            }
+                                        }}
                                         className="w-full py-2 bg-red-950/40 hover:bg-red-600/20 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20"
                                     >
                                         Eliminar Gimnasio de la Red
@@ -858,7 +1042,7 @@ export default function GymsManagementPage() {
                     </div>
                     <div>
                         <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Gimnasios</p>
-                        <p className="text-2xl font-black text-white">{gyms.length}</p>
+                        <p className="text-2xl font-black text-white">{totalGyms}</p>
                     </div>
                 </div>
                 <div className="bg-[#1c1c1e] p-6 rounded-[2rem] border border-white/5 flex items-center gap-4 shadow-lg shadow-green-900/5 transition-all hover:border-green-500/20">
@@ -877,11 +1061,42 @@ export default function GymsManagementPage() {
                         <Users size={24} />
                     </div>
                     <div>
-                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Status del Sistema</p>
+                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Estado del Sistema</p>
                         <p className={`text-2xl font-black ${gyms.some(g => g.estado_pago_saas === 'unpaid' || !g.es_activo) ? 'text-amber-500' : 'text-white'}`}>
-                            {gyms.some(g => g.estado_pago_saas === 'unpaid' || !g.es_activo) ? 'Alerta' : 'Saludable'}
+                            {gyms.some(g => g.estado_pago_saas === 'unpaid' || !g.es_activo) ? 'Alerta' : 'Estable'}
                         </p>
                     </div>
+                </div>
+            </div>
+
+            {/* Barra de Búsqueda y Filtros */}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-[#1c1c1e] p-4 rounded-[2.5rem] border border-white/5">
+                <div className="relative w-full md:max-w-md flex items-center">
+                    <Search className="absolute left-5 text-gray-500" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Buscar gimnasio por nombre o slug..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-10 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition-all font-medium"
+                    />
+                    {search && (
+                        <button
+                            onClick={() => setSearch('')}
+                            className="absolute right-5 text-gray-500 hover:text-white transition-colors"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
+                </div>
+                <div className="text-right text-[10px] text-gray-500 font-bold uppercase tracking-widest px-4">
+                    {loading ? (
+                        <span>Buscando...</span>
+                    ) : totalGyms > 0 ? (
+                        <span>Encontrados: <strong className="text-white font-black">{totalGyms}</strong> gimnasios</span>
+                    ) : (
+                        <span>No hay resultados</span>
+                    )}
                 </div>
             </div>
 
@@ -974,15 +1189,79 @@ export default function GymsManagementPage() {
                 )}
             </div>
 
-            {/* Pro Tips / SaaS Logic */}
+            {/* Controles de Paginación */}
+            {totalGyms > limit && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#1c1c1e] p-6 rounded-[2.5rem] border border-white/5 mt-6">
+                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest px-2">
+                        Mostrando <span className="text-white font-black">{Math.min(totalGyms, (page - 1) * limit + 1)}</span> - <span className="text-white font-black">{Math.min(totalGyms, page * limit)}</span> de <span className="text-white font-black">{totalGyms}</span> gimnasios
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="p-3 bg-white/5 border border-white/10 text-gray-400 hover:text-white rounded-xl disabled:opacity-30 disabled:pointer-events-none hover:bg-white/10 transition-all flex items-center justify-center"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        {(() => {
+                            const totalPages = Math.ceil(totalGyms / limit);
+                            const pages: (number | string)[] = [];
+                            
+                            for (let i = 1; i <= totalPages; i++) {
+                                if (i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
+                                    pages.push(i);
+                                } else if (pages[pages.length - 1] !== '...') {
+                                    pages.push('...');
+                                }
+                            }
+                            
+                            return pages.map((p, idx) => {
+                                if (p === '...') {
+                                    return (
+                                        <span key={`dots-${idx}`} className="text-gray-600 px-1 text-xs select-none">
+                                            ...
+                                        </span>
+                                    );
+                                }
+                                return (
+                                    <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => setPage(p as number)}
+                                        className={`w-10 h-10 rounded-xl font-bold text-xs transition-all ${
+                                            page === p
+                                                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 border border-primary/20'
+                                                : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/5'
+                                        }`}
+                                    >
+                                        {p}
+                                    </button>
+                                );
+                            });
+                        })()}
+                        <button
+                            type="button"
+                            onClick={() => setPage(p => Math.min(Math.ceil(totalGyms / limit), p + 1))}
+                            disabled={page === Math.ceil(totalGyms / limit)}
+                            className="p-3 bg-white/5 border border-white/10 text-gray-400 hover:text-white rounded-xl disabled:opacity-30 disabled:pointer-events-none hover:bg-white/10 transition-all flex items-center justify-center"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+
+            {/* Recomendaciones de Gestión / Lógica del Sistema */}
             <div className="mt-12 p-8 bg-gradient-to-br from-red-600/10 to-transparent border border-red-500/20 rounded-[3rem]">
-                <h3 className="text-xl font-bold text-white mb-2 italic">Vision SaaS 360°</h3>
+                <h3 className="text-xl font-bold text-white mb-2 italic">Visión SaaS 360°</h3>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                    Como Superadmin, tenés el "Master Key" del sistema. Cada gimnasio que sumes es un entorno aislado
-                    donde el Admin de ese gimnasio solo podrá ver a sus profesores y alumnos.
+                    Como Superadmin, tienes la Llave Maestra del sistema. Cada gimnasio que sumes es un entorno aislado
+                    donde el administrador de ese gimnasio solo podrá ver a sus profesores y alumnos.
                     <br /><br />
                     En la siguiente actualización, podrás gestionar los planes de suscripción de cada gimnasio y
-                    personalizar la App para cada marca (White Label).
+                    personalizar la aplicación para cada marca (Marca Blanca).
                 </p>
             </div>
 
@@ -1069,6 +1348,120 @@ export default function GymsManagementPage() {
                                     </button>
                                 </div>
                             </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Modal de Confirmación de Cambio de Slug Seguro */}
+            <AnimatePresence>
+                {showSlugConfirmModal && selectedGym && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="bg-[#1c1c1e] border border-red-500/25 rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.15)] flex flex-col relative z-50 p-8"
+                        >
+                            <div className="flex items-center gap-4 border-b border-white/5 pb-4 bg-gradient-to-r from-red-500/10 via-red-900/5 to-transparent p-4 rounded-t-2xl -mx-8 -mt-8 mb-6">
+                                <div className="w-12 h-12 bg-red-500/20 text-red-400 rounded-2xl flex items-center justify-center border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                                    <ShieldAlert size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-white italic uppercase tracking-tighter">Acción de Alto Riesgo</h3>
+                                    <p className="text-[10px] text-red-400/80 font-black uppercase tracking-widest mt-1">Cambio de Identificador (Slug)</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="p-4 bg-red-950/20 border border-red-500/20 rounded-2xl text-[11px] text-gray-400 leading-relaxed">
+                                    <p className="font-black uppercase text-red-400 mb-1">⚠️ ADVERTENCIA CRÍTICA:</p>
+                                    Cambiar el identificador único (slug) de <strong className="text-white font-bold">{selectedGym.nombre}</strong> de <strong className="text-red-400 font-mono">"{selectedGym.slug}"</strong> a <strong className="text-green-400 font-mono">"{configData.slug}"</strong> tendrá las siguientes consecuencias inmediatas:
+                                    <ul className="list-disc list-inside space-y-1 mt-2 text-[10px]">
+                                        <li>Los marcadores guardados por los socios quedarán inutilizables.</li>
+                                        <li>Los códigos QR de asistencia física impresos dejarán de funcionar.</li>
+                                        <li>Las integraciones activas de cobro (MercadoPago) podrían requerir re-configuración.</li>
+                                    </ul>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Escribe "CONFIRMAR CAMBIO" para validar:</label>
+                                    <input
+                                        type="text"
+                                        value={slugConfirmText}
+                                        onChange={e => setSlugConfirmText(e.target.value)}
+                                        placeholder="CONFIRMAR CAMBIO"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono uppercase tracking-widest focus:outline-none focus:border-red-500/50"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSlugConfirmModal(false)}
+                                        className="flex-1 px-4 py-3 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white/10 transition-all border border-white/5"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateGym()}
+                                        disabled={slugConfirmText !== 'CONFIRMAR CAMBIO' || creating}
+                                        className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.2)] transition-all disabled:opacity-30 disabled:pointer-events-none"
+                                    >
+                                        {creating ? 'Guardando...' : 'Confirmar Cambio'}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Modal de Notificación Urgente Personalizada */}
+            <AnimatePresence>
+                {showUrgentModal && selectedGym && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="bg-[#1c1c1e] w-full max-w-lg rounded-[2.5rem] border border-white/10 p-8 relative z-10 shadow-2xl"
+                        >
+                            <h2 className="text-2xl font-black text-white italic mb-4 uppercase tracking-tight">Enviar Notificación de Urgencia</h2>
+                            <form onSubmit={handleSendUrgentNotification} className="space-y-4">
+                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider leading-relaxed">
+                                    Envía un aviso inmediato con prioridad crítica. El administrador del gimnasio recibirá una alerta y se creará un ticket de soporte automatizado.
+                                </p>
+
+                                <Input 
+                                    label="Título del Aviso" 
+                                    value={urgentTitle} 
+                                    onChange={setUrgentTitle} 
+                                    placeholder="Ej: Suspensión de Servicio / Mantenimiento Programado"
+                                    className="text-xs"
+                                />
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Cuerpo del Mensaje</label>
+                                    <textarea
+                                        rows={4}
+                                        value={urgentMessage}
+                                        onChange={e => setUrgentMessage(e.target.value)}
+                                        placeholder="Redacte el cuerpo del aviso urgente de forma detallada..."
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-primary outline-none transition-all text-xs font-medium resize-none"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="flex gap-4 pt-4">
+                                    <ModalButton type="button" onClick={() => setShowUrgentModal(false)} variant="secondary">Cancelar</ModalButton>
+                                    <ModalButton type="submit" disabled={sendingUrgent}>
+                                        {sendingUrgent ? 'Enviando...' : 'Enviar Alerta'}
+                                    </ModalButton>
+                                </div>
+                            </form>
                         </motion.div>
                     </div>
                 )}

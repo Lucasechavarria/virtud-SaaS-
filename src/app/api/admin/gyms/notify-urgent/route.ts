@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
         // Intentamos insertar en una tabla de avisos (si existe) o enviamos por "soporte"
         // Como fallback, creamos un ticket de soporte "Automático" para que el admin lo vea
-        const { error: ticketError } = await supabase.from('tickets_soporte' as any).insert({
+        const { data: ticket, error: ticketError } = await supabase.from('tickets_soporte' as any).insert({
             gimnasio_id: gymId,
             asunto: `⚠️ NOTIFICACIÓN URGENTE: ${titulo}`,
             prioridad: 'critica',
@@ -36,6 +36,17 @@ export async function POST(request: Request) {
         }).select().single();
 
         if (ticketError) throw ticketError;
+
+        // Insertar el cuerpo del mensaje en mensajes_soporte
+        if (ticket) {
+            const { error: msgError } = await supabase.from('mensajes_soporte' as any).insert({
+                ticket_id: ticket.id,
+                remitente_id: user?.id,
+                mensaje,
+                es_del_staff_saas: true
+            });
+            if (msgError) throw msgError;
+        }
 
         return NextResponse.json({ success: true, message: 'Notificación enviada con éxito' });
 
