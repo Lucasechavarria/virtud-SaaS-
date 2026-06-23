@@ -15,41 +15,33 @@ export async function DELETE(request: Request) {
 
         const adminClient = createAdminClient();
 
-        // 1. Obtener todos los perfiles asociados al gimnasio
-        const { data: profiles, error: profilesError } = await adminClient
-            .from('perfiles')
-            .select('id')
-            .eq('gimnasio_id', gymId);
+        // 1. Obtener el slug actual del gimnasio
+        const { data: gym, error: gymError } = await adminClient
+            .from('gimnasios')
+            .select('slug')
+            .eq('id', gymId)
+            .single();
 
-        if (profilesError) throw profilesError;
-
-        // 2. Eliminar cada usuario en auth.users (lo cual elimina perfiles en cascada)
-        if (profiles && profiles.length > 0) {
-            for (const profile of profiles) {
-                const { error: delUserError } = await adminClient.auth.admin.deleteUser(profile.id);
-                if (delUserError) {
-                    console.error(`Error deleting auth user ${profile.id}:`, delUserError);
-                }
-            }
+        if (gymError || !gym) {
+            return NextResponse.json({ error: 'Gimnasio no encontrado' }, { status: 404 });
         }
 
-        // 3. Eliminar manualmente los registros de tablas que tengan FK a gimnasios sin ON DELETE CASCADE
-        await adminClient.from('desafios').delete().eq('gimnasio_id', gymId);
-        await adminClient.from('equipamiento').delete().eq('gimnasio_id', gymId);
-        await adminClient.from('planes_nutricionales').delete().eq('gimnasio_id', gymId);
-        await adminClient.from('mediciones').delete().eq('gimnasio_id', gymId);
-        await adminClient.from('sesiones_de_entrenamiento').delete().eq('gimnasio_id', gymId);
-        await adminClient.from('sucursales').delete().eq('gimnasio_id', gymId);
+        // 2. Generar el nuevo slug para liberar el slug original
+        const newSlug = `${gym.slug}-deleted-${Date.now()}`;
 
-        // 4. Eliminar el gimnasio
-        const { error: deleteGymError } = await adminClient
+        // 3. Aplicar Soft-Delete actualizando deleted_at, slug y es_activo
+        const { error: updateGymError } = await adminClient
             .from('gimnasios')
-            .delete()
+            .update({
+                deleted_at: new Date().toISOString(),
+                slug: newSlug,
+                es_activo: false
+            })
             .eq('id', gymId);
 
-        if (deleteGymError) throw deleteGymError;
+        if (updateGymError) throw updateGymError;
 
-        return NextResponse.json({ success: true, message: 'Gimnasio y todos sus datos relacionados eliminados con éxito' });
+        return NextResponse.json({ success: true, message: 'Gimnasio archivado y desactivado correctamente de la red' });
 
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';

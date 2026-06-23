@@ -25,7 +25,8 @@ import {
     MapPin,
     ChevronDown,
     DollarSign,
-    BarChart3
+    BarChart3,
+    RotateCw
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -99,6 +100,7 @@ export default function SuperAdminOverview() {
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [churnData, setChurnData] = useState<ChurnData[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const router = useRouter();
 
     const [activeTab, setActiveTab] = useState<'gyms' | 'saas' | 'global'>('gyms');
@@ -163,7 +165,18 @@ export default function SuperAdminOverview() {
         fetchGlobalData();
     }, []);
 
+    useEffect(() => {
+        if (loading) return;
+        const interval = setInterval(() => {
+            fetchGlobalData();
+        }, 60000);
+        return () => clearInterval(interval);
+    }, [loading]);
+
     const fetchGlobalData = async () => {
+        if (!loading) {
+            setRefreshing(true);
+        }
         try {
             const res = await fetch('/api/admin/global-stats');
             const data = await res.json();
@@ -186,6 +199,7 @@ export default function SuperAdminOverview() {
             console.error('Error fetching global stats:', error);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
@@ -300,7 +314,16 @@ export default function SuperAdminOverview() {
                     )}
                 </div>
 
-                <div className="relative z-10 flex items-center gap-4">
+                <div className="relative z-10 flex items-center gap-4 animate-fade-in">
+                    <button
+                        onClick={() => fetchGlobalData()}
+                        disabled={refreshing}
+                        className="p-3 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-2xl transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+                        title="Actualizar datos"
+                    >
+                        <RotateCw size={16} className={`transition-all duration-700 ${refreshing ? 'animate-spin text-red-500' : 'group-hover:rotate-180'}`} />
+                        {refreshing && <span className="text-[10px] font-black uppercase tracking-widest text-red-500 animate-pulse">Sincronizando...</span>}
+                    </button>
                     <div className="flex flex-col items-end">
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-xl shadow-lg shadow-red-600/20">
                             <Zap size={14} className="fill-white" />

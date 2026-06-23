@@ -38,6 +38,7 @@ export async function GET(
                 )
             `)
             .eq(queryField, params.slug)
+            .is('deleted_at', null)
             .eq('planes_gimnasio.esta_activo', true)
             .single();
 
