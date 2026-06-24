@@ -20,14 +20,21 @@ export async function GET(req: Request) {
         if (profile?.role === 'superadmin' && urlGym) {
             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
             if (isUUID) {
-                targetGymId = urlGym;
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('id', urlGym)
+                    .is('deleted_at', null)
+                    .single();
+                targetGymId = gym ? gym.id : null;
             } else {
                 const { data: gym } = await adminClient
                     .from('gimnasios')
                     .select('id')
                     .eq('slug', urlGym)
+                    .is('deleted_at', null)
                     .single();
-                if (gym) targetGymId = gym.id;
+                targetGymId = gym ? gym.id : null;
             }
         }
 

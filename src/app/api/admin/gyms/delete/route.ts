@@ -20,10 +20,11 @@ export async function DELETE(request: Request) {
             .from('gimnasios')
             .select('slug')
             .eq('id', gymId)
+            .is('deleted_at', null)
             .single();
 
         if (gymError || !gym) {
-            return NextResponse.json({ error: 'Gimnasio no encontrado' }, { status: 404 });
+            return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo en la red' }, { status: 404 });
         }
 
         // 2. Generar el nuevo slug para liberar el slug original
@@ -37,7 +38,8 @@ export async function DELETE(request: Request) {
                 slug: newSlug,
                 es_activo: false
             })
-            .eq('id', gymId);
+            .eq('id', gymId)
+            .is('deleted_at', null);
 
         if (updateGymError) throw updateGymError;
 

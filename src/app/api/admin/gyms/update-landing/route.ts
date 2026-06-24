@@ -32,7 +32,8 @@ export async function POST(request: Request) {
                 config_landing,
                 actualizado_en: new Date().toISOString()
             })
-            .eq('id', profileData.gimnasio_id);
+            .eq('id', profileData.gimnasio_id)
+            .is('deleted_at', null);
 
         if (error) throw error;
 

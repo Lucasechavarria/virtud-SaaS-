@@ -47,11 +47,33 @@ export async function GET(request: Request) {
         }
 
         // 2. Contar gimnasios por estado
-        const { count: activeGyms } = await supabase.from('gimnasios').select('id', { count: 'exact', head: true }).eq('estado_pago_saas', 'active');
-        const { count: suspendedGyms } = await supabase.from('gimnasios').select('id', { count: 'exact', head: true }).eq('estado_pago_saas', 'suspended');
+        const { count: activeGyms } = await supabase
+            .from('gimnasios')
+            .select('id', { count: 'exact', head: true })
+            .eq('estado_pago_saas', 'active')
+            .is('deleted_at', null);
 
-        // 3. Contar alumnos totales
-        const { count: totalStudents } = await supabase.from('perfiles').select('id', { count: 'exact', head: true }).eq('rol', 'member');
+        const { count: suspendedGyms } = await supabase
+            .from('gimnasios')
+            .select('id', { count: 'exact', head: true })
+            .eq('estado_pago_saas', 'suspended')
+            .is('deleted_at', null);
+
+        // Obtener IDs de gimnasios no eliminados para filtrar perfiles
+        const { data: nonDeletedGyms } = await supabase
+            .from('gimnasios')
+            .select('id')
+            .is('deleted_at', null);
+        const nonDeletedGymIds = (nonDeletedGyms || []).map(g => g.id);
+
+        // 3. Contar alumnos totales pertenecientes a gimnasios no eliminados
+        const { count: totalStudents } = nonDeletedGymIds.length > 0
+            ? await supabase
+                .from('perfiles')
+                .select('id', { count: 'exact', head: true })
+                .eq('rol', 'member')
+                .in('gimnasio_id', nonDeletedGymIds)
+            : { count: 0 };
 
         // 3b. Contar consumos de IA (Videos Biomecánicos procesados y Rutinas Generadas) con fallbacks
         let videosProcesados = 0;

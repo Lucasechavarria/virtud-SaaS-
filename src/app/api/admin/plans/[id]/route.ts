@@ -42,7 +42,8 @@ export async function PUT(
         const { error: syncError } = await supabase
             .from('gimnasios')
             .update({ modulos_activos: newModules })
-            .eq('plan_id', params.id);
+            .eq('plan_id', params.id)
+            .is('deleted_at', null);
 
         if (syncError) {
             console.error('Error syncing modules to gyms:', syncError);

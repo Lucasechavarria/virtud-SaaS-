@@ -55,18 +55,25 @@ export async function POST(request: Request) {
         if (profile?.role === 'superadmin' && body.gimnasio_id) {
             const rawGymId: string = body.gimnasio_id;
             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rawGymId);
+            const { createAdminClient } = await import('@/lib/supabase/admin');
+            const adminClient = createAdminClient();
             if (isUUID) {
-                targetGymId = rawGymId;
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('id', rawGymId)
+                    .is('deleted_at', null)
+                    .single();
+                targetGymId = gym ? gym.id : null;
             } else {
                 // Resolver slug a UUID
-                const { createAdminClient } = await import('@/lib/supabase/admin');
-                const adminClient = createAdminClient();
                 const { data: gym } = await adminClient
                     .from('gimnasios')
                     .select('id')
                     .eq('slug', rawGymId)
+                    .is('deleted_at', null)
                     .single();
-                if (gym) targetGymId = gym.id;
+                targetGymId = gym ? gym.id : null;
             }
         }
 

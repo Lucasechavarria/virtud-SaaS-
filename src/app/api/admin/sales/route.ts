@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -40,24 +40,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Forbidden: Administrador sin gimnasio asignado' }, { status: 403 });
         }
 
-        let targetGymId = profile?.gimnasio_id;
         const adminClient = createAdminClient();
-
-        if (profile?.role === 'superadmin' && gymId) {
-            const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            if (UUID_REGEX.test(gymId)) {
-                targetGymId = gymId;
-            } else {
-                // Resolver slug a UUID
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', gymId)
-                    .is('deleted_at', null)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, gymId);
+        if (errorResponse) return errorResponse;
 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Gimnasio no asignado o no especificado' }, { status: 403 });

@@ -28,7 +28,6 @@ export async function GET(request: Request) {
 
         const gymId = profileData.gimnasio_id;
 
-        // 1. Obtener datos del gimnasio y su plan
         const { data: gym, error: dbError } = await adminClient
             .from('gimnasios')
             .select(`
@@ -36,9 +35,14 @@ export async function GET(request: Request) {
                 planes_suscripcion (*)
             `)
             .eq('id', gymId)
-            .single();
+            .is('deleted_at', null)
+            .maybeSingle();
 
         if (dbError) throw dbError;
+
+        if (!gym) {
+            return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo en la red' }, { status: 404 });
+        }
 
         // 2. Obtener conteos actuales
         const [

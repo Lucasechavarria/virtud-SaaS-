@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 
@@ -28,21 +28,9 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { amount, limiteAlertaSaldo, metodoCobroExcedentes, gymId } = body;
 
-        let targetGymId = profile.gimnasio_id;
-        if (profile.rol === 'superadmin' && gymId) {
-            if (UUID_REGEX.test(gymId)) {
-                targetGymId = gymId;
-            } else {
-                // Resolver slug a UUID
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', gymId)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, gymId);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'El usuario no pertenece a ningún gimnasio activo.' }, { status: 400 });
         }
@@ -53,6 +41,7 @@ export async function POST(request: Request) {
             .from('gimnasios')
             .select('nombre, configuracion')
             .eq('id', targetGymId)
+            .is('deleted_at', null)
             .single();
 
         if (gymError || !gym) {
@@ -139,6 +128,7 @@ export async function POST(request: Request) {
             .from('gimnasios')
             .update({ configuracion: config })
             .eq('id', targetGymId)
+            .is('deleted_at', null)
             .select('id, nombre, configuracion')
             .single();
 

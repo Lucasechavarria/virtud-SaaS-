@@ -1,4 +1,4 @@
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { NextResponse, type NextRequest } from 'next/server';
 
 interface TemporalChartData {
@@ -21,29 +21,8 @@ export async function GET(request: NextRequest) {
         const range = searchParams.get('range') || '6months';
         const urlGym = searchParams.get('gymId');
 
-        let targetGymId = profile?.gimnasio_id;
-
-        if (urlGym) {
-            if (profile?.role === 'superadmin') {
-                // El superadmin puede ver cualquier gimnasio — resolver slug→UUID
-                const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-                if (UUID_REGEX.test(urlGym)) {
-                    targetGymId = urlGym;
-                } else {
-                    const { createAdminClient } = await import('@/lib/supabase/admin');
-                    const adminClient = createAdminClient();
-                    const { data: gym } = await adminClient
-                        .from('gimnasios')
-                        .select('id')
-                        .eq('slug', urlGym)
-                        .single();
-                    if (gym) targetGymId = gym.id;
-                }
-            } else if (profile?.gimnasio_id) {
-                // Admin local: ignorar el gymId externo, usar el propio
-                targetGymId = profile.gimnasio_id;
-            }
-        }
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, urlGym);
+        if (errorResponse) return errorResponse;
 
         const today = new Date();
         let startDate = new Date();

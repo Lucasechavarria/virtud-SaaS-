@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -30,22 +30,9 @@ export async function PUT(request: Request) {
         const body = await request.json();
         const { name, address, phone, email, openingHours, timezone, gymId } = body;
 
-        let targetGymId = requester.gimnasio_id;
-
-        // Superadmin puede operar sobre cualquier gimnasio (via gymId slug o UUID)
-        if (requester.rol === 'superadmin' && gymId) {
-            if (UUID_REGEX.test(gymId)) {
-                targetGymId = gymId;
-            } else {
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', gymId)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(requester, gymId);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Gimnasio no especificado o usuario sin gimnasio asignado' }, { status: 400 });
         }
@@ -67,6 +54,7 @@ export async function PUT(request: Request) {
             .from('gimnasios')
             .update(updates)
             .eq('id', targetGymId)
+            .is('deleted_at', null)
             .select('id, nombre, direccion, telefono, email, horarios, timezone')
             .single();
 

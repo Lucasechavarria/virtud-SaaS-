@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 // Diccionario de traducción estático para evitar la reinicialización en la pila local en cada petición
 const ROLE_MAPPING: Record<string, string> = {
@@ -217,4 +218,66 @@ export async function authenticateAndRequireRole(
     }
 
     return { user, profile, supabase, error: null };
+}
+
+/**
+ * Resuelve y valida el gimnasio objetivo para consultas administrativas, soportando impersonación de Superadmin
+ * y aplicando un control estricto contra borrado lógico (deleted_at IS NOT NULL).
+ * 
+ * @param profile - El perfil autenticado obtenido de requireRole
+ * @param urlGymIdOrSlug - El ID o Slug opcional enviado en la consulta por el Superadmin
+ * @returns Un objeto con { targetGymId: string | null, errorResponse?: NextResponse }
+ */
+export async function resolveGymIdForAdmin(
+    profile: any,
+    urlGymIdOrSlug?: string | null
+): Promise<{ targetGymId: string | null; errorResponse?: NextResponse }> {
+    if (profile?.role !== 'superadmin') {
+        const gymId = profile?.gimnasio_id;
+        if (!gymId) {
+            return {
+                targetGymId: null,
+                errorResponse: NextResponse.json({
+                    error: 'Forbidden',
+                    message: 'Administrador sin gimnasio asignado'
+                }, { status: 403 })
+            };
+        }
+        return { targetGymId: gymId };
+    }
+
+    // Si es superadmin
+    if (!urlGymIdOrSlug) {
+        // No se especificó un gimnasio -> Se desea ver toda la red (en endpoints que lo admitan)
+        return { targetGymId: null };
+    }
+
+    // Intentar resolver
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGymIdOrSlug);
+    const adminClient = createAdminClient();
+    
+    const query = adminClient
+        .from('gimnasios')
+        .select('id')
+        .is('deleted_at', null);
+
+    if (isUUID) {
+        query.eq('id', urlGymIdOrSlug);
+    } else {
+        query.eq('slug', urlGymIdOrSlug);
+    }
+
+    const { data: gym } = await query.maybeSingle();
+
+    if (!gym) {
+        return {
+            targetGymId: null,
+            errorResponse: NextResponse.json({
+                error: 'NotFound',
+                message: 'Gimnasio no encontrado o inactivo en la red'
+            }, { status: 404 })
+        };
+    }
+
+    return { targetGymId: gym.id };
 }

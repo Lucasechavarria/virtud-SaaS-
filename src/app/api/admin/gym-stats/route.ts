@@ -18,16 +18,27 @@ export async function GET(request: Request) {
 
         const adminClient = createAdminClient();
 
-        // Resolver slug → UUID si el gymId recibido no es un UUID
+        // Resolver slug → UUID si el gymId recibido no es un UUID, y validar soft-delete en ambos casos
         const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (!UUID_REGEX.test(gymId)) {
+        if (UUID_REGEX.test(gymId)) {
+            const { data: gym } = await adminClient
+                .from('gimnasios')
+                .select('id')
+                .eq('id', gymId)
+                .is('deleted_at', null)
+                .single();
+            if (!gym) {
+                return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo en la red' }, { status: 404 });
+            }
+        } else {
             const { data: gym } = await adminClient
                 .from('gimnasios')
                 .select('id')
                 .eq('slug', gymId)
+                .is('deleted_at', null)
                 .single();
             if (!gym) {
-                return NextResponse.json({ error: 'Gimnasio no encontrado' }, { status: 404 });
+                return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo en la red' }, { status: 404 });
             }
             gymId = gym.id;
         }

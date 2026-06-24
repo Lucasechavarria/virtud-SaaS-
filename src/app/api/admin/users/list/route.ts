@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { SupabaseUserProfile } from '@/types/user';
 import { logger } from '@/lib/logger';
@@ -48,22 +48,17 @@ export async function GET(request: Request) {
         const urlGym = searchParams.get('gymId');
         const search = searchParams.get('search') || searchParams.get('q');
 
-        let targetGymId = requester?.gimnasio_id;
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(requester, urlGym);
+        if (errorResponse) return errorResponse;
 
-        // Si es Superadmin y provee un gymId en la URL, resolvemos su UUID correspondiente
-        if (!targetGymId && requester?.rol === 'superadmin' && urlGym) {
-            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
-            if (isUUID) {
-                targetGymId = urlGym;
-            } else {
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', urlGym)
-                    .is('deleted_at', null)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
+        // Si targetGymId es null (Superadmin sin filtrar por gimnasio), obtenemos los IDs de los gimnasios activos
+        let activeGymIds: string[] = [];
+        if (!targetGymId && requester?.rol === 'superadmin') {
+            const { data: activeGyms } = await adminClient
+                .from('gimnasios')
+                .select('id')
+                .is('deleted_at', null);
+            activeGymIds = (activeGyms || []).map(g => g.id);
         }
 
         let query = (adminClient
@@ -85,6 +80,12 @@ export async function GET(request: Request) {
         // Filtrar según el gimnasio objetivo resuelto
         if (targetGymId) {
             query = query.eq('gimnasio_id', targetGymId);
+        } else if (requester?.rol === 'superadmin') {
+            if (activeGymIds.length > 0) {
+                query = query.in('gimnasio_id', activeGymIds);
+            } else {
+                return NextResponse.json({ users: [] });
+            }
         }
 
         if (search) {
@@ -100,6 +101,12 @@ export async function GET(request: Request) {
             let fallbackQuery = adminClient.from('perfiles').select('*');
             if (targetGymId) {
                 fallbackQuery = fallbackQuery.eq('gimnasio_id', targetGymId);
+            } else if (requester?.rol === 'superadmin') {
+                if (activeGymIds.length > 0) {
+                    fallbackQuery = fallbackQuery.in('gimnasio_id', activeGymIds);
+                } else {
+                    return NextResponse.json({ users: [] });
+                }
             }
             if (search) {
                 fallbackQuery = fallbackQuery.or(`nombre_completo.ilike.%${search}%,correo.ilike.%${search}%`).limit(50);

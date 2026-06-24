@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -14,24 +14,9 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { title, description, rules, type, points_prize, end_date } = body;
 
-        let targetGymId = profile?.gimnasio_id;
-        if (profile?.role === 'superadmin' && body.gimnasio_id) {
-            const rawGymId: string = body.gimnasio_id;
-            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rawGymId);
-            if (isUUID) {
-                targetGymId = rawGymId;
-            } else {
-                // Resolver slug a UUID
-                const adminClient = createAdminClient();
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', rawGymId)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, body.gimnasio_id);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Gimnasio no asignado o no especificado' }, { status: 400 });
         }
@@ -72,26 +57,12 @@ export async function GET(request: Request) {
         const { profile, supabase, error } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'coach']);
         if (error) return error;
 
-        let targetGymId = profile?.gimnasio_id;
-
         const { searchParams } = new URL(request.url);
-        const urlGym = searchParams.get('gymId');
+        const urlGym = searchParams.get('gymId') || undefined;
 
-        if (profile?.role === 'superadmin' && urlGym) {
-            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
-            if (isUUID) {
-                targetGymId = urlGym;
-            } else {
-                const adminClient = createAdminClient();
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', urlGym)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, urlGym);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Gimnasio no asignado o no especificado' }, { status: 400 });
         }

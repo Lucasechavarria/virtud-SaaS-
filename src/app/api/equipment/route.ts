@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { ROLES } from '@/lib/constants/app';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -17,24 +17,9 @@ export async function GET(req: Request) {
         const available = searchParams.get('available');
         const urlGym = searchParams.get('gymId');
 
-        let targetGymId = profile?.gimnasio_id;
-
-        // Si es Superadmin, puede filtrar por cualquier gymId recibido
-        if (profile?.role === 'superadmin' && urlGym) {
-            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
-            if (isUUID) {
-                targetGymId = urlGym;
-            } else {
-                const adminClient = createAdminClient();
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', urlGym)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, urlGym);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Forbidden: Gimnasio no especificado' }, { status: 403 });
         }
@@ -66,13 +51,9 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { name, category, condition, is_available, last_maintenance, gymId } = body;
 
-        let targetGymId = profile?.gimnasio_id;
-
-        // Permitir a superadmin definir el gimnasio
-        if (profile?.role === 'superadmin' && gymId) {
-            targetGymId = gymId;
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, gymId);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
         }

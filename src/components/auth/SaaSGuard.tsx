@@ -19,7 +19,7 @@ interface SaaSGuardProps {
 }
 
 export default function SaaSGuard({ children }: SaaSGuardProps) {
-    const [status, setStatus] = useState<'loading' | 'active' | 'suspended' | 'near_limit'>('loading');
+    const [status, setStatus] = useState<'loading' | 'active' | 'suspended' | 'near_limit' | 'deleted'>('loading');
     const [gymData, setGymData] = useState<any>(null);
 
     useEffect(() => {
@@ -27,6 +27,11 @@ export default function SaaSGuard({ children }: SaaSGuardProps) {
             try {
                 const res = await fetch('/api/admin/gyms/current');
                 const data = await res.json();
+
+                if (res.status === 404 || data.error?.includes('no encontrado') || data.error?.includes('inactivo')) {
+                    setStatus('deleted');
+                    return;
+                }
 
                 if (res.ok && data.gym) {
                     setGymData(data.gym);
@@ -57,6 +62,45 @@ export default function SaaSGuard({ children }: SaaSGuardProps) {
     }, []);
 
     if (status === 'loading') return children; // No bloqueamos mientras carga para evitar parpadeos
+
+    if (status === 'deleted') {
+        return (
+            <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-6">
+                <div className="absolute inset-0 bg-gradient-to-br from-red-950/60 via-black to-black opacity-80" />
+
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="relative bg-[#1c1c1e] max-w-xl w-full rounded-[3rem] border border-red-500/20 p-12 text-center shadow-[0_0_120px_rgba(239,68,68,0.2)] overflow-hidden"
+                >
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+
+                    <div className="w-24 h-24 bg-red-600/10 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-red-500/20">
+                        <AlertTriangle size={40} className="text-red-500 animate-pulse" />
+                    </div>
+
+                    <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-4">Gimnasio Inactivo</h2>
+                    <p className="text-gray-400 mb-10 leading-relaxed font-medium">
+                        Esta sucursal o gimnasio ya no se encuentra disponible en la red de Virtud Gym SaaS.
+                        Por favor, ponte en contacto con la administración central si crees que esto es un error.
+                    </p>
+
+                    <div className="space-y-4">
+                        <Link
+                            href="/login"
+                            className="w-full py-5 bg-white text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            Volver al Inicio
+                        </Link>
+                    </div>
+
+                    <p className="mt-8 text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                        Plataforma SaaS gestionada por Virtud &copy; 2026
+                    </p>
+                </motion.div>
+            </div>
+        );
+    }
 
     if (status === 'suspended') {
         return (

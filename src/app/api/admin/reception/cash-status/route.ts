@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -21,24 +21,10 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const urlGym = searchParams.get('gymId');
 
-        let targetGymId = profile?.gimnasio_id;
         const adminClient = createAdminClient();
-
-        if (profile?.role === 'superadmin' && urlGym) {
-            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(urlGym);
-            if (isUUID) {
-                targetGymId = urlGym;
-            } else {
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', urlGym)
-                    .is('deleted_at', null)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, urlGym);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
         }
