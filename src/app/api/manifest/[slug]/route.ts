@@ -14,6 +14,7 @@ export async function GET(
         .from('gimnasios')
         .select('nombre, color_primario, logo_url')
         .eq(queryField, slug)
+        .is('deleted_at', null)
         .single();
 
     if (error || !gym) {

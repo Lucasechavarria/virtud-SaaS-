@@ -30,6 +30,7 @@ export function useModuleAccess(moduleName: string, redirectIfDenied = false) {
                     .from('gimnasios')
                     .select('modulos_activos')
                     .eq('id', gymId)
+                    .is('deleted_at', null)
                     .single();
 
                 const hasModule = hasModuleAccess(data?.modulos_activos, moduleName);

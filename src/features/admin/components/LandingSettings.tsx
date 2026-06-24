@@ -56,6 +56,7 @@ export default function LandingSettings() {
                         .from('gimnasios')
                         .select('id')
                         .eq('slug', tenantSlug)
+                        .is('deleted_at', null)
                         .single();
                     if (gym) resolvedId = gym.id;
                 }
@@ -70,7 +71,7 @@ export default function LandingSettings() {
     useEffect(() => {
         const fetchGym = async () => {
             if (!gymId) return;
-            const { data } = await supabase.from('gimnasios').select('*').eq('id', gymId).single();
+            const { data } = await supabase.from('gimnasios').select('*').eq('id', gymId).is('deleted_at', null).single();
             if (data) {
                 const gymData = data as any;
                 if (gymData.config_landing) {

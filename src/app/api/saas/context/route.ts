@@ -30,7 +30,8 @@ export async function GET() {
             // Superadmin ve todo
             const { data: allGyms } = await supabase
                 .from('gimnasios')
-                .select('*, sucursales(*)');
+                .select('*, sucursales(*)')
+                .is('deleted_at', null);
             gyms = allGyms || [];
         } else {
             // Otros ven solo su gimnasio y sus sucursales
@@ -39,6 +40,7 @@ export async function GET() {
                     .from('gimnasios')
                     .select('*, sucursales(*)')
                     .eq('id', profile.gimnasio_id)
+                    .is('deleted_at', null)
                     .single();
                 gyms = myGym ? [myGym] : [];
             }

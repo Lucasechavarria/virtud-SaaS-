@@ -50,6 +50,7 @@ export default function BrandingSettings() {
                         .from('gimnasios')
                         .select('id')
                         .eq('slug', tenantSlug)
+                        .is('deleted_at', null)
                         .single();
                     if (gym) resolvedId = gym.id;
                 }
@@ -64,7 +65,7 @@ export default function BrandingSettings() {
     useEffect(() => {
         const fetchGym = async () => {
             if (!gymId) return;
-            const { data } = await supabase.from('gimnasios').select('*').eq('id', gymId).single();
+            const { data } = await supabase.from('gimnasios').select('*').eq('id', gymId).is('deleted_at', null).single();
             if (data) {
                 setFormData({
                     nombre: data.nombre || '',

@@ -46,6 +46,7 @@ export default async function AdminDashboard({
                         .from('gimnasios')
                         .select('id')
                         .eq('slug', tenantSlug)
+                        .is('deleted_at', null)
                         .single();
                     if (gym) {
                         gymId = gym.id;

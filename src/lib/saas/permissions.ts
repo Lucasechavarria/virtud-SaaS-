@@ -21,6 +21,7 @@ export async function checkFeatureAccess(gymId: string, feature: SaaSFeature): P
             planes_suscripcion (nombre)
         `)
         .eq('id', gymId)
+        .is('deleted_at', null)
         .single();
 
     if (error || !gym || !gym.planes_suscripcion) return false;
@@ -47,6 +48,7 @@ export async function getGymLimits(gymId: string) {
             planes_suscripcion (limite_sucursales, limite_usuarios)
         `)
         .eq('id', gymId)
+        .is('deleted_at', null)
         .single();
 
     if (error || !data || !data.planes_suscripcion) return { branches: 1, users: 50 };

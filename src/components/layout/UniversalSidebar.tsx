@@ -156,7 +156,9 @@ export function UniversalSidebar({
                 // Fallback reactivo: Si faltan datos visuales (logo/nombre) en el token, consultar DB en background
                 if (gymId && gymId !== 'admin') {
                     supabase.from('gimnasios').select('nombre, logo_url, modulos_activos')
-                        .eq('id', gymId).single().then(({ data }) => {
+                        .eq('id', gymId)
+                        .is('deleted_at', null)
+                        .single().then(({ data }) => {
                             if (data) {
                                 setGymInfo({
                                     nombre: data.nombre || undefined,
