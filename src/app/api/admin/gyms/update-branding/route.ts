@@ -37,6 +37,7 @@ export async function POST(request: Request) {
                 actualizado_en: new Date().toISOString()
             })
             .eq('id', profileData.gimnasio_id)
+            .is('deleted_at', null)
             .select('slug')
             .single();
 

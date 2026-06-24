@@ -43,6 +43,7 @@ export async function POST(request: Request) {
             .from('gimnasios')
             .select('slug')
             .eq('id', gymId)
+            .is('deleted_at', null)
             .single();
 
         if (gymError || !gym) {

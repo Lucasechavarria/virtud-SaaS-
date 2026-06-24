@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkGymLimits } from '@/lib/saas/limits';
 
@@ -31,22 +31,9 @@ export async function GET(request: Request) {
 
         const { searchParams } = new URL(request.url);
         const urlGym = searchParams.get('gymId');
-        let targetGymId = profile.gimnasio_id;
-
-        if (profile.rol === 'superadmin' && urlGym) {
-            if (UUID_REGEX.test(urlGym)) {
-                targetGymId = urlGym;
-            } else {
-                // Resolver slug a UUID
-                const { data: gym } = await adminClient
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', urlGym)
-                    .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
-
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, urlGym);
+        if (errorResponse) return errorResponse;
+ 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Usuario sin gimnasio asignado' }, { status: 400 });
         }
@@ -64,6 +51,7 @@ export async function GET(request: Request) {
                 )
             `)
             .eq('id', targetGymId)
+            .is('deleted_at', null)
             .single();
 
         if (gymError) throw gymError;

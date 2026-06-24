@@ -312,6 +312,19 @@ export async function POST(request: Request) {
         // BYPASS DE RLS: Usamos Admin Client en el servidor para evitar bloqueos de RLS
         const supabase = createAdminClient();
 
+        // Validar que el gimnasio exista y no esté eliminado lógicamente
+        const { data: gymCheck, error: gymCheckError } = await supabase
+            .from('gimnasios')
+            .select('id')
+            .eq('id', gymId)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+        if (gymCheckError || !gymCheck) {
+            console.error(`[SaaS Billing] Webhook cancelado: Gimnasio ${gymId} no encontrado o eliminado lógicamente.`);
+            return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo en la red' }, { status: 404 });
+        }
+
         // 3. Enrutar según el estado usando el Mapeador de Estrategias
         if (payment.status === 'approved') {
             return await handleApprovedPayment(supabase, gymId, payment, paymentId);

@@ -24,7 +24,8 @@ const mockSupabaseClient = {
             select: jest.fn((fields?: string) => {
                 return {
                     eq: jest.fn((column: string, value: any) => {
-                        return {
+                        const chain = {
+                            is: jest.fn(() => chain),
                             single: jest.fn(() => {
                                 // Para simular la búsqueda de slug de gimnasio existente
                                 if (table === 'gimnasios' && column === 'slug') {
@@ -33,6 +34,7 @@ const mockSupabaseClient = {
                                 return Promise.resolve({ data: null, error: null });
                             })
                         };
+                        return chain;
                     })
                 };
             }),

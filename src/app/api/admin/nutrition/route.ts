@@ -20,16 +20,23 @@ export async function GET(request: Request) {
         // Resolver gymId para superadmin (slug o UUID)
         let targetGymId = profile?.gimnasio_id;
         if (profile?.role === 'superadmin' && urlGym) {
+            const adminClient = createAdminClient();
             if (UUID_REGEX.test(urlGym)) {
-                targetGymId = urlGym;
+                const { data: gym } = await adminClient
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('id', urlGym)
+                    .is('deleted_at', null)
+                    .single();
+                targetGymId = gym ? gym.id : null;
             } else {
-                const adminClient = createAdminClient();
                 const { data: gym } = await adminClient
                     .from('gimnasios')
                     .select('id')
                     .eq('slug', urlGym)
+                    .is('deleted_at', null)
                     .single();
-                if (gym) targetGymId = gym.id;
+                targetGymId = gym ? gym.id : null;
             }
         }
 

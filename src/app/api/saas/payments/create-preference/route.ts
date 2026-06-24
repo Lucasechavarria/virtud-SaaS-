@@ -65,9 +65,10 @@ export async function POST(request: Request) {
                     )
                 `)
                 .eq('id', profile.gimnasio_id)
+                .is('deleted_at', null)
                 .single();
 
-            if (gymError || !gym) throw new Error('Error al obtener datos del gimnasio');
+            if (gymError || !gym) throw new Error('Error al obtener datos del gimnasio o gimnasio inactivo');
 
             const plan = (gym.planes_suscripcion as any);
             planNombre = plan?.nombre || 'Básico';
@@ -83,9 +84,10 @@ export async function POST(request: Request) {
             .from('gimnasios')
             .select('id, nombre, slug')
             .eq('id', profile.gimnasio_id)
+            .is('deleted_at', null)
             .single();
 
-        if (gymBaseError || !gymBase) throw new Error('Error al obtener información base del gimnasio');
+        if (gymBaseError || !gymBase) throw new Error('Error al obtener información base del gimnasio o gimnasio inactivo');
 
         const gymSlug = gymBase.slug || gymBase.id;
 

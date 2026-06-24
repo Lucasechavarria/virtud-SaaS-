@@ -29,15 +29,25 @@ export async function GET(request: Request) {
             if (!uuidRegex.test(gymId)) {
                 return NextResponse.json({ error: 'ID de gimnasio inválido' }, { status: 400 });
             }
-            targetGymId = gymId;
+            const { data: gym } = await supabase
+                .from('gimnasios')
+                .select('id')
+                .eq('id', gymId)
+                .is('deleted_at', null)
+                .single();
+            if (!gym) {
+                return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo' }, { status: 404 });
+            }
+            targetGymId = gym.id;
         } else if (tenantSlug) {
             const { data: gym } = await supabase
                 .from('gimnasios')
                 .select('id')
                 .eq('slug', tenantSlug)
+                .is('deleted_at', null)
                 .single();
             if (!gym) {
-                return NextResponse.json({ error: 'Gimnasio no encontrado' }, { status: 404 });
+                return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo' }, { status: 404 });
             }
             targetGymId = gym.id;
         }

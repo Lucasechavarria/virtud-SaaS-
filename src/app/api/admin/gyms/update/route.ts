@@ -36,6 +36,7 @@ export async function POST(request: Request) {
                 .from('gimnasios')
                 .select('configuracion')
                 .eq('id', id)
+                .is('deleted_at', null)
                 .single();
             if (oldGym) {
                 const oldConfig = oldGym.configuracion as any;
@@ -111,10 +112,13 @@ export async function POST(request: Request) {
                 configuracion: newConfig
             })
             .eq('id', id)
+            .is('deleted_at', null)
             .select()
             .single();
 
-        if (gymError) throw gymError;
+        if (gymError || !gym) {
+            return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo en la red' }, { status: 404 });
+        }
 
         if (gym?.slug) {
             (revalidateTag as any)(`gym-brand-${gym.slug}`);

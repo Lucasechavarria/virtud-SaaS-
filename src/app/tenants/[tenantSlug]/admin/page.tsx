@@ -39,7 +39,13 @@ export default async function AdminDashboard({
             if (tenantSlug) {
                 const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantSlug);
                 if (isUUID) {
-                    gymId = tenantSlug;
+                    const { data: gym } = await supabase
+                        .from('gimnasios')
+                        .select('id')
+                        .eq('id', tenantSlug)
+                        .is('deleted_at', null)
+                        .single();
+                    if (gym) gymId = gym.id;
                 } else {
                     // Resolver el UUID del gimnasio mediante el slug
                     const { data: gym } = await supabase
@@ -48,11 +54,14 @@ export default async function AdminDashboard({
                         .eq('slug', tenantSlug)
                         .is('deleted_at', null)
                         .single();
-                    if (gym) {
-                        gymId = gym.id;
-                    }
+                    if (gym) gymId = gym.id;
                 }
             }
+
+            if (!gymId) {
+                redirect('/saas-admin?error=gym_not_found');
+            }
+            
             return <GymAdminDashboard gymId={gymId} isImpersonating={true} />;
         }
         return <SuperAdminTabs />;

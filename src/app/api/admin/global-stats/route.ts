@@ -104,10 +104,10 @@ export async function GET(request: Request) {
             announcementsResult
         ] = await Promise.all([
             // Conteos Generales
-            adminClient.from('gimnasios').select('*', { count: 'exact', head: true }),
+            adminClient.from('gimnasios').select('*', { count: 'exact', head: true }).is('deleted_at', null),
             adminClient.from('perfiles').select('*', { count: 'exact', head: true }),
             adminClient.from('sucursales').select('*', { count: 'exact', head: true }),
-            adminClient.from('gimnasios').select('*', { count: 'exact', head: true }).eq('es_activo', true),
+            adminClient.from('gimnasios').select('*', { count: 'exact', head: true }).eq('es_activo', true).is('deleted_at', null),
 
             // MRR actual de la vista calculada
             adminClient.from('saas_mrr_actual' as any).select('*').maybeSingle(),
@@ -122,6 +122,7 @@ export async function GET(request: Request) {
             adminClient.from('gimnasios')
                 .select('plan_id, planes_suscripcion!plan_id(nombre, precio_mensual)')
                 .eq('es_activo', true)
+                .is('deleted_at', null)
                 .limit(100),
 
             // Auditoría Global (Paso 2 Original)
@@ -142,6 +143,7 @@ export async function GET(request: Request) {
                 .select('nombre, estado_pago_saas')
                 .not('estado_pago_saas', 'in', '("active","trial")')
                 .eq('es_activo', true)
+                .is('deleted_at', null)
                 .limit(3),
 
             // Historial de MRR y Churn (Paso 4 Original)
@@ -154,6 +156,7 @@ export async function GET(request: Request) {
             adminClient.from('gimnasios')
                 .select('id, nombre, scoring_salud, fase_onboarding, modulos_activos')
                 .eq('es_activo', true)
+                .is('deleted_at', null)
                 .order('scoring_salud', { ascending: false })
                 .limit(10),
 

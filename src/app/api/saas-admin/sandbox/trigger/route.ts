@@ -26,19 +26,20 @@ export async function POST(request: Request) {
 
         const supabase = createAdminClient();
 
-        // Obtener datos del gimnasio si se pasa gymId (con try-catch sutil)
+        // Obtener datos del gimnasio si se pasa gymId
         let gymName = 'Gimnasio Red';
         if (gymId) {
-            try {
-                const { data: gym } = await supabase
-                    .from('gimnasios')
-                    .select('nombre')
-                    .eq('id', gymId)
-                    .single();
-                if (gym) gymName = gym.nombre;
-            } catch (_err) {
-                // Fallback a nombre por defecto
+            const { data: gym } = await supabase
+                .from('gimnasios')
+                .select('nombre')
+                .eq('id', gymId)
+                .is('deleted_at', null)
+                .maybeSingle();
+            
+            if (!gym) {
+                return NextResponse.json({ error: 'Gimnasio no encontrado o inactivo en la red' }, { status: 404 });
             }
+            gymName = gym.nombre;
         }
 
         // ACCIÓN 1: Simular Pago de Gimnasio
@@ -254,7 +255,7 @@ export async function POST(request: Request) {
             let activeGyms = 2;
 
             try {
-                const { data: gymCount } = await supabase.from('gimnasios').select('id, es_activo');
+                const { data: gymCount } = await supabase.from('gimnasios').select('id, es_activo').is('deleted_at', null);
                 if (gymCount) {
                     totalGyms = gymCount.length;
                     activeGyms = gymCount.filter(g => g.es_activo).length;

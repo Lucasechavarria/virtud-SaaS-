@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -28,20 +28,8 @@ export async function GET(request: Request) {
         const status = searchParams.get('status') || 'all';
         const search = searchParams.get('search') || '';
 
-        // Resolver gymId para superadmin (slug o UUID)
-        let targetGymId = requester.gimnasio_id;
-        if (requester.rol === 'superadmin' && urlGym) {
-            if (UUID_REGEX.test(urlGym)) {
-                targetGymId = urlGym;
-            } else {
-                const { data: gym } = await adminClient
-                     .from('gimnasios')
-                     .select('id')
-                     .eq('slug', urlGym)
-                     .single();
-                if (gym) targetGymId = gym.id;
-            }
-        }
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(requester, urlGym);
+        if (errorResponse) return errorResponse;
 
         // Si admin local sin gymId asignado: error
         if (requester.rol !== 'superadmin' && !targetGymId) {
