@@ -28,6 +28,10 @@ describe('Access Validation Screen Usability Verification Flow', () => {
         cy.visit('/tenants/virtud/admin/recepcion/acceso', { failOnStatusCode: false });
         cy.wait(1500); // Esperar hidratación completa de Next.js
 
+        cy.document().then((doc) => {
+            cy.writeFile('cypress-debug-body.txt', doc.body.innerHTML);
+        });
+
         // Usar el buscador manual para buscar al socio mockeado
         cy.get('input[placeholder*="Buscar alumno manualmente"]').focus().type('Test User');
         cy.wait(800); // Esperar a que el debounce de 300ms y la red se asienten

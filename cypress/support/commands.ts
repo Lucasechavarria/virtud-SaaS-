@@ -74,4 +74,26 @@ Cypress.Commands.add('loginByAuthAPI', (email = 'alumno-nuevo@test.com', passwor
     });
 });
 
+Cypress.Commands.overwrite('visit', ((originalFn: any, url: any, options?: any) => {
+    const cypressSecret = 'mock-cypress-secret-12345';
+    
+    if (typeof url === 'object') {
+        const newOptions = {
+            ...url,
+            headers: {
+                ...url.headers,
+                'x-cypress-secret': cypressSecret
+            }
+        };
+        return originalFn(newOptions);
+    }
 
+    const newOptions = {
+        ...options,
+        headers: {
+            ...options?.headers,
+            'x-cypress-secret': cypressSecret
+        }
+    };
+    return originalFn(url, newOptions);
+}) as any);
