@@ -18,13 +18,15 @@ import {
     Calendar
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+
 
 interface SystemLog {
     id: string;
     usuario_id: string;
     tabla: string;
     operacion: string;
-    registro_id: string;
+    registro_id: string | null;
     datos_anteriores: unknown;
     datos_nuevos: unknown;
     creado_en: string;
@@ -71,12 +73,22 @@ export default function AuditLogsPage() {
         setLoading(true);
         try {
             const offset = (page - 1) * limit;
+
+            let startISO = '';
+            let endISO = '';
+            if (startDate) {
+                startISO = new Date(`${startDate}T00:00:00`).toISOString();
+            }
+            if (endDate) {
+                endISO = new Date(`${endDate}T23:59:59.999`).toISOString();
+            }
+
             const params = new URLSearchParams({
                 type: activeTab,
                 limit: limit.toString(),
                 offset: offset.toString(),
-                ...(startDate && { startDate }),
-                ...(endDate && { endDate })
+                ...(startISO && { startDate: startISO }),
+                ...(endISO && { endDate: endISO })
             });
             const res = await fetch(`/api/admin/audit-logs?${params.toString()}`);
             const data = await res.json();
@@ -91,35 +103,123 @@ export default function AuditLogsPage() {
         }
     };
 
-    const exportToCSV = () => {
-        const logs = activeTab === 'system' ? systemLogs : impersonationLogs;
-        if (logs.length === 0) return;
+    const exportToCSV = async () => {
+        try {
+            toast.loading('Generando reporte completo...', { id: 'csv-export' });
 
-        const headers = activeTab === 'system'
-            ? ['ID', 'Fecha', 'Operación', 'Tabla', 'Usuario', 'Email']
-            : ['ID', 'Fecha', 'Administrador', 'Gimnasio', 'Motivo', 'Duración (min)'];
-
-        const rows = logs.map(log => {
-            if (activeTab === 'system') {
-                const sLog = log as SystemLog;
-                return [sLog.id, sLog.creado_en, sLog.operacion, sLog.tabla, sLog.perfiles?.nombre_completo, sLog.perfiles?.email];
-            } else {
-                const iLog = log as ImpersonationLog;
-                return [iLog.id, iLog.creado_en, iLog.admin_profile?.nombre_completo, iLog.gimnasio?.nombre, iLog.motivo, iLog.duracion_minutos];
+            let startISO = '';
+            let endISO = '';
+            if (startDate) {
+                startISO = new Date(`${startDate}T00:00:00`).toISOString();
             }
-        });
+            if (endDate) {
+                endISO = new Date(`${endDate}T23:59:59.999`).toISOString();
+            }
 
-        const csvContent = "data:text/csv;charset=utf-8,"
-            + headers.join(",") + "\n"
-            + rows.map(e => e.join(",")).join("\n");
+            const queryParams = new URLSearchParams({
+                type: activeTab,
+                limit: '1000',
+                offset: '0',
+                ...(startISO && { startDate: startISO }),
+                ...(endISO && { endDate: endISO })
+            });
 
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `audit_log_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            const res = await fetch(`/api/admin/audit-logs?${queryParams.toString()}`);
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al exportar');
+            }
+
+            const logsToExport = activeTab === 'system' ? (data.systemLogs || []) : (data.impersonationLogs || []);
+            if (logsToExport.length === 0) {
+                toast.error('No hay registros para exportar con los filtros seleccionados', { id: 'csv-export' });
+                return;
+            }
+
+            let finalLogs = logsToExport;
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                if (activeTab === 'system') {
+                    finalLogs = logsToExport.filter((log: any) =>
+                        log.id.toLowerCase().includes(term) ||
+                        log.operacion.toLowerCase().includes(term) ||
+                        log.tabla.toLowerCase().includes(term) ||
+                        (log.registro_id?.toLowerCase()?.includes(term) ?? false) ||
+                        (log.perfiles?.nombre_completo?.toLowerCase()?.includes(term) ?? false) ||
+                        (log.perfiles?.email?.toLowerCase()?.includes(term) ?? false)
+                    );
+                } else {
+                    finalLogs = logsToExport.filter((log: any) =>
+                        log.id.toLowerCase().includes(term) ||
+                        log.motivo?.toLowerCase().includes(term) ||
+                        (log.admin_profile?.nombre_completo?.toLowerCase()?.includes(term) ?? false) ||
+                        (log.admin_profile?.email?.toLowerCase()?.includes(term) ?? false) ||
+                        (log.gimnasio?.nombre?.toLowerCase()?.includes(term) ?? false)
+                    );
+                }
+            }
+
+            if (finalLogs.length === 0) {
+                toast.error('Ningún registro coincide con el término de búsqueda', { id: 'csv-export' });
+                return;
+            }
+
+            const headers = activeTab === 'system'
+                ? ['ID', 'Fecha', 'Operacion', 'Tabla', 'ID Registro', 'Usuario', 'Email']
+                : ['ID', 'Fecha', 'Administrador', 'Email Administrador', 'Gimnasio Conectado', 'Motivo', 'Duracion (Minutos)'];
+
+            const rows = finalLogs.map((log: any) => {
+                if (activeTab === 'system') {
+                    return [
+                        log.id,
+                        log.creado_en,
+                        log.operacion,
+                        log.tabla,
+                        log.registro_id || '',
+                        log.perfiles?.nombre_completo || 'Sistema Automático',
+                        log.perfiles?.email || 'N/A'
+                    ];
+                } else {
+                    return [
+                        log.id,
+                        log.creado_en,
+                        log.admin_profile?.nombre_completo || 'N/A',
+                        log.admin_profile?.email || 'N/A',
+                        log.gimnasio?.nombre || 'N/A',
+                        log.motivo || '',
+                        log.duracion_minutos || 15
+                    ];
+                }
+            });
+
+            const escapeCSV = (val: any) => {
+                if (val === null || val === undefined) return '""';
+                const stringVal = String(val);
+                const escaped = stringVal.replace(/"/g, '""');
+                return `"${escaped}"`;
+            };
+
+            const csvContent = [
+                headers.map(escapeCSV).join(','),
+                ...rows.map(row => row.map(escapeCSV).join(','))
+            ].join('\n');
+
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `reporte_auditoria_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.success(`Reporte exportado con éxito (${finalLogs.length} filas)`, { id: 'csv-export' });
+        } catch (err) {
+            console.error('Error exporting CSV:', err);
+            toast.error('Error al generar el archivo CSV', { id: 'csv-export' });
+        }
     };
 
     const filteredSystemLogs = systemLogs.filter(log => {
@@ -129,9 +229,9 @@ export default function AuditLogsPage() {
             log.id.toLowerCase().includes(term) ||
             log.operacion.toLowerCase().includes(term) ||
             log.tabla.toLowerCase().includes(term) ||
-            log.registro_id.toLowerCase().includes(term) ||
-            log.perfiles?.nombre_completo?.toLowerCase().includes(term) ||
-            log.perfiles?.email?.toLowerCase().includes(term)
+            (log.registro_id?.toLowerCase()?.includes(term) ?? false) ||
+            (log.perfiles?.nombre_completo?.toLowerCase()?.includes(term) ?? false) ||
+            (log.perfiles?.email?.toLowerCase()?.includes(term) ?? false)
         );
     });
 
@@ -175,7 +275,8 @@ export default function AuditLogsPage() {
                 <div className="flex gap-3">
                     <button
                         onClick={exportToCSV}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                        disabled={loading || (activeTab === 'system' ? systemLogs.length === 0 : impersonationLogs.length === 0)}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-30 disabled:pointer-events-none"
                     >
                         <Download size={14} />
                         Exportar CSV
@@ -455,7 +556,7 @@ function SystemLogCard({ log, index, onView }: { log: SystemLog, index: number, 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
-            className="group bg-[#1c1c1e] border border-white/5 rounded-3xl p-6 flex items-center justify-between hover:border-amber-500/30 transition-all"
+            className="group bg-[#1c1c1e] border border-white/5 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:border-amber-500/30 transition-all"
         >
             <div className="flex items-center gap-6">
                 <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border font-black text-[10px] uppercase leading-none text-center p-2 ${log.operacion === 'INSERT' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
@@ -469,7 +570,7 @@ function SystemLogCard({ log, index, onView }: { log: SystemLog, index: number, 
                     <div className="flex items-center gap-3 mb-1">
                         <span className="text-xs font-black text-white italic uppercase tracking-tight">{log.tabla}</span>
                         <div className="w-1 h-1 rounded-full bg-gray-700" />
-                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">ID: {log.registro_id.substring(0, 8)}...</span>
+                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">ID: {log.registro_id ? (log.registro_id.length > 8 ? `${log.registro_id.substring(0, 8)}...` : log.registro_id) : 'N/A'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] font-medium text-gray-400">
                         <UserCheck size={12} className="text-amber-500" />
@@ -479,7 +580,7 @@ function SystemLogCard({ log, index, onView }: { log: SystemLog, index: number, 
                 </div>
             </div>
 
-            <div className="flex items-center gap-8">
+            <div className="flex items-center justify-between md:justify-end gap-6 md:gap-8 w-full md:w-auto border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                 <div className="text-right">
                     <p className="text-[10px] font-black text-white uppercase tracking-tighter mb-1">
                         {new Date(log.creado_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -506,7 +607,7 @@ function ImpersonationCard({ log, index, onView }: { log: ImpersonationLog, inde
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
-            className="group bg-[#1c1c1e] border border-white/5 rounded-3xl p-6 flex items-center justify-between hover:border-red-500/30 transition-all relative overflow-hidden"
+            className="group bg-[#1c1c1e] border border-white/5 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:border-red-500/30 transition-all relative overflow-hidden"
         >
             <div className="absolute top-0 left-0 w-1 h-full bg-red-600/40" />
 
@@ -530,7 +631,7 @@ function ImpersonationCard({ log, index, onView }: { log: ImpersonationLog, inde
                 </div>
             </div>
 
-            <div className="flex items-center gap-8">
+            <div className="flex items-center justify-between md:justify-end gap-6 md:gap-8 w-full md:w-auto border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                 <div className="text-right">
                     <p className="text-[10px] font-black text-white uppercase tracking-tighter mb-1">
                         {new Date(log.creado_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}

@@ -98,11 +98,12 @@ describe('SaaS Global Billing & Catalog Management Flow', () => {
         // 1. Cambiar al tab de catálogo de planes
         cy.contains('button', 'Gestor de Planes').click({ force: true });
         
+        // Esperar inmediatamente la llamada de red que se dispara con el cambio de tab
+        cy.wait('@getSaaSPlans');
+
         // Esperar a que la pestaña anterior se desmonte del DOM (animación terminada)
         cy.contains('Clientes de la Red').should('not.exist');
         
-        cy.wait('@getSaaSPlans');
-
         // 2. Validar visualización de los planes de la red
         cy.contains('Plan Starter').should('be.visible');
         cy.contains('Plan Elite Premium').should('be.visible');

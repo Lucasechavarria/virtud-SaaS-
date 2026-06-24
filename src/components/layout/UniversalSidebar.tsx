@@ -38,8 +38,10 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
         { href: '/admin/support', label: 'Soporte SaaS', icon: '🎧' },
         { href: '/admin/settings/support', label: 'Mensajería Interna', icon: '💬' },
         { href: '/admin/security-dashboard', label: 'Seguridad y Accesos', icon: '🔒' },
+        { href: '/admin/audit', label: 'Auditoría de Cambios', icon: '🔍' },
         { href: '/admin/settings', label: 'Configuración', icon: '⚙️' },
     ],
+
     superadmin: [
         { href: '/saas-admin', label: 'Super Control', icon: '⚡' },
         { href: '/saas-admin/gyms', label: 'Gimnasios', icon: '🏢' },
