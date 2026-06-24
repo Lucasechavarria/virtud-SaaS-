@@ -60,6 +60,7 @@ export async function GET(request: Request) {
                     .from('gimnasios')
                     .select('id')
                     .eq('slug', urlGym)
+                    .is('deleted_at', null)
                     .single();
                 if (gym) targetGymId = gym.id;
             }

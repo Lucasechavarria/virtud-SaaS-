@@ -26,6 +26,7 @@ export async function GET(request: Request) {
                 .from('gimnasios')
                 .select('id')
                 .eq('slug', gymId)
+                .is('deleted_at', null)
                 .single();
             if (!gym) {
                 return NextResponse.json({ error: 'Gimnasio no encontrado' }, { status: 404 });

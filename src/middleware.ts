@@ -122,6 +122,7 @@ export async function middleware(request: NextRequest) {
                     .from('gimnasios')
                     .select('slug')
                     .eq('id', legacyTenant)
+                    .is('deleted_at', null)
                     .single();
                 if (gym?.slug) {
                     resolvedTenant = gym.slug;

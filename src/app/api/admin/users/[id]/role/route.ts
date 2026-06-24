@@ -78,6 +78,7 @@ export async function PUT(
                 )
             `)
             .eq('id', targetProfile.gimnasio_id)
+            .is('deleted_at', null)
             .single();
 
         if (planError || !gymPlan) {

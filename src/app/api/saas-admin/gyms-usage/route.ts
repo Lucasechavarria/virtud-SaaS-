@@ -43,7 +43,6 @@ export async function GET(request: Request) {
         let dbQuerySuccess = false;
 
         try {
-            // Intentar JOIN con relación explícita
             const { data, error: gymsError } = await supabase
                 .from('gimnasios')
                 .select(`
@@ -60,13 +59,13 @@ export async function GET(request: Request) {
                         precio_mensual,
                         precio_alumno_extra
                     )
-                `);
+                `)
+                .is('deleted_at', null);
 
             if (!gymsError && data) {
                 gyms = data;
                 dbQuerySuccess = true;
             } else {
-                // Fallback 1: Intentar JOIN implícito sin especificar alias
                 const { data: dataAlt, error: gymsErrorAlt } = await supabase
                     .from('gimnasios')
                     .select(`
@@ -83,16 +82,17 @@ export async function GET(request: Request) {
                             precio_mensual,
                             precio_alumno_extra
                         )
-                    `);
+                    `)
+                    .is('deleted_at', null);
                 
                 if (!gymsErrorAlt && dataAlt) {
                     gyms = dataAlt;
                     dbQuerySuccess = true;
                 } else {
-                    // Fallback 2: Consulta plana sin JOIN
                     const { data: dataFlat, error: gymsErrorFlat } = await supabase
                         .from('gimnasios')
-                        .select('id, nombre, slug, es_activo, estado_pago_saas, plan_id, configuracion');
+                        .select('id, nombre, slug, es_activo, estado_pago_saas, plan_id, configuracion')
+                        .is('deleted_at', null);
                     
                     if (!gymsErrorFlat && dataFlat) {
                         gyms = dataFlat;

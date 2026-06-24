@@ -25,7 +25,8 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         let query = supabase
             .from('gimnasios')
             .select('nombre, slug, color_primario, logo_url, es_activo')
-            .eq('es_activo', true);
+            .eq('es_activo', true)
+            .is('deleted_at', null);
 
         if (slugCookie) {
             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slugCookie);

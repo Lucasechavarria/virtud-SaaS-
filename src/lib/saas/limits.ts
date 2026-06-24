@@ -17,6 +17,7 @@ export async function checkGymLimits(gymId: string) {
             )
         `)
         .eq('id', gymId)
+        .is('deleted_at', null)
         .single();
 
     if (gymError || !gym) {
@@ -199,6 +200,7 @@ export async function deductPrepagoQuota(gymId: string, actionType: 'video' | 'r
         .from('gimnasios')
         .select('id, configuracion')
         .eq('id', gymId)
+        .is('deleted_at', null)
         .single();
 
     if (gymError || !gym) {
