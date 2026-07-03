@@ -53,7 +53,7 @@ describe('POS Shortcuts and Mobile Responsiveness Usability Flow', () => {
         }).as('getUsers');
     });
 
-    it('should navigate tabs using F1, F2 and F3 on desktop view', () => {
+    it('should navigate tabs using Alt + 1, Alt + 2 and Alt + 3 on desktop view', () => {
         // Establecer viewport de escritorio
         cy.viewport(1280, 800);
 
@@ -65,17 +65,17 @@ describe('POS Shortcuts and Mobile Responsiveness Usability Flow', () => {
         // La pestaña activa por defecto debe ser "tienda"
         cy.contains('button', 'Tienda').should('have.class', 'bg-emerald-500');
 
-        // Presionar F2 para cambiar a "Membresías"
-        cy.get('body').trigger('keydown', { key: 'F2' });
+        // Presionar Alt + 2 para cambiar a "Membresías"
+        cy.get('body').trigger('keydown', { key: '2', altKey: true });
         cy.contains('button', 'Membresías').should('have.class', 'bg-emerald-500');
         cy.contains('button', 'Tienda').should('not.have.class', 'bg-emerald-500');
 
-        // Presionar F3 para cambiar a "Caja"
-        cy.get('body').trigger('keydown', { key: 'F3' });
+        // Presionar Alt + 3 para cambiar a "Caja"
+        cy.get('body').trigger('keydown', { key: '3', altKey: true });
         cy.contains('button', 'Caja').should('have.class', 'bg-emerald-500');
 
-        // Presionar F1 para volver a "Tienda"
-        cy.get('body').trigger('keydown', { key: 'F1' });
+        // Presionar Alt + 1 para volver a "Tienda"
+        cy.get('body').trigger('keydown', { key: '1', altKey: true });
         cy.contains('button', 'Tienda').should('have.class', 'bg-emerald-500');
     });
 
@@ -116,8 +116,8 @@ describe('POS Shortcuts and Mobile Responsiveness Usability Flow', () => {
         // La pestaña activa debe ser "tienda"
         cy.contains('button', 'Tienda').should('have.class', 'bg-emerald-500');
 
-        // Intentar cambiar con F2
-        cy.get('body').trigger('keydown', { key: 'F2' });
+        // Intentar cambiar con Alt + 2
+        cy.get('body').trigger('keydown', { key: '2', altKey: true });
 
         // Debe seguir en Tienda (los atajos están bloqueados en resoluciones móviles)
         cy.contains('button', 'Tienda').should('have.class', 'bg-emerald-500');

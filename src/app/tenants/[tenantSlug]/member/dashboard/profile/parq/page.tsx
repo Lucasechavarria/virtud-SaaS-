@@ -20,6 +20,16 @@ export default function ParqPage() {
     const params = useParams();
     const router = useRouter();
     const tenantSlug = params.tenantSlug as string;
+    const [isSubdomain, setIsSubdomain] = useState(false);
+
+    React.useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const host = window.location.host.split(':')[0];
+            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
+            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
+            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
+        }
+    }, []);
 
     const [answers, setAnswers] = useState<Record<number, boolean>>({});
     const [acceptedConsent, setAcceptedConsent] = useState(false);
@@ -75,7 +85,8 @@ export default function ParqPage() {
         if (!res.ok) throw new Error();
 
         toast.success('Deslinde médico firmado. ¡Acceso QR desbloqueado!');
-        router.push(`/tenants/${tenantSlug}/member/dashboard/qr`);
+        const destination = isSubdomain ? '/member/dashboard/qr' : `/${tenantSlug}/member/dashboard/qr`;
+        router.push(destination);
     };
 
     return (

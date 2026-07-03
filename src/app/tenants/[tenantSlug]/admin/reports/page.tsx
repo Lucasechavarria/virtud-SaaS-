@@ -23,11 +23,26 @@ import {
     Bar
 } from 'recharts';
 import { toast } from 'react-hot-toast';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 export default function AdminReportsPage() {
     const params = useParams();
+    const router = useRouter();
     const tenantSlug = params?.tenantSlug;
+    const [isSubdomain, setIsSubdomain] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const host = window.location.host.split(':')[0];
+            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
+            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
+            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
+        }
+    }, []);
+
+    const getLink = (path: string) => {
+        return isSubdomain ? path : `/${tenantSlug}${path}`;
+    };
 
     const [dateRange, setDateRange] = useState('month');
     const [loading, setLoading] = useState(true);
@@ -150,6 +165,14 @@ export default function AdminReportsPage() {
                 </div>
 
                 <div className="flex gap-4">
+                    <button
+                        onClick={() => router.push(getLink('/admin/reports/reception'))}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#1c1c1e] hover:bg-[#2c2c2e] text-white rounded-lg border border-white/5 transition-colors font-bold"
+                    >
+                        <Users size={20} className="text-purple-400" />
+                        Reporte de Recepción
+                    </button>
+
                     <select
                         value={dateRange}
                         onChange={(e) => setDateRange(e.target.value)}
@@ -291,6 +314,27 @@ export default function AdminReportsPage() {
                                 />
                             </BarChart>
                         </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Access Section */}
+            <div className="mt-8 border-t border-white/5 pt-8">
+                <h3 className="text-xl font-bold text-white mb-6">Módulos de Reportes Especializados</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div 
+                        onClick={() => router.push(getLink('/admin/reports/reception'))}
+                        className="relative overflow-hidden bg-gradient-to-r from-purple-900/10 to-indigo-900/10 border border-purple-500/10 hover:border-purple-500/30 p-6 rounded-2xl group transition-all duration-300 cursor-pointer flex justify-between items-center"
+                    >
+                        <div className="space-y-2 relative z-10">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">📋</span>
+                                <h4 className="text-lg font-bold text-white group-hover:text-purple-400 transition-colors">Reporte de Recepción</h4>
+                            </div>
+                            <p className="text-sm text-gray-400 max-w-md">Control consolidado de ingresos, logs de bypasses manuales con justificación y arqueos de caja/diferencias de recepción.</p>
+                        </div>
+                        <ArrowUpRight size={24} className="text-purple-400 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform relative z-10" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     </div>
                 </div>
             </div>

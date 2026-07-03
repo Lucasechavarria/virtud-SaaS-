@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -38,17 +38,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Socio no encontrado' }, { status: 404 });
         }
 
-        // Blindaje multitenant: Si el recepcionista no es superadmin, debe compartir gimnasio con el socio
-        if (profile?.role !== 'superadmin' && profile?.gimnasio_id !== socioProfile.gimnasio_id) {
+        // Blindaje multitenant: El recepcionista solo puede autorizar ingresos en su propio gimnasio
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, socioProfile.gimnasio_id);
+        if (errorResponse) return errorResponse;
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Gimnasio de destino no especificado' }, { status: 400 });
+        }
+
+        if (profile?.role !== 'superadmin' && profile?.gimnasio_id !== targetGymId) {
             return NextResponse.json({ error: 'No tienes permiso para autorizar ingresos en este gimnasio' }, { status: 403 });
         }
 
-        const targetGymId = socioProfile.gimnasio_id;
-        if (!targetGymId) {
-            return NextResponse.json({ error: 'El socio no tiene un gimnasio asignado' }, { status: 400 });
-        }
-
-        // 1. Insertar registro de asistencia excepcional
+        // 1. Insertar registro de asistencia excepcional en la sucursal actual (aforo físico real)
         const { error: asistenciaError } = await adminClient
             .from('asistencias')
             .insert({
@@ -65,7 +67,13 @@ export async function POST(request: Request) {
         }
 
         // 2. Registrar evento inmutable en auditoria_global
-        const recepcionistaNombre = profile?.nombre_completo || `${profile?.nombre || 'Recepcionista'} ${profile?.apellido || ''}`.trim();
+        const { data: userProfile } = await adminClient
+            .from('perfiles')
+            .select('nombre_completo')
+            .eq('id', user.id)
+            .single();
+
+        const recepcionistaNombre = userProfile?.nombre_completo || 'Recepcionista';
         const socioNombre = socioProfile.nombre_completo || `${socioProfile.nombre || 'Socio'} ${socioProfile.apellido || ''}`.trim();
 
         const { error: auditError } = await adminClient

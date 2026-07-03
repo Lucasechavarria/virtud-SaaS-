@@ -23,15 +23,44 @@ import { supabase } from '@/lib/supabase/client';
 export default function QRAccessPage() {
     const params = useParams();
     const tenantSlug = params?.tenantSlug as string;
+    const [isSubdomain, setIsSubdomain] = useState(false);
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const host = window.location.host.split(':')[0];
+            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
+            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
+            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
+        }
+    }, []);
+
     const getTenantLink = (href: string) => {
-        return tenantSlug ? `/${tenantSlug}${href}` : href;
+        return isSubdomain ? href : (tenantSlug ? `/${tenantSlug}${href}` : href);
     };
 
-    const [scanData, setScanData] = useState('');
     const [lastScanResult, setLastScanResult] = useState<any>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
     const [flashColor, setFlashColor] = useState<'neutral' | 'success' | 'error'>('neutral');
     const [recentScans, setRecentScans] = useState<any[]>([]);
+    const [gymId, setGymId] = useState<string | null>(null);
+
+    // Resolver el gimnasio_id de forma asíncrona a partir del tenantSlug
+    useEffect(() => {
+        const resolveGymId = async () => {
+            if (!tenantSlug) return;
+            try {
+                const { data, error } = await supabase
+                    .from('gimnasios')
+                    .select('id')
+                    .eq('slug', tenantSlug)
+                    .single();
+                if (data) {
+                    setGymId(data.id);
+                }
+            } catch (err) {
+                console.error('Error resolving gym ID from slug:', err);
+            }
+        };
+        resolveGymId();
+    }, [tenantSlug]);
 
     // Estados de Ingreso Excepcional (Bypass)
     const [showBypassModal, setShowBypassModal] = useState(false);
@@ -88,38 +117,117 @@ export default function QRAccessPage() {
         }
     };
 
-    // Keep focus on hidden input to catch USB Scanner emulated keystrokes
+    const [audioUnlocked, setAudioUnlocked] = useState(false);
+
+    // Desbloquear AudioContext al primer gesto del usuario (clic o pulsación)
     useEffect(() => {
-        const focusInput = () => {
-            if (inputRef.current) {
-                // Only refocus if the modal and manual search are not active to avoid focus hijacking
-                if (!showBypassModal && !isManualSearching) {
-                    inputRef.current.focus();
+        const unlockAudio = () => {
+            try {
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                const ctx = new AudioContextClass();
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
                 }
+                setAudioUnlocked(true);
+                window.removeEventListener('click', unlockAudio);
+                window.removeEventListener('keydown', unlockAudio);
+            } catch (e) {
+                console.warn('AudioContext failed to unlock', e);
             }
         };
+        window.addEventListener('click', unlockAudio);
+        window.addEventListener('keydown', unlockAudio);
+        return () => {
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+        };
+    }, []);
 
-        focusInput();
-        const intervalId = setInterval(focusInput, 2000); // Re-focus periodically
-
-        return () => clearInterval(intervalId);
-    }, [showBypassModal, isManualSearching]);
-
-    // Also refocus on click anywhere (if modal and manual search are not active)
+    // Listener global de teclado para el escáner de QR USB (captura pulsaciones de teclado ultrarrápidas)
     useEffect(() => {
-        const handleClick = (e: MouseEvent) => {
-            // Evitar redirigir el foco si se hace clic dentro del buscador manual
-            const searchEl = document.getElementById('manual-search-container');
-            if (searchEl && searchEl.contains(e.target as Node)) {
+        let buffer = '';
+        let lastKeyTime = Date.now();
+
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            // Evitar secuestrar eventos si el foco está en un input real (para búsquedas manuales o justificaciones de bypass)
+            const activeEl = document.activeElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
                 return;
             }
-            if (!showBypassModal && !isManualSearching) {
-                inputRef.current?.focus();
+
+            const currentTime = Date.now();
+            
+            // Si el retraso entre pulsaciones supera los 50ms, asumimos escritura manual y limpiamos búfer
+            if (currentTime - lastKeyTime > 50) {
+                buffer = '';
+            }
+
+            lastKeyTime = currentTime;
+
+            if (e.key === 'Enter') {
+                if (buffer.length > 0) {
+                    const tokenVal = buffer.trim();
+                    (async () => {
+                        setFlashColor('neutral');
+                        setLastScanResult(null);
+
+                        let result: any = null;
+                        try {
+                            const res = await fetch('/api/access/validate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ token: tokenVal, gymId })
+                            });
+
+                            if (!res.ok) {
+                                result = { status: 'denied', reason: 'unknown', message: 'Error al conectar con el servidor' };
+                            } else {
+                                result = await res.json();
+                            }
+                        } catch (_err) {
+                            result = { status: 'denied', reason: 'unknown', message: 'Error de red' };
+                        }
+
+                        setLastScanResult(result);
+                        const isSuccess = result.status === 'allowed';
+                        setFlashColor(isSuccess ? 'success' : 'error');
+
+                        // Reproducir alertas de sonido
+                        if (isSuccess) {
+                            playSuccessSound();
+                        } else {
+                            playErrorSound();
+                        }
+
+                        if (result.member) {
+                            const timeNow = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            const newScan = {
+                                id: `${Date.now()}-${Math.random()}`,
+                                status: result.status,
+                                message: result.message,
+                                reason: result.reason,
+                                deuda: result.deuda,
+                                timestamp: timeNow,
+                                member: {
+                                    id: result.member.id,
+                                    nombre: result.member.nombre,
+                                    avatar: result.member.avatar,
+                                    plan: result.member.plan
+                                }
+                            };
+                            setRecentScans(prev => [newScan, ...prev].slice(0, 5));
+                        }
+                    })();
+                    buffer = '';
+                }
+            } else if (e.key.length === 1) {
+                buffer += e.key;
             }
         };
-        window.addEventListener('click', handleClick);
-        return () => window.removeEventListener('click', handleClick);
-    }, [showBypassModal, isManualSearching]);
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [tenantSlug]);
 
     // Auto-clear result after 6 seconds to be ready for next person
     useEffect(() => {
@@ -135,18 +243,23 @@ export default function QRAccessPage() {
 
     // Suscripción Realtime (WebSockets) a la tabla de asistencias
     useEffect(() => {
-        if (!tenantSlug) return;
+        if (!gymId) return;
 
         const channel = supabase
             .channel('reception_asistencias_realtime')
             .on(
                 'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'asistencias' },
+                { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: 'asistencias',
+                    filter: `gimnasio_id=eq.${gymId}`
+                },
                 async (payload) => {
                     const newAsistencia = payload.new;
                     if (!newAsistencia || !newAsistencia.usuario_id) return;
 
-                    // Consultar los datos del alumno y su gimnasio (para filtrar multitenant)
+                    // Consultar los datos del alumno (ya filtrado por sucursal en el canal realtime)
                     const { data: student, error: studentError } = await (supabase.from('perfiles') as any)
                         .select(`
                             id,
@@ -155,16 +268,12 @@ export default function QRAccessPage() {
                             nombre_completo,
                             url_avatar,
                             gimnasio_id,
-                            gimnasios(slug),
                             plan_id
                         `)
                         .eq('id', newAsistencia.usuario_id)
                         .single();
 
                     if (studentError || !student) return;
-
-                    const activeGymSlug = student.gimnasios?.slug || student.gimnasio_id;
-                    if (activeGymSlug !== tenantSlug) return; // Filtro perimetral del gimnasio actual
 
                     let planName = 'Sin Plan';
                     if (student.plan_id) {
@@ -224,11 +333,11 @@ export default function QRAccessPage() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [tenantSlug]);
+    }, [gymId]);
 
     // Efecto para buscar alumnos con debounce
     useEffect(() => {
-        if (!searchQuery.trim()) {
+        if (!searchQuery.trim() || !gymId) {
             setSearchResults([]);
             return;
         }
@@ -240,7 +349,7 @@ export default function QRAccessPage() {
                 const { data, error } = await supabase
                     .from('perfiles')
                     .select('id, nombre_completo, nombre, apellido, correo, dni, url_avatar, estado_membresia')
-                    .eq('gimnasio_id', tenantSlug)
+                    .eq('gimnasio_id', gymId)
                     .or(`nombre_completo.ilike.%${searchQuery}%,correo.ilike.%${searchQuery}%,dni.ilike.%${searchQuery}%`)
                     .limit(10);
 
@@ -254,7 +363,7 @@ export default function QRAccessPage() {
         }, 300);
 
         return () => clearTimeout(delayDebounce);
-    }, [searchQuery, tenantSlug]);
+    }, [searchQuery, gymId]);
 
     // Check-in manual por ID de alumno
     const handleManualCheckIn = async (studentId: string) => {
@@ -266,7 +375,7 @@ export default function QRAccessPage() {
             const res = await fetch('/api/access/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ socioId: studentId })
+                body: JSON.stringify({ socioId: studentId, gymId })
             });
 
             if (!res.ok) {
@@ -310,17 +419,17 @@ export default function QRAccessPage() {
         }
     };
 
-    const handleScan = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const tokenVal = scanData.trim();
-        if (!tokenVal) return;
+    // Función helper únicamente para los botones de prueba en la interfaz
+    const runTestScan = async (tokenVal: string) => {
+        setFlashColor('neutral');
+        setLastScanResult(null);
 
         let result: any = null;
         try {
             const res = await fetch('/api/access/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: tokenVal })
+                body: JSON.stringify({ token: tokenVal, gymId })
             });
 
             if (!res.ok) {
@@ -336,14 +445,13 @@ export default function QRAccessPage() {
         const isSuccess = result.status === 'allowed';
         setFlashColor(isSuccess ? 'success' : 'error');
 
-        // Play feedback sounds
+        // Reproducir feedback de sonido
         if (isSuccess) {
             playSuccessSound();
         } else {
             playErrorSound();
         }
 
-        // Prepend to recent scans list if it was a success (for dynamic history)
         if (result.member) {
             const timeNow = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const newScan = {
@@ -362,8 +470,6 @@ export default function QRAccessPage() {
             };
             setRecentScans(prev => [newScan, ...prev].slice(0, 5));
         }
-
-        setScanData(''); // Clear input for next scan
     };
 
     // Procesar la autorización de ingreso excepcional (Bypass)
@@ -434,23 +540,12 @@ export default function QRAccessPage() {
     return (
         <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] gap-6 text-white overflow-hidden relative">
             
-            {/* Hidden Input for Physical USB Scanner Emulation */}
-            <form onSubmit={handleScan} className="absolute opacity-0 pointer-events-none">
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={scanData}
-                    onChange={(e) => setScanData(e.target.value)}
-                    autoFocus
-                />
-            </form>
-
             {/* Test Controls (Only for development MVP) */}
             <div className="absolute top-4 left-4 flex gap-2 z-50 opacity-20 hover:opacity-100 transition-opacity">
-                <button onClick={() => { setScanData('valid-qr-123'); setTimeout(() => handleScan({ preventDefault: () => { } } as any), 10); }} className="bg-emerald-500/20 text-emerald-500 text-xs px-2 py-1 rounded">Test OK</button>
-                <button onClick={() => { setScanData('invalid-deuda-456'); setTimeout(() => handleScan({ preventDefault: () => { } } as any), 10); }} className="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded">Test Deuda</button>
-                <button onClick={() => { setScanData('invalid-medico-789'); setTimeout(() => handleScan({ preventDefault: () => { } } as any), 10); }} className="bg-orange-500/20 text-orange-500 text-xs px-2 py-1 rounded">Test Médico</button>
-                <button onClick={() => { setScanData('random-xxx'); setTimeout(() => handleScan({ preventDefault: () => { } } as any), 10); }} className="bg-gray-500/20 text-gray-500 text-xs px-2 py-1 rounded">Test Fail</button>
+                <button onClick={() => runTestScan('valid-qr-123')} className="bg-emerald-500/20 text-emerald-500 text-xs px-2 py-1 rounded">Test OK</button>
+                <button onClick={() => runTestScan('invalid-deuda-456')} className="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded">Test Deuda</button>
+                <button onClick={() => runTestScan('invalid-medico-789')} className="bg-orange-500/20 text-orange-500 text-xs px-2 py-1 rounded">Test Médico</button>
+                <button onClick={() => runTestScan('random-xxx')} className="bg-gray-500/20 text-gray-500 text-xs px-2 py-1 rounded">Test Fail</button>
             </div>
 
             {/* SECCIÓN IZQUIERDA: LECTOR Y RESULTADO GIGANTE */}
@@ -707,6 +802,13 @@ export default function QRAccessPage() {
                                                 <p className="text-3xl text-white font-black italic tracking-tighter">${lastScanResult.deuda?.toLocaleString('es-AR')}</p>
                                             </div>
                                         )}
+
+                                        {lastScanResult.reason === 'passback' && (
+                                            <div className="text-right max-w-[200px]">
+                                                <p className="text-amber-500 text-[10px] font-black uppercase tracking-widest leading-tight">Alerta de Seguridad</p>
+                                                <p className="text-[11px] text-gray-400 font-medium mt-1">Ingreso duplicado registrado hace menos de 20 minutos.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -757,13 +859,37 @@ export default function QRAccessPage() {
 
             {/* SECCIÓN DERECHA: HISTORIAL DE ACCESOS RECIENTES */}
             <div className="w-full lg:w-96 bg-[#1c1c1e] rounded-[2rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl p-6">
-                <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-4">
-                    <div className="bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20">
-                        <ScanLine className="text-emerald-500" size={20} />
+                <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20">
+                            <ScanLine className="text-emerald-500" size={20} />
+                        </div>
+                        <div>
+                            <h2 className="text-sm font-black italic uppercase tracking-wider">Últimos Accesos</h2>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Historial de la Sesión</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-sm font-black italic uppercase tracking-wider">Últimos Accesos</h2>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Historial de la Sesión</p>
+                    <div
+                        onClick={() => {
+                            if (!audioUnlocked) {
+                                try {
+                                    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                                    const ctx = new AudioContextClass();
+                                    ctx.resume();
+                                    setAudioUnlocked(true);
+                                } catch (e) {
+                                    console.warn('Silent AudioContext unlock failed', e);
+                                }
+                            }
+                        }}
+                        className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all select-none ${
+                            audioUnlocked
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse cursor-pointer'
+                        }`}
+                        title={audioUnlocked ? 'Alertas de sonido activadas' : 'Sonido bloqueado por el navegador. Clic para activar.'}
+                    >
+                        {audioUnlocked ? '🔊 Activo' : '🔇 Activar'}
                     </div>
                 </div>
 

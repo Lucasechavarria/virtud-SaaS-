@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -13,19 +13,25 @@ export async function POST(request: Request) {
         const { error: authError, profile, user } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
-        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
-            return NextResponse.json({ error: 'No tienes un gimnasio asignado' }, { status: 403 });
-        }
-
+        const { searchParams } = new URL(request.url);
         const body = await request.json();
-        const { concepto, monto } = body;
+        const {
+            monto,
+            concepto
+        } = body;
+        const urlGym = searchParams.get('gymId') || body.gymId || body.gym;
 
-        if (!concepto || monto === undefined || isNaN(Number(monto)) || Number(monto) <= 0) {
-            return NextResponse.json({ error: 'Concepto y monto válidos requeridos' }, { status: 400 });
+        if (!monto || isNaN(Number(monto)) || Number(monto) <= 0 || !concepto || !concepto.trim()) {
+            return NextResponse.json({ error: 'Monto y concepto válidos son requeridos' }, { status: 400 });
         }
 
-        const targetGymId = profile?.gimnasio_id;
         const adminClient = createAdminClient();
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, urlGym);
+        if (errorResponse) return errorResponse;
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
+        }
 
         // 1. Obtener la última apertura de caja activa
         const { data: lastApertura, error: eventError } = await adminClient
@@ -57,9 +63,34 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'El turno de caja ya se encuentra cerrado' }, { status: 400 });
         }
 
-        // 3. Añadir el egreso a los detalles
-        const detalles = lastApertura.detalles || {};
-        const egresos = detalles.egresos || [];
+        const egresosPrevios = lastApertura.detalles?.egresos || [];
+        const totalEgresosPrevios = egresosPrevios.reduce((acc: number, curr: any) => acc + Number(curr.monto || 0), 0);
+        const montoInicial = Number(lastApertura.detalles?.monto_inicial || 0);
+
+        // Consultar las ventas en efectivo aprobadas en este turno
+        const { data: payments, error: paymentsError } = await adminClient
+            .from('pagos')
+            .select('monto')
+            .eq('gimnasio_id', targetGymId)
+            .eq('aprobado_por', user.id)
+            .eq('estado', 'approved')
+            .eq('metodo_pago', 'efectivo')
+            .gte('aprobado_en', lastApertura.creado_en);
+
+        if (paymentsError) {
+            console.error('Error al verificar ventas en efectivo para egreso:', paymentsError);
+            return NextResponse.json({ error: 'Error al verificar ventas en efectivo en la base de datos' }, { status: 500 });
+        }
+
+        const totalVentasEfectivo = (payments || []).reduce((acc: number, curr: any) => acc + Number(curr.monto || 0), 0);
+        const efectivoDisponible = montoInicial + totalVentasEfectivo - totalEgresosPrevios;
+
+        if (Number(monto) > efectivoDisponible) {
+            return NextResponse.json({ 
+                error: `Saldo de efectivo insuficiente en la caja chica. Efectivo disponible: $${efectivoDisponible}` 
+            }, { status: 400 });
+        }
+
         const nuevoEgreso = {
             id: `${Date.now()}-${Math.random()}`,
             concepto: concepto.trim(),
@@ -67,15 +98,13 @@ export async function POST(request: Request) {
             fecha: new Date().toISOString()
         };
         
-        detalles.egresos = [...egresos, nuevoEgreso];
+        const { error: rpcError } = await adminClient.rpc('registrar_egreso_caja', {
+            p_apertura_id: lastApertura.id,
+            p_egreso: nuevoEgreso
+        });
 
-        const { error: updateError } = await adminClient
-            .from('auditoria_global' as any)
-            .update({ detalles })
-            .eq('id', lastApertura.id);
-
-        if (updateError) {
-            console.error('Error al actualizar egresos de caja:', updateError);
+        if (rpcError) {
+            console.error('Error al registrar egreso de caja con RPC:', rpcError);
             return NextResponse.json({ error: 'Error al registrar el egreso en la base de datos' }, { status: 500 });
         }
 

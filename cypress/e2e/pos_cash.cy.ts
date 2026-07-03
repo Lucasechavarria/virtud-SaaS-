@@ -42,7 +42,7 @@ describe('POS Cash Register and Shift Verification Flow', () => {
         cy.contains('button', /Iniciar Caja y Turno/i).should('not.be.disabled').click();
 
         cy.wait('@postCashOpen').then((interception) => {
-            expect(interception.request.body).to.deep.equal({ montoInicial: 5000 });
+            expect(interception.request.body).to.deep.equal({ montoInicial: 5000, gymId: 'virtud' });
         });
     });
 
@@ -119,7 +119,8 @@ describe('POS Cash Register and Shift Verification Flow', () => {
         cy.wait('@postCashEgreso').then((interception) => {
             expect(interception.request.body).to.deep.equal({
                 concepto: 'Papelería',
-                monto: 350
+                monto: 350,
+                gymId: 'virtud'
             });
         });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -13,20 +13,12 @@ export async function GET(request: Request) {
         const { error: authError, profile } = await authenticateAndRequireRole(request, ['admin', 'superadmin', 'recepcion']);
         if (authError) return authError;
 
-        // Si no es superadmin, requiere gimnasio asignado
-        if (profile?.role !== 'superadmin' && !profile?.gimnasio_id) {
-            return NextResponse.json({ error: 'No tienes un gimnasio asignado' }, { status: 403 });
-        }
-
         const { searchParams } = new URL(request.url);
         const gymId = searchParams.get('gymId');
 
-        let targetGymId = profile?.gimnasio_id;
         const adminClient = createAdminClient();
-
-        if (profile?.role === 'superadmin' && gymId) {
-            targetGymId = gymId;
-        }
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, gymId);
+        if (errorResponse) return errorResponse;
 
         if (!targetGymId) {
             return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
