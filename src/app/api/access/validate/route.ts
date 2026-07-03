@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
+import { authenticateAndRequireRole, resolveGymIdForAdmin } from '@/lib/auth/api-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
         if (authError) return authError;
 
         const body = await request.json();
-        const { token, socioId } = body;
+        const { token, socioId, gymId } = body;
 
         if (!token && !socioId) {
             return NextResponse.json({ error: 'Token o socioId requerido' }, { status: 400 });
@@ -94,9 +94,17 @@ export async function POST(request: Request) {
             plan: planName
         };
 
+        // Resolver gimnasio multitenant
+        const { targetGymId, errorResponse } = await resolveGymIdForAdmin(profile, gymId);
+        if (errorResponse) return errorResponse;
+
+        if (!targetGymId) {
+            return NextResponse.json({ error: 'Gimnasio no especificado' }, { status: 400 });
+        }
+
         // Validación de Aislamiento de Sucursales (inter-gimnasio QR Access Block)
         // El alumno solo puede registrar ingreso en la sucursal a la que pertenece
-        if (profile?.gimnasio_id && student.gimnasio_id !== profile.gimnasio_id) {
+        if (student.gimnasio_id !== targetGymId) {
             return NextResponse.json({
                 status: 'denied',
                 reason: 'wrong_gym',
@@ -160,6 +168,31 @@ export async function POST(request: Request) {
             });
         }
 
+        const haceVeinteMinutos = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+        const { data: recentCheckIn, error: checkInError } = await adminClient
+            .from('asistencias')
+            .select('entrada')
+            .eq('usuario_id', student.id)
+            .eq('gimnasio_id', targetGymId)
+            .gte('entrada', haceVeinteMinutos)
+            .not('source', 'eq', 'reception_bypass')
+            .order('entrada', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (checkInError) {
+            console.error('Error al comprobar Anti-Passback para el alumno:', checkInError);
+        }
+
+        if (recentCheckIn) {
+            return NextResponse.json({
+                status: 'denied',
+                reason: 'passback',
+                message: 'Código QR ya utilizado recientemente',
+                member: memberInfo
+            });
+        }
+
         // 6. Autorización Exitosa
         // A. Quemar el token si se utilizó QR
         if (token && qrData) {
@@ -178,12 +211,12 @@ export async function POST(request: Request) {
             }
         }
 
-        // B. Registrar asistencia en la base de datos
+        // B. Registrar asistencia en la base de datos vinculada a la sucursal del recepcionista (aforo real)
         const { error: asistenciaError } = await adminClient
             .from('asistencias')
             .insert({
                 usuario_id: student.id,
-                gimnasio_id: token && qrData ? qrData.gimnasio_id : student.gimnasio_id,
+                gimnasio_id: targetGymId,
                 rol_asistencia: 'member',
                 entrada: new Date().toISOString(),
                 source: token ? 'qr' : 'reception_manual'

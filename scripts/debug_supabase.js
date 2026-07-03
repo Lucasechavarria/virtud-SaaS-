@@ -26,7 +26,7 @@ async function testConnection() {
     console.log(`🔗 Conectando a: ${url}`);
 
     try {
-        const response = await fetch(`${url}/rest/v1/profiles?select=count`, {
+        const response = await fetch(`${url}/rest/v1/perfiles?select=count`, {
             headers: {
                 'apikey': key,
                 'Authorization': `Bearer ${key}`,

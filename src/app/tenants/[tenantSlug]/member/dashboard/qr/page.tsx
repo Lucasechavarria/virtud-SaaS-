@@ -12,6 +12,20 @@ import Link from 'next/link';
 export default function StudentQRPage() {
     const params = useParams();
     const tenantSlug = params.tenantSlug as string;
+    const [isSubdomain, setIsSubdomain] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const host = window.location.host.split(':')[0];
+            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
+            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
+            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
+        }
+    }, []);
+
+    const getLink = (path: string) => {
+        return isSubdomain ? path : `/${tenantSlug}${path}`;
+    };
 
     const [timeLeft, setTimeLeft] = useState(30);
     const [qrValue, setQrValue] = useState('generando...');
@@ -143,7 +157,7 @@ export default function StudentQRPage() {
                                 <p className="text-xs font-bold text-gray-400 mb-6">Debes regularizar tu membresía o firmar el deslinde médico para acceder al QR.</p>
                                 
                                 {profile?.estado_membresia === 'active' && !profile?.parq_firmado && (
-                                    <Link href={`/tenants/${tenantSlug}/member/dashboard/profile/parq`}>
+                                    <Link href={getLink('/member/dashboard/profile/parq')}>
                                         <button className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] py-3 px-6 rounded-xl transition-all">
                                             Firmar Apto Médico (PAR-Q)
                                         </button>

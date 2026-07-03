@@ -71,7 +71,7 @@ export async function GET(request: Request) {
             .eq('gimnasio_id', targetGymId)
             .eq('aprobado_por', user.id)
             .eq('estado', 'approved')
-            .gte('creado_en', fechaApertura);
+            .gte('aprobado_en', fechaApertura);
 
         if (paymentsError) {
             console.error('Error al consultar ventas de caja:', paymentsError);

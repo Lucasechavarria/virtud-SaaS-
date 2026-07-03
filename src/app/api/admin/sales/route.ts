@@ -73,86 +73,28 @@ export async function POST(request: Request) {
         }));
 
         let ventaId = null;
-        const montoMembresia = membresia ? Number(membresia.precio) : 0;
-        const montoRPC = Number(montoTotalCobrado) - montoMembresia;
 
-        // A. Ejecutar el RPC para productos, cuotas y abono CC (si el monto es > 0 o hay ítems)
-        if (montoRPC > 0 || formattedProducts.length > 0 || (pagosSaldar && pagosSaldar.length > 0)) {
-            const { data: rpcVentaId, error: txError } = await adminClient.rpc('procesar_venta_pos', {
-                p_gimnasio_id: targetGymId,
-                p_vendedor_id: user!.id,
-                p_socio_id: socioId || null,
-                p_productos: formattedProducts,
-                p_pagos_saldar: pagosSaldar || [],
-                p_monto_abono_cc: Number(montoAbonoCC || 0),
-                p_metodo_pago: metodoPago,
-                p_monto_total: montoRPC
-            });
+        // Ejecutar el RPC unificado procesar_venta_pos_v2 para productos, cuotas, membresía y abono CC
+        const { data: rpcVentaId, error: txError } = await adminClient.rpc('procesar_venta_pos_v2', {
+            p_gimnasio_id: targetGymId,
+            p_vendedor_id: user!.id,
+            p_socio_id: socioId || null,
+            p_productos: formattedProducts,
+            p_pagos_saldar: pagosSaldar || [],
+            p_monto_abono_cc: Number(montoAbonoCC || 0),
+            p_membresia: membresia || null,
+            p_metodo_pago: metodoPago,
+            p_monto_total: Number(montoTotalCobrado)
+        });
 
-            if (txError) {
-                console.error('Error in POS sales transaction:', txError);
-                return NextResponse.json({
-                    error: txError.message || 'Error al procesar la venta en la base de datos',
-                    details: txError.details
-                }, { status: 400 });
-            }
-            ventaId = rpcVentaId;
+        if (txError) {
+            console.error('Error in POS sales transaction:', txError);
+            return NextResponse.json({
+                error: txError.message || 'Error al procesar la venta en la base de datos',
+                details: txError.details
+            }, { status: 400 });
         }
-
-        // B. Procesar la venta de la membresía de manera directa si se especifica y hay un socio
-        if (membresia && socioId) {
-            // 1. Obtener la membresía actual del socio para soportar renovaciones anticipadas sin pérdida de días
-            const { data: currentProfile } = await adminClient
-                .from('perfiles')
-                .select('fecha_fin_membresia, estado_membresia')
-                .eq('id', socioId)
-                .single();
-
-            let fechaInicio = new Date();
-            if (currentProfile?.estado_membresia === 'active' && currentProfile.fecha_fin_membresia) {
-                const currentEndDate = new Date(currentProfile.fecha_fin_membresia);
-                if (currentEndDate > fechaInicio) {
-                    fechaInicio = currentEndDate;
-                }
-            }
-
-            const fechaFin = new Date(fechaInicio);
-            fechaFin.setMonth(fechaFin.getMonth() + (Number(membresia.duracionMeses) || 1));
-
-            // 2. Actualizar el perfil del socio con el nuevo plan
-            const { error: profileError } = await adminClient
-                .from('perfiles')
-                .update({
-                    plan_id: membresia.planId,
-                    estado_membresia: 'active',
-                    fecha_fin_membresia: fechaFin.toISOString()
-                })
-                .eq('id', socioId);
-
-            if (profileError) {
-                console.error('Error al activar membresía del alumno:', profileError);
-                return NextResponse.json({ error: 'Error al activar membresía del alumno' }, { status: 400 });
-            }
-
-            // 3. Crear el registro contable en la tabla pagos como 'approved'
-            const { error: pagoError } = await adminClient
-                .from('pagos')
-                .insert({
-                    usuario_id: socioId,
-                    gimnasio_id: targetGymId,
-                    monto: montoMembresia,
-                    concepto: `Adquisición Plan: ${membresia.nombre}`,
-                    metodo_pago: metodoPago,
-                    estado: 'approved',
-                    aprobado_por: user!.id,
-                    aprobado_en: new Date().toISOString()
-                });
-
-            if (pagoError) {
-                console.error('Error al registrar pago de membresía:', pagoError);
-                return NextResponse.json({ error: 'Error al registrar pago de membresía' }, { status: 400 });
-            }
-        }
+        ventaId = rpcVentaId;
 
         return NextResponse.json({
             success: true,

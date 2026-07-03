@@ -474,7 +474,7 @@ export default function POSPage() {
             const res = await fetch('/api/admin/reception/cash-open', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ montoInicial: monto })
+                body: JSON.stringify({ montoInicial: monto, gymId: tenantSlug })
             });
 
             const data = await res.json();
@@ -539,13 +539,25 @@ export default function POSPage() {
             return;
         }
 
+        // Validar saldo de efectivo disponible localmente
+        const totalEgresosPrevios = (cajaTurno?.egresos || []).reduce((acc: number, curr: any) => acc + curr.monto, 0);
+        const montoInicial = Number(cajaTurno?.montoInicial || 0);
+        const ventasEfectivo = Number(cajaTurno?.ventasEfectivo || 0);
+        const disponible = montoInicial + ventasEfectivo - totalEgresosPrevios;
+
+        if (monto > disponible) {
+            alert(`Saldo de efectivo insuficiente en la caja chica. Efectivo disponible: $${disponible.toLocaleString('es-AR')}`);
+            return;
+        }
+
         try {
             const res = await fetch('/api/admin/reception/cash-egreso', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     concepto: egresoConcepto.trim(),
-                    monto: monto
+                    monto: monto,
+                    gymId: tenantSlug
                 })
             });
 
@@ -580,37 +592,14 @@ export default function POSPage() {
             return;
         }
 
-        const stored = localStorage.getItem('virtud_caja_turno');
-        if (!stored) return;
-
         try {
             setClosingCashRegister(true);
-            const parsed = JSON.parse(stored);
             
-            const totalEgresos = (parsed.egresos || []).reduce((acc: number, curr: any) => acc + curr.monto, 0);
-            
-            const efEsperado = parsed.montoInicial + parsed.ventasEfectivo - totalEgresos;
-            const tjEsperado = parsed.ventasTarjeta;
-            const qrEsperado = parsed.ventasQR;
-
-            const difEf = efDec - efEsperado;
-            const difTj = tjDec - tjEsperado;
-            const difQr = qrDec - qrEsperado;
-
             const payload = {
-                montoInicial: parsed.montoInicial,
-                ventasEfectivo: parsed.ventasEfectivo,
-                ventasTarjeta: parsed.ventasTarjeta,
-                ventasQR: parsed.ventasQR,
-                egresos: parsed.egresos,
                 efectivoDeclarado: efDec,
                 tarjetaDeclarado: tjDec,
                 qrDeclarado: qrDec,
-                diferenciaEfectivo: difEf,
-                diferenciaTarjeta: difTj,
-                diferenciaQR: difQr,
-                fechaApertura: parsed.fechaApertura,
-                fechaCierre: new Date().toISOString()
+                gymId: tenantSlug
             };
 
             const res = await fetch('/api/admin/reception/cash-close', {
@@ -774,27 +763,28 @@ export default function POSPage() {
             // Si la caja no está abierta, no permitir los demás atajos
             if (!isCashRegisterOpen) return;
 
-            // 2. Navegación de Pestañas con F1, F2, F3
-            if (e.key === 'F1') {
+            // 2. Navegación de Pestañas con Alt + 1, Alt + 2, Alt + 3
+            if (e.altKey && e.key === '1') {
                 e.preventDefault();
                 setActiveTab('tienda');
-            } else if (e.key === 'F2') {
+            } else if (e.altKey && e.key === '2') {
                 e.preventDefault();
                 setActiveTab('membresias');
-            } else if (e.key === 'F3') {
+            } else if (e.altKey && e.key === '3') {
                 e.preventDefault();
                 setActiveTab('caja');
             }
-
-            // 3. Confirmación de Cobros con F8, F9, F10
-            if (totalToPay > 0 && !processingSale) {
-                if (e.key === 'F8') {
+ 
+            // 3. Confirmación de Cobros con Alt + E, Alt + T, Alt + Q
+            if (totalToPay > 0 && !processingSale && e.altKey) {
+                const keyLower = e.key.toLowerCase();
+                if (keyLower === 'e') {
                     e.preventDefault();
                     handleCheckout('efectivo');
-                } else if (e.key === 'F9') {
+                } else if (keyLower === 't') {
                     e.preventDefault();
                     handleCheckout('tarjeta');
-                } else if (e.key === 'F10') {
+                } else if (keyLower === 'q') {
                     e.preventDefault();
                     handleCheckout('qr');
                 }
@@ -1795,6 +1785,17 @@ export default function POSPage() {
                         <div className="bg-[#1c1c1e] border border-white/10 rounded-3xl w-full max-w-sm p-6 space-y-4">
                             <h3 className="text-lg font-black italic uppercase text-white">Registrar Egreso Menor</h3>
                             <p className="text-xs text-gray-400">Salida de efectivo de la caja chica para compras o egresos autorizados.</p>
+
+                            {cajaTurno && (() => {
+                                const totalEgresos = (cajaTurno.egresos || []).reduce((acc: number, curr: any) => acc + curr.monto, 0);
+                                const disponible = (cajaTurno.montoInicial || 0) + (cajaTurno.ventasEfectivo || 0) - totalEgresos;
+                                return (
+                                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-3.5 py-2.5 rounded-2xl flex justify-between font-bold">
+                                        <span>Efectivo disponible:</span>
+                                        <span className="font-mono font-black">${disponible.toLocaleString('es-AR')}</span>
+                                    </div>
+                                );
+                            })()}
                             
                             <div className="space-y-3">
                                 <div className="space-y-1">
