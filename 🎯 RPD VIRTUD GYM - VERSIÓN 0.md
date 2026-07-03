@@ -1507,19 +1507,42 @@ El staff de la recepción del gimnasio (`rol = 'receptionist'` o staff administr
 #### **Flujo Operativo de Recepción:**
 1. **Monitoreo en Vivo (WebSockets):** El recepcionista mantiene abierta la pantalla de accesos, que escucha mediante Supabase Realtime las inserciones en la tabla `registro_asistencias`. Al escanear un QR, el panel renderiza en menos de 300 ms la ficha del alumno, foto de perfil (`url_avatar`) e indicador de estado.
 2. **Alertas Críticas:** La interfaz inyecta alertas sonoras y visuales diferenciadas:
-   * 🟢 **Verde:** Acceso autorizado. Membresía al día, PAR-Q firmado, sin mora.
+   * 🟢 **Verde (Acceso Autorizado):** Membresía al día, PAR-Q firmado, sin mora.
    * 🔴 **Rojo (Bloqueado):** Membresía expirada (`fecha_fin_membresia < NOW()`), PAR-Q médico no firmado o exención legal no aceptada.
    * 🟡 **Naranja (Advertencia):** Saldo deudor en cuenta corriente (`saldo_actual < 0`), pero dentro del límite de crédito permitido. Permite pasar pero avisa del pago pendiente.
 3. **Bypass Manual de Molinete:** Si el scanner físico bloquea la entrada del socio (ej: olvidó firmar la exención pero la trae impresa, o promete abonar la deuda al salir), el recepcionista puede forzar la apertura del molinete desde el software presionando "Autorizar Bypass".
-4. **Registro de Bypass:** La API `/api/reception/bypass-access` inserta de forma inmediata el log de asistencia (`asistencias.source = 'reception_bypass'`) y escribe una auditoría inmutable en `public.audit_logs` detallando el `registro_id` del alumno, el `usuario_id` del recepcionista que autorizó y la justificación obligatoria.
+4. **Registro de Bypass:** La API `/api/reception/bypass-access` (o `/api/admin/reception/exceptional-access`) inserta de forma inmediata el log de asistencia (`asistencias.source = 'reception_bypass'`) y escribe una auditoría inmutable en `public.audit_logs` detallando el `registro_id` del alumno, el `usuario_id` del recepcionista que autorizó y la justificación obligatoria (mínimo 6 caracteres).
+
+#### **Detalles de Diseño y Control de Hardware Local:**
+* **Integración del Lector QR USB (Emulación de Teclado):** La pantalla de recepción captura lecturas de escáneres QR físicos configurados en modo emulación de teclado mediante un listener global (`keydown`). Para evitar interferencias con entradas manuales, el sistema implementa una ventana de tiempo estricta de **50 ms** entre pulsaciones. Si el búfer recibe caracteres consecutivamente en intervalos inferiores a este límite, se asume entrada por hardware y se valida el token al recibir un retorno de carro (`Enter`). En caso contrario, el búfer se limpia automáticamente.
+* **Sintetizadores de Audio Nativos (Web Audio API):** Para eliminar la dependencia de red o la descarga de archivos de audio pesados en la recepción, el software utiliza sintetizadores locales mediante la Web Audio API:
+  * **Éxito (Verde):** Tono de alta frecuencia senoidal a **880 Hz** (nota A5) con una rampa exponencial de volumen de 150 ms.
+  * **Error (Rojo):** Tono grave en onda de sierra (sawtooth) a **220 Hz** que cae linealmente a **110 Hz** en 350 ms para un efecto dramático y distinguible.
+* **Control Anti-Passback de Seguridad:** El backend implementa una política estricta de control de re-ingreso para evitar el fraude (ej: capturas de pantalla compartidas en paralelo). Al intentar realizar check-in, la API comprueba si existe un registro previo de asistencia del mismo socio en los últimos **20 minutos** (`entrada >= NOW() - INTERVAL '20 minutes'` y `source != 'reception_bypass'`). Si se encuentra, el acceso es denegado preventivamente.
+* **Rollback de Token QR:** Si durante la transacción de check-in la base de datos no logra registrar la asistencia (ej. corte de conexión intermitente), se realiza un rollback del estado del token en `accesos_qr` (colocando `usado: false`) para asegurar que el socio pueda reintentar la lectura sin invalidar su carnet digital.
+
+---
 
 ### **6.20 Operatoria de Caja del POS de Recepción (Arqueo y Cierre Diario)**
 
 El recepcionista opera la caja diaria del Punto de Venta (POS) local del gimnasio, recaudando abonos a cuenta corriente, pagos de mensualidades e inventario.
 
+#### **Diseño Técnico: Sesiones de Caja Dinámicas en Auditoría Global**
+Para mantener una infraestructura ligera y evitar la sobrecarga de tablas relacionales de mantenimiento técnico, el sistema **no almacena los turnos de caja en tablas independientes**. En su lugar, utiliza la tabla `public.auditoria_global` como un log inmutable de eventos:
+1. **Apertura de Caja:** Se genera un registro con `accion: 'apertura_caja_recepcion'` y un payload JSONB en `detalles` que captura el `monto_inicial` y un arreglo vacío de `egresos`.
+2. **Cierre de Caja (Arqueo):** Se genera un registro con `accion: 'cierre_caja_recepcion'` y un payload JSONB en `detalles` que consolida: monto inicial, ventas reales calculadas de base de datos, egresos incurridos, declaración física del cajero, diferencias resultantes, y marcas de tiempo de apertura y cierre.
+3. **Cálculo de Ventas del Turno en Caliente:** Para determinar las ventas acumuladas del turno actual de forma confiable, el endpoint de estado de caja (`/api/admin/reception/cash-status`) calcula en tiempo real la sumatoria de las transacciones registradas en la tabla `pagos` donde `aprobado_por = usuario_id`, `estado = 'approved'` (o su equivalente) y cuya fecha `aprobado_en` sea superior a la marca de tiempo del último evento de apertura de caja.
+
 #### **Workflow Financiero de Caja:**
 1. **Cobros e Imputaciones:** Cuando un socio realiza un pago en mostrador, el recepcionista registra la venta en el POS o inserta la mensualidad en `pagos`, firmando como `aprobado_por` (Fk `perfiles` con su UUID) y registrando la fecha en `aprobado_en`.
-2. **Arqueo de Turno (Cierre de Caja):** Al finalizar su jornada, el recepcionista ingresa el saldo físico de efectivo e inicia el cierre de caja. El sistema contrasta el dinero real declarado contra los movimientos financieros computados agrupados por método de pago.
+2. **Control Preventivo de Egresos Menores:** El cajero puede declarar egresos menores (ej: compra de insumos de limpieza). El sistema calcula el saldo en efectivo disponible en caliente (`efectivo_disponible = monto_inicial + ventas_efectivo - egresos_acumulados`) y bloquea preventivamente cualquier egreso físico que supere dicho saldo, evitando descuadres matemáticos.
+3. **Arqueo de Turno (Cierre de Caja):** Al finalizar su jornada, el recepcionista ingresa el saldo físico de efectivo, tarjeta y QR. El sistema contrasta la declaración física contra los montos esperados en base a la base de datos y calcula las diferencias.
+
+#### **Atajos de Teclado del POS e Impresión Térmica:**
+* **Navegación y Cobro Rápido:** Para agilizar la atención en horas pico, la interfaz del POS implementa atajos de teclado globales (activos en resoluciones mayores a 1024px):
+  * **Alt + 1 / 2 / 3:** Alterna entre las pestañas "Tienda POS", "Membresías" y "Control de Caja".
+  * **Alt + E / T / Q:** Gatilla y confirma la venta imputando los métodos de pago "Efectivo", "Tarjeta" y "QR" respectivamente.
+* **Impresión de Ticket Físico:** Se integra un diseño CSS específico para impresión mediante `@media print`. Al presionar el botón de imprimir ticket tras un cobro, el navegador oculta toda la interfaz del POS y formatea el ticket en formato Courier de 80mm de ancho con alineación compacta, listo para ser emitido por una ticketera térmica estándar de mostrador.
 
 #### **Query de Auditoría: Arqueo Diario de Caja por Recepcionista:**
 ```sql
@@ -1554,6 +1577,21 @@ FROM cobros_membresias c
 FULL OUTER JOIN ventas_tienda_mostrador v ON c.metodo_pago = v.metodo_pago;
 ```
 
+### **6.21 Reportes de Recepción y Control de Auditoría para el Admin**
+
+Para evaluar la transparencia operativa del Punto de Venta (POS) y los molinetes, el Administrador del gimnasio (Tenant) accede a un módulo de reportería y análisis consolidado sustentado en las APIs del backend:
+
+#### **1. API de Control de Asistencias y Bypass**
+* **Endpoint:** `GET /api/admin/reports/reception/attendance?gymId=[slug]&range=[week|month|custom]&startDate=[date]&endDate=[date]&usuario_id=[id]`
+* **Descripción:** Retorna métricas cuantitativas desglosadas por método de ingreso (QR dinámico, check-in manual y bypass excepcional). 
+* **Auditoría de Bypass:** Expone detalladamente el listado de ingresos forzados por el recepcionista (`BypassLog`), permitiendo al Admin auditar el nombre del alumno, la foto del perfil, la fecha/hora del ingreso, el recepcionista que autorizó la entrada y la justificación obligatoria. Esto previene el ingreso fraudulento de socios en mora no justificados.
+
+#### **2. API de Sesiones de Caja y Descuadres (Arqueo)**
+* **Endpoint:** `GET /api/admin/reports/reception/cash-sessions?gymId=[slug]&range=[week|month|custom]&startDate=[date]&endDate=[date]&usuario_id=[id]`
+* **Descripción:** Obtiene el consolidado histórico de los arqueos declarados en recepción.
+* **Control de Descuadres:** Muestra los balances finales desglosados por método de pago (`efectivo`, `tarjeta`, `qr`), calculando las diferencias matemáticas resultantes entre lo declarado físicamente por el cajero y lo esperado por el sistema. El Admin puede identificar fácilmente faltantes de dinero o errores de facturación.
+* **Sesiones Activas:** Retorna el listado de cajas abiertas actualmente en mostrador para monitoreo del flujo de efectivo diario en caliente.
+
 ---
 
 ## **7. SEGURIDAD REFORZADA (RLS SAAS & SUPERADMIN - SINCRONIZADA CON SUPABASE)**
@@ -1579,6 +1617,11 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 ### **7.2 Políticas RLS Multi-Tenant (Aislamiento de Negocio)**
 
 Todas las tablas operativas de la base de datos aplican políticas de aislamiento basadas en el `gimnasio_id`. El rol de `superadmin` está explícitamente excluido de la restricción para permitir operaciones globales de mantenimiento, soporte y dashboards.
+
+#### **Mecanismo Técnico del Bypass RLS para Superadmin:**
+* **Evaluación de Rol:** Cada política RLS implementada utiliza la función helper `public.get_user_role()`. Si esta función retorna la cadena `'superadmin'` (obtenida mediante una consulta estable al perfil asociado al `auth.uid()` del usuario autenticado), la política otorga acceso inmediato evaluando la condición como `true`.
+* **Desacoplamiento de Tenant:** Esto permite al Superadmin realizar consultas cruzadas entre múltiples tenants para generar agregaciones en dashboards financieros globales (`saas_metrics` e `ingresos_totales`), resolver tickets de soporte inter-gimnasio y ejecutar auditorías técnicas sobre `public.audit_logs` sin estar restringido al aislamiento del `gimnasio_id` asignado a su propio perfil.
+* **Seguridad de Operaciones Críticas:** A pesar del bypass, las operaciones que modifican la estructura o los datos críticos de un tenant quedan registradas inmutablemente con el ID real del Superadmin y la marca de impersonación si el acceso se realiza mediante la consola de soporte remoto.
 
 ```sql
 -- 1. Políticas de perfiles (Alumnos, Coaches, Admins y Superadmins)
@@ -2285,6 +2328,13 @@ async function generateRoutinePrompt(userId: string) {
 * **Ventajas:**
   * ✅ Incremento en volumen de ventas internas (fidelización por confianza).
   * ✅ Control y mitigación del riesgo: el Admin define los límites de crédito individualmente y el sistema bloquea preventivamente el ingreso por QR en caso de mora excesiva.
+
+### **ARR-008: Modelo de Caja Diaria Dinámico en Auditoría Global**
+* **Decisión:** Usar la tabla genérica e inmutable de `auditoria_global` para almacenar los estados de apertura y cierre de caja (mediante los eventos `'apertura_caja_recepcion'` y `'cierre_caja_recepcion'`) serializados en el campo `detalles` (JSONB) en caliente, en lugar de modelar una tabla dedicada `sesiones_caja`.
+* **Contexto:** Las operaciones de caja chica y arqueos diarios no requieren de complejas relaciones relacionales inter-tabla para el cálculo del balance. Serializar la foto matemática de la caja en un campo JSONB y calcular las ventas en caliente sumando transacciones reales de `pagos` simplifica drásticamente el esquema físico.
+* **Ventajas:**
+  - ✅ **Esquema Compacto:** Evita crear y mantener tablas adicionales de negocio que solo guardan información consolidada de turnos terminados.
+  - ✅ **Inmutabilidad por Diseño:** Reutiliza la tabla de auditoría global protegida contra alteraciones por políticas RLS restrictivas (sin cláusulas `UPDATE` o `DELETE`), garantizando que los cierres de caja y egresos registrados no puedan ser alterados retroactivamente para ocultar diferencias.
 
 ---
 
