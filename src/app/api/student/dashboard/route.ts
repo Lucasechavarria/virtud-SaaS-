@@ -81,7 +81,7 @@ export async function GET() {
             // Profile
             supabase
                 .from('perfiles')
-                .select('exencion_aceptada, nombre_completo, url_avatar, fecha_fin_membresia, gender, informacion_medica, gimnasios(nombre)')
+                .select('exencion_aceptada, nombre_completo, url_avatar, fecha_fin_membresia, estado_membresia, gender, informacion_medica, gimnasios(nombre)')
                 .eq('id', user.id)
                 .single(),
 

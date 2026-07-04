@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { Zap, ChevronRight } from 'lucide-react';
 
-export function VisionAlert({ itemVariants }: { itemVariants: any }) {
+export function VisionAlert({ itemVariants, getLink }: { itemVariants: any; getLink?: (path: string) => string }) {
     const [newAnalyses, setNewAnalyses] = useState(0);
-
+    
+    // ... (fetch useEffect remains unchanged) ...
+    
     useEffect(() => {
         const fetchNewAnalyses = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -42,6 +44,8 @@ export function VisionAlert({ itemVariants }: { itemVariants: any }) {
 
     if (newAnalyses === 0) return null;
 
+    const visionLink = getLink ? getLink('/member/dashboard/vision') : '/dashboard/vision';
+
     return (
         <motion.div
             variants={itemVariants}
@@ -59,7 +63,7 @@ export function VisionAlert({ itemVariants }: { itemVariants: any }) {
                 </div>
             </div>
             <Link
-                href="/dashboard/vision"
+                href={visionLink}
                 className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1 group"
             >
                 Ver Análisis

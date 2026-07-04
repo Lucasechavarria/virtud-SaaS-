@@ -53,6 +53,7 @@ interface LeaderboardUser {
 export function Gamification() {
     const [view, setView] = useState<'ranking' | 'achievements' | 'challenges'>('ranking');
     const [showCreateChallenge, setShowCreateChallenge] = useState(false);
+    const [selectedChallengeForBriefing, setSelectedChallengeForBriefing] = useState<Challenge | null>(null);
     const [challengeType, setChallengeType] = useState<'open' | 'individual'>('open');
     const [targetStudent, setTargetStudent] = useState('');
     const [loading, setLoading] = useState(true);
@@ -489,8 +490,24 @@ export function Gamification() {
                             <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 transition-transform">🎯</div>
                             <div>
                                 <p className="text-blue-500 font-black text-[10px] uppercase tracking-[0.2em] mb-1">Próxima Meta</p>
-                                <p className="text-white font-black text-sm uppercase tracking-tighter">Elite Attendance</p>
-                                <p className="text-zinc-500 text-[10px] mt-1 font-bold">Completá 5 sesiones más</p>
+                                {(() => {
+                                    const currentRank = getRankByPoints(myStats.points);
+                                    const nextRank = getNextRank(currentRank);
+                                    if (nextRank) {
+                                        return (
+                                            <>
+                                                <p className="text-white font-black text-sm uppercase tracking-tighter">{nextRank.name}</p>
+                                                <p className="text-zinc-500 text-[10px] mt-1 font-bold">Faltan {nextRank.minPoints - myStats.points} pts para subir de rango</p>
+                                            </>
+                                        );
+                                    }
+                                    return (
+                                        <>
+                                            <p className="text-white font-black text-sm uppercase tracking-tighter">VIRTUD ABSOLUTA</p>
+                                            <p className="text-zinc-500 text-[10px] mt-1 font-bold">Has alcanzado el rango máximo</p>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>
@@ -617,7 +634,10 @@ export function Gamification() {
                                                 UNIRSE A MISIÓN
                                             </motion.button>
                                         )}
-                                        <button className="w-full px-6 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-white/5 transition-all">
+                                        <button 
+                                            onClick={() => setSelectedChallengeForBriefing(challenge)}
+                                            className="w-full px-6 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-white/5 transition-all"
+                                        >
                                             VER BRIEFING
                                         </button>
                                     </div>
@@ -798,6 +818,69 @@ export function Gamification() {
                                         </button>
                                     </div>
                                 </form>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Briefing Challenge Modal */}
+            <AnimatePresence>
+                {selectedChallengeForBriefing && (
+                    <div
+                        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+                        onClick={() => setSelectedChallengeForBriefing(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#121214] border border-white/10 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden font-rajdhani text-white"
+                        >
+                            {/* Glow accent */}
+                            <div className="absolute -top-12 -left-12 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-purple-500/10 rounded-2xl text-purple-500 border border-purple-500/20">
+                                    <Sword size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black italic uppercase tracking-tight">BRIEFING DE LA MISIÓN</h3>
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Detalles de Operación</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="space-y-1">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-zinc-600">Título de la Misión</span>
+                                    <h4 className="text-xl font-black uppercase tracking-tight">{selectedChallengeForBriefing.title || (selectedChallengeForBriefing as any).titulo}</h4>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-zinc-600">Descripción / Objetivo</span>
+                                    <p className="text-zinc-400 text-sm leading-relaxed font-sans">{selectedChallengeForBriefing.description || (selectedChallengeForBriefing as any).descripcion}</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 bg-black/40 border border-white/5 p-4 rounded-2xl">
+                                    <div>
+                                        <span className="text-[9px] uppercase font-black tracking-widest text-zinc-600 block">Recompensa</span>
+                                        <strong className="text-purple-400 font-black text-base">+{selectedChallengeForBriefing.points_prize || (selectedChallengeForBriefing as any).puntos_recompensa} PTS</strong>
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] uppercase font-black tracking-widest text-zinc-600 block">Tipo</span>
+                                        <strong className="text-zinc-300 font-black uppercase text-xs">{selectedChallengeForBriefing.type === 'individual' ? 'Solo' : 'Multijugador'}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-8">
+                                <button
+                                    onClick={() => setSelectedChallengeForBriefing(null)}
+                                    className="w-full py-4 bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-wider text-xs rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    ENTENDIDO
+                                </button>
                             </div>
                         </motion.div>
                     </div>

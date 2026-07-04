@@ -17,13 +17,17 @@ interface RoutinePreviewProps {
     handleGoalModal: (isOpen: boolean) => void;
     isRequesting: boolean;
     itemVariants: ItemVariants;
+    getLink?: (path: string) => string;
+    onComplete?: () => void;
 }
 
-export function RoutinePreview({ routine, handleGoalModal, isRequesting, itemVariants }: RoutinePreviewProps) {
+export function RoutinePreview({ routine, handleGoalModal, isRequesting, itemVariants, getLink, onComplete }: RoutinePreviewProps) {
     const [isPlayerOpen, setIsPlayerOpen] = React.useState(false);
 
     const handleComplete = (data: any) => {
-        console.log('Entrenamiento finalizado:', data);
+        if (onComplete) {
+            onComplete();
+        }
     };
 
     return (
@@ -97,13 +101,13 @@ export function RoutinePreview({ routine, handleGoalModal, isRequesting, itemVar
                             </EliteButton>
 
                             <div className="flex gap-4">
-                                <Link href="/dashboard/routine" className="flex-1">
+                                <Link href={getLink ? getLink('/member/dashboard/routine') : '/dashboard/routine'} className="flex-1">
                                     <EliteButton variant="outline" size="md" className="w-full border-white/10 text-zinc-500 hover:text-white">
                                         BRIEFING <ChevronRight size={14} />
                                     </EliteButton>
                                 </Link>
                                 {routine.plan_nutricional_id && (
-                                    <Link href="/dashboard/nutrition">
+                                    <Link href={getLink ? getLink('/member/dashboard/nutrition') : '/dashboard/nutrition'}>
                                         <EliteButton variant="outline" size="md" className="w-16 border-tactical-cyan/20">
                                             <Apple size={18} />
                                         </EliteButton>
@@ -145,17 +149,15 @@ export function RoutinePreview({ routine, handleGoalModal, isRequesting, itemVar
                             )}
                         </div>
 
-                        <Link href="/dashboard/routine-request" className="w-full">
-                            <EliteButton 
-                                variant="outline" 
-                                size="lg" 
-                                className="w-full border-white/5 hover:border-tactical-cyan/30"
-                                onClick={() => handleGoalModal(true)}
-                                disabled={isRequesting}
-                            >
-                                {isRequesting ? 'PROCESANDO...' : 'SOLICITAR PLAN TÁCTICO'}
-                            </EliteButton>
-                        </Link>
+                        <EliteButton 
+                            variant="outline" 
+                            size="lg" 
+                            className="w-full border-white/5 hover:border-tactical-cyan/30"
+                            onClick={() => handleGoalModal(true)}
+                            disabled={isRequesting}
+                        >
+                            {isRequesting ? 'PROCESANDO...' : 'SOLICITAR PLAN TÁCTICO'}
+                        </EliteButton>
                     </div>
                 )}
             </EliteCard>

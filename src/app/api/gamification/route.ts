@@ -54,7 +54,11 @@ export async function GET() {
                 racha_actual: myStats.racha_actual || 0,
                 nivel: myStats.nivel || 1
             } : { puntos: 0, racha_actual: 0, nivel: 1 },
-            achievements: myAchievements || [],
+            achievements: (myAchievements || []).map((a) => ({
+                id: a.id,
+                unlocked_at: a.unlocked_at,
+                achievements: a.logros
+            })),
             leaderboard: leaderboard?.map((l: LeaderboardRecord) => {
                 const profile = l.perfiles;
                 return {
