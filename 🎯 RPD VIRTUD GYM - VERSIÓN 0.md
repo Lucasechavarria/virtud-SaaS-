@@ -1,10 +1,24 @@
-# **🎯 RPD VIRTUD GYM - VERSIÓN 0.5.0 (MULTI-TENANT & SAAS ELITE)**
+# **🎯 RPD VIRTUD GYM - VERSIÓN 0.5.1 (BIOMECÁNICA E IA INTEGRADAS)**
 
-## **Estado: Producción Multi-Tenant & SaaS Elite**
+## **Estado: Producción Multi-Tenant & SaaS Elite (Análisis Biomecánico Activo)**
 
-**Fecha:** 21 de Junio de 2026  
-**Versión:** 0.5.0  
-**Cambios:** Integración integral del rol de **Superadmin**, arquitectura de datos Multi-Tenant (aislamiento lógico), sucursales (Branches), soporte a tickets de soporte y comunicados globales, cuotas de consumo de IA, seguridad RLS global, auditoría inmutable de impersonación, dominios personalizados y soft delete.
+**Fecha:** 3 de Julio de 2026  
+**Versión:** 0.5.1  
+**Cambios:** Implementación del sistema de corrección biomecánica interactiva en Vision Lab. Integración de tracking local en el cliente con MediaPipe Pose, análisis optimizado basado en telemetría de texto mediante Gemini 1.5 en el servidor, y reproductor de video de alta fidelidad con superposición esquelética dinámica de canvas y tooltips.
+
+---
+
+## **📋 CHANGELOG 0.5.0 → 0.5.1**
+
+### **✅ Módulo de Visión Lab Biomecánico**
+
+| Categoría | Cambio | Impacto |
+| ----- | ----- | ----- |
+| **Tracking Local** | 🧬 Extracción en Cliente (MediaPipe) | Extracción local frame por frame en navegador (5 FPS), optimizando ancho de banda. |
+| **Robustez local** | 🛡️ Fallback y Resguardo de Timeout | Resguardo de 1.5s por frame ante fallos de decodificación y fallback automático a análisis visual de servidor si MediaPipe no es compatible. |
+| **Optimización IA** | 🤖 Análisis por Telemetría (Gemini) | Llamada en base a texto JSON de coordenadas, acelerando el procesamiento a <5s y reduciendo drásticamente el consumo de tokens. |
+| **UI/UX Premium** | 🎨 Reproductor Biomecánico Interactivo | Superposición esquelética de canvas con realces de fallas en rojo neón, ángulos dinámicos y tooltips flotantes en el video. |
+| **Reusabilidad** | 🔄 Reutilización de Informes | Selector de atleta autocompletado y editable, permitiendo asignar el mismo video analizado a otros alumnos sin procesar de nuevo. |
 
 ---
 

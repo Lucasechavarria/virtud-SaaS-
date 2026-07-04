@@ -29,7 +29,7 @@ export default function CoachDashboard({ params }: { params: { tenantSlug: strin
     const [loading, setLoading] = useState(true);
     const [sendingPush, setSendingPush] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
-    const [_students, setStudents] = useState<any[]>([]);
+    const [students, setStudents] = useState<any[]>([]);
     const [data, setData] = useState<any>({
         stats: { activeStudents: 0 },
         upcomingClasses: [],
@@ -316,6 +316,18 @@ export default function CoachDashboard({ params }: { params: { tenantSlug: strin
                 </div>
 
             </div>
+
+            {/* Bulk Operations - Sprint 4.3 */}
+            <motion.div variants={item} className="bg-zinc-950/40 backdrop-blur-2xl rounded-[2.5rem] border border-white/5 p-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+                <div className="mb-6 relative z-10">
+                    <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-1">Colectivos & Lotes</p>
+                    <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase">Gestión <span className="text-orange-500">Masiva de Atletas</span></h3>
+                </div>
+                <div className="relative z-10">
+                    <BulkStudentManager students={students} />
+                </div>
+            </motion.div>
         </motion.div>
     );
 }
