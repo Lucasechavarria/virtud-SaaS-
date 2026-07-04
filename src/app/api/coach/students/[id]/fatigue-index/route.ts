@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
 
 /**
- * GET /api/coach/students/[studentId]/fatigue-index
+ * GET /api/coach/students/[id]/fatigue-index
  * 
  * Calcula el índice matemático de fatiga y riesgo de sobreentrenamiento de un alumno específico,
  * cruzando los datos subjetivos de RPE (registros_de_ejercicio) y biométricos de sueño/fatiga (registros_recuperacion)
@@ -10,10 +10,11 @@ import { authenticateAndRequireRole } from '@/lib/auth/api-auth';
  */
 export async function GET(
     request: Request,
-    { params }: { params: { studentId: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { studentId } = params;
+        const { id } = await params;
+        const studentId = id;
 
         // Blindaje contra IDs no-UUID (ej. demos o pruebas locales) para evitar 500 de Postgres
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -155,7 +156,8 @@ export async function GET(
         });
 
     } catch (error) {
-        console.error('❌ Error GET /api/coach/students/[studentId]/fatigue-index:', error);
+        const { id } = await params;
+        console.error(`❌ Error GET /api/coach/students/${id}/fatigue-index:`, error);
         return NextResponse.json({
             error: error instanceof Error ? error.message : 'Error interno al calcular el índice de fatiga'
         }, { status: 500 });
