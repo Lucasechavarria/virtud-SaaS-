@@ -4,10 +4,13 @@ import Link from 'next/link';
 
 interface WaiverWarningProps {
     waiverAccepted: boolean;
+    getLink?: (path: string) => string;
 }
 
-export function WaiverWarning({ waiverAccepted }: WaiverWarningProps) {
+export function WaiverWarning({ waiverAccepted, getLink }: WaiverWarningProps) {
     if (waiverAccepted) return null;
+
+    const href = getLink ? getLink('/member/dashboard/profile/complete') : '/dashboard/profile/complete';
 
     return (
         <motion.div
@@ -25,7 +28,7 @@ export function WaiverWarning({ waiverAccepted }: WaiverWarningProps) {
                 </div>
             </div>
             <Link
-                href="/dashboard/profile/complete"
+                href={href}
                 className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm whitespace-nowrap"
             >
                 Completar Ficha

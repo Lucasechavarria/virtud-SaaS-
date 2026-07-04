@@ -9,10 +9,13 @@ import { EliteButton } from '@/components/ui/EliteButton';
 interface DashboardHeaderProps {
     gender: string | null;
     itemVariants: ItemVariants;
+    unreadCount?: number;
+    getLink?: (path: string) => string;
 }
 
-export function DashboardHeader({ gender, itemVariants }: DashboardHeaderProps) {
+export function DashboardHeader({ gender, itemVariants, unreadCount = 0, getLink }: DashboardHeaderProps) {
     const greeting = gender === 'female' ? 'Campeona' : gender === 'male' ? 'Campeón' : 'Campeón/a';
+    const chatLink = getLink ? getLink('/member/dashboard/messages') : '/dashboard/messages';
 
     return (
         <motion.div
@@ -45,11 +48,13 @@ export function DashboardHeader({ gender, itemVariants }: DashboardHeaderProps) 
                 </div>
 
                 <div className="flex flex-wrap items-center gap-6">
-                    <Link href="/dashboard/chat">
+                    <Link href={chatLink}>
                         <EliteButton variant="cyan" size="lg" className="shadow-neon-cyan/20 px-8">
                             <MessageSquare size={18} />
                             <span>Enlace Táctico</span>
-                            <div className="ml-2 px-2 py-0.5 bg-black/80 text-tactical-cyan rounded-full text-[10px] border border-tactical-cyan/50 font-black">3</div>
+                            {unreadCount > 0 && (
+                                <div className="ml-2 px-2 py-0.5 bg-black/80 text-tactical-cyan rounded-full text-[10px] border border-tactical-cyan/50 font-black animate-pulse">{unreadCount}</div>
+                            )}
                         </EliteButton>
                     </Link>
 

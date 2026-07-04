@@ -16,14 +16,19 @@ interface Message {
 
 interface QuickMessagesProps {
     itemVariants: any;
+    getLink?: (path: string) => string;
 }
 
-export function QuickMessages({ itemVariants }: QuickMessagesProps) {
+export function QuickMessages({ itemVariants, getLink }: QuickMessagesProps) {
     const [latestMessage, setLatestMessage] = useState<Message | null>(null);
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
+    
+    // ... (init useEffect remains unchanged) ...
 
     useEffect(() => {
+        let channel: any = null;
+
         const init = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -44,7 +49,7 @@ export function QuickMessages({ itemVariants }: QuickMessagesProps) {
             setLoading(false);
 
             // Subscribe to real-time updates
-            const channel = supabase
+            channel = supabase
                 .channel('dashboard_latest_message')
                 .on(
                     'postgres_changes',
@@ -60,13 +65,15 @@ export function QuickMessages({ itemVariants }: QuickMessagesProps) {
                     }
                 )
                 .subscribe();
-
-            return () => {
-                supabase.removeChannel(channel);
-            };
         };
 
         init();
+
+        return () => {
+            if (channel) {
+                supabase.removeChannel(channel);
+            }
+        };
     }, []);
 
     if (loading) {
@@ -75,11 +82,13 @@ export function QuickMessages({ itemVariants }: QuickMessagesProps) {
         );
     }
 
+    const messagesLink = getLink ? getLink('/member/dashboard/messages') : '/dashboard/messages';
+
     return (
         <motion.div variants={itemVariants} className="bg-[#1c1c1e]/80 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-white">Mensajes</h3>
-                <Link href="/dashboard/messages" className="text-xs text-blue-400 hover:text-blue-300">Ver todo</Link>
+                <Link href={messagesLink} className="text-xs text-blue-400 hover:text-blue-300">Ver todo</Link>
             </div>
 
             <AnimatePresence mode="wait">
@@ -116,7 +125,7 @@ export function QuickMessages({ itemVariants }: QuickMessagesProps) {
             </AnimatePresence>
 
             <Link
-                href="/dashboard/messages"
+                href={messagesLink}
                 className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium py-3 rounded-xl transition-all group"
             >
                 <span>Ir al Chat</span>

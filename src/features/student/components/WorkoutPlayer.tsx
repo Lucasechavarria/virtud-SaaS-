@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WorkoutSessionState, ExerciseLog } from '@/types/workout';
+import { toast } from 'react-hot-toast';
 
 interface Exercise {
     id: string;
@@ -35,6 +36,8 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
     const [isResting, setIsResting] = useState(false);
     const [restTimeLeft, setRestTimeLeft] = useState(0);
     const [sessionStatus, setSessionStatus] = useState<'loading' | 'active' | 'completed'>('loading');
+    const [loggedExercises, setLoggedExercises] = useState<Array<{ series: number; reps: number; weight: number }>>([]);
+    const [earnedPoints, setEarnedPoints] = useState(0);
 
     const [currentWeight, setCurrentWeight] = useState<string>('');
     // Tracking actual performance
@@ -58,7 +61,7 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
                     setSessionId(data.session.id);
                     setSessionStatus('active');
                 } else {
-                    alert('Error al iniciar sesión: ' + (data.error || 'Desconocido'));
+                    toast.error('Error al iniciar sesión: ' + (data.error || 'Desconocido'));
                     onClose();
                 }
             } catch (err) {
@@ -94,20 +97,33 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
     }, [isResting, restTimeLeft]);
 
     const handleNextExercise = async () => {
-        // Log performance for current exercise
+        const reps = parseInt(currentReps) || (currentExercise ? parseInt(currentExercise.repeticiones) : 10) || 10;
+        const weight = parseFloat(currentWeight) || 0;
+        const series = currentExercise ? currentExercise.series : 3;
+
+        // Guardar logs locales para el cálculo de volumen final
+        const currentLog = { series, reps, weight };
+        const updatedLogs = [...loggedExercises, currentLog];
+        setLoggedExercises(updatedLogs);
+
+        // Log performance for current exercise in server
         if (sessionId && currentExercise) {
-            await fetch('/api/student/sessions/log-exercise', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId,
-                    ejercicio_id: currentExercise.id,
-                    series_reales: currentExercise.series,
-                    repeticiones_reales: currentReps || currentExercise.repeticiones,
-                    peso_real: parseFloat(currentWeight) || 0,
-                    fue_completado: true
-                })
-            });
+            try {
+                await fetch('/api/student/sessions/log-exercise', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId,
+                        ejercicio_id: currentExercise.id,
+                        series_reales: series,
+                        repeticiones_reales: reps.toString(),
+                        peso_real: weight,
+                        fue_completado: true
+                    })
+                });
+            } catch (logErr) {
+                console.error('Error logging exercise details:', logErr);
+            }
         }
 
         if (currentIndex < routine.ejercicios.length - 1) {
@@ -121,11 +137,19 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
                 setIsResting(true);
             }
         } else {
-            handleCompleteSession();
+            // Calcular volumen total acumulado de la sesión (tonelaje: series * repeticiones * peso)
+            const totalVolume = updatedLogs.reduce((sum, item) => sum + (item.series * item.reps * item.weight), 0);
+            
+            // Asignación de puntos: 100 puntos base por asistencia + 1 punto por cada 10 kg de volumen total.
+            // Con un límite máximo de 800 puntos para evitar abusos o devaluación del ranking.
+            const calculatedPoints = Math.min(800, 100 + Math.floor(totalVolume / 10));
+            setEarnedPoints(calculatedPoints);
+
+            await handleCompleteSession(calculatedPoints);
         }
     };
 
-    const handleCompleteSession = async () => {
+    const handleCompleteSession = async (points: number) => {
         setSessionStatus('loading');
         try {
             const res = await fetch('/api/student/sessions/complete', {
@@ -133,17 +157,23 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId,
-                    totalPoints: 500, // This should be calculated based on logs
+                    totalPoints: points,
                     moodRating: 5
                 })
             });
             const data = await res.json();
             if (res.ok) {
                 setSessionStatus('completed');
-                onComplete(data.session);
+                onComplete({ id: sessionId || '', total_points: points });
+            } else {
+                throw new Error(data.error || 'Error al guardar la sesión');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error completing session:', err);
+            toast.error(err.message || 'Fallo de comunicación con la central táctica.');
+            // Fallback para permitirle cerrar la sesión si ya entreno físicamente
+            setSessionStatus('completed');
+            onComplete({ id: sessionId || '', total_points: points });
         }
     };
 
@@ -162,7 +192,7 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
                 <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
                     <h2 className="text-5xl mb-4">🏆</h2>
                     <h3 className="text-2xl font-black text-white mb-2 uppercase italic">¡Entrenamiento Completado!</h3>
-                    <p className="text-orange-500 font-bold text-lg mb-8">+500 PTS GANADOS</p>
+                    <p className="text-orange-500 font-bold text-lg mb-8">+{earnedPoints} PTS GANADOS</p>
                     <button
                         onClick={onClose}
                         className="px-8 py-3 bg-white text-black font-black rounded-xl hover:bg-orange-500 hover:text-white transition-all"

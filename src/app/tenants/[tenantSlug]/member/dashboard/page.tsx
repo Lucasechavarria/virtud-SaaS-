@@ -16,6 +16,7 @@ import { VisionAlert } from '@/features/student/components/VisionAlert';
 import { RecoveryForm } from '@/features/recovery/components/RecoveryForm';
 import { EliteCard } from '@/components/ui/EliteCard';
 import Paywall from '@/features/dashboard/components/Paywall';
+import { supabase } from '@/lib/supabase/client';
 
 
 
@@ -29,9 +30,11 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
     isGoalModalOpen,
     handleRequestRoutine,
     handleGoalModal,
+    refreshData
   } = useStudentDashboard(tenantSlug);
 
   const [isSubdomain, setIsSubdomain] = React.useState(false);
+  const [unreadMessages, setUnreadMessages] = React.useState(0);
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -40,6 +43,41 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
       const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
       setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
     }
+  }, []);
+
+  React.useEffect(() => {
+    let channel: any = null;
+
+    const fetchUnread = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { count } = await (supabase.from('mensajes') as any)
+        .select('*', { count: 'exact', head: true })
+        .eq('receptor_id', user.id)
+        .eq('leido', false);
+
+      setUnreadMessages(count || 0);
+    };
+
+    fetchUnread();
+
+    channel = supabase
+      .channel('unread_messages_badge_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mensajes' },
+        () => {
+          fetchUnread();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   const getLink = (path: string) => {
@@ -88,14 +126,14 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
     week: p.registrado_en ? new Date(p.registrado_en).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }) : '--/--',
     peso: p.peso,
     grasa: p.grasa_corporal,
-    musculo: p.masa_muscular
+    musculo: p.musculo_esqueletico
   })) : [];
 
   const stats = [
     { label: 'Peso Actual', value: `${latestProgress?.peso || '--'} kg`, icon: '⚖️', trend: 'Objetivo Personal', color: 'from-blue-600 to-cyan-500' },
     { label: 'Clases Asistidas', value: attendance.reduce((acc: number, curr: { rate: number }) => acc + (curr.rate || 0), 0).toString(), icon: '🗓️', trend: 'Total Histórico', color: 'from-purple-600 to-indigo-500' },
     { label: 'Grasa Corporal', value: `${latestProgress?.grasa_corporal || '--'}%`, icon: '💧', trend: 'Bajo Control', color: 'from-primary/80 to-primary' },
-    { label: 'Músculo', value: `${latestProgress?.masa_muscular || '--'} kg`, icon: '💪', trend: 'En Aumento', color: 'from-emerald-600 to-teal-500' },
+    { label: 'Músculo', value: `${latestProgress?.musculo_esqueletico || '--'} kg`, icon: '💪', trend: 'En Aumento', color: 'from-emerald-600 to-teal-500' },
   ];
 
   return (
@@ -106,9 +144,9 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
       className="space-y-12 pb-20 p-4 sm:p-0"
     >
 
-      <DashboardHeader gender={profile?.gender} itemVariants={itemVariants} />
+      <DashboardHeader gender={profile?.gender} itemVariants={itemVariants} unreadCount={unreadMessages} getLink={getLink} />
 
-      <WaiverWarning waiverAccepted={profile?.exencion_aceptada} />
+      <WaiverWarning waiverAccepted={profile?.exencion_aceptada} getLink={getLink} />
 
       {isExpiringSoon && (
         <motion.div
@@ -134,7 +172,7 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
       )}
 
       {/* New Vision Analysis Alert */}
-      <VisionAlert itemVariants={itemVariants} />
+      <VisionAlert itemVariants={itemVariants} getLink={getLink} />
 
       <StatsOverview stats={stats} itemVariants={itemVariants} />
 
@@ -176,8 +214,10 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
             handleGoalModal={handleGoalModal}
             isRequesting={isRequesting}
             itemVariants={itemVariants}
+            getLink={getLink}
+            onComplete={refreshData}
           />
-          <QuickMessages itemVariants={itemVariants} />
+          <QuickMessages itemVariants={itemVariants} getLink={getLink} />
         </div>
       </div>
 

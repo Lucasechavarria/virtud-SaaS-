@@ -154,9 +154,12 @@ export default function GymPublicLanding({ params }: { params: { slug: string } 
                         >
                             Ver Planes
                         </a>
-                        <button className="px-10 py-5 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
+                        <a
+                            href="#nosotros"
+                            className="px-10 py-5 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all text-center flex items-center justify-center"
+                        >
                             Conocer Más
-                        </button>
+                        </a>
                     </motion.div>
                 </div>
 
@@ -193,7 +196,7 @@ export default function GymPublicLanding({ params }: { params: { slug: string } 
             </section>
 
             {/* Carousel / Features Section */}
-            {config.carrusel_imagenes?.length > 0 && (
+            {(config.carrusel_imagenes?.length ?? 0) > 0 && (
                 <section className="py-32 px-6 bg-[#050505]">
                     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {config.carrusel_imagenes.map((img: string, i: number) => (
