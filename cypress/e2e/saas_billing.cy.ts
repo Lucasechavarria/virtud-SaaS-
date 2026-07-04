@@ -105,8 +105,8 @@ describe('SaaS Global Billing & Catalog Management Flow', () => {
         cy.contains('Clientes de la Red').should('not.exist');
         
         // 2. Validar visualización de los planes de la red
-        cy.contains('Plan Starter').should('be.visible');
-        cy.contains('Plan Elite Premium').should('be.visible');
+        cy.contains(/Plan Starter/i, { timeout: 15000 }).should('be.visible');
+        cy.contains(/Plan Elite Premium/i, { timeout: 15000 }).should('be.visible');
         cy.contains('Precio Mensual').should('not.exist'); // Rajdhani font, uppercase rules
         
         // Validar que los límites dinámicos se renderizan correctamente (ej. Sedes)

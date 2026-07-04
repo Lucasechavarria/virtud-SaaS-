@@ -11,17 +11,18 @@ interface ExerciseUpdatePayload {
 }
 
 /**
- * PUT /api/coach/routines/[routineId]
+ * PUT /api/coach/routines/[id]
  * 
  * Permite al coach modificar en tiempo real los parámetros de una rutina ya asignada
  * (tales como nombre, descripción, series, repeticiones, descansos y notas de ejercicios).
  */
 export async function PUT(
     request: Request,
-    { params }: { params: { routineId: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { routineId } = params;
+        const { id } = await params;
+        const routineId = id;
 
         const { user, profile, supabase, error } = await authenticateAndRequireRole(
             request,
@@ -116,7 +117,8 @@ export async function PUT(
         });
 
     } catch (error) {
-        console.error(`❌ Error PUT /api/coach/routines/${params.routineId}:`, error);
+        const { id } = await params;
+        console.error(`❌ Error PUT /api/coach/routines/${id}:`, error);
         return NextResponse.json({
             error: error instanceof Error ? error.message : 'Error interno al modificar la rutina'
         }, { status: 500 });
