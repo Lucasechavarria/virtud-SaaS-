@@ -33,12 +33,17 @@ export async function GET(
             return NextResponse.json({ error: 'No tienes permiso para ver este video' }, { status: 403 });
         }
 
+        const record = videoRecord as any;
+
         return NextResponse.json({
-            id: videoRecord.id,
-            estado: videoRecord.estado,
-            procesado_en: videoRecord.procesado_en,
-            correcciones_ia: videoRecord.correcciones_ia,
-            compartido: videoRecord.compartido_con_alumno
+            id: record.id,
+            estado: record.estado,
+            procesado_en: record.procesado_en,
+            correcciones_ia: record.correcciones_ia,
+            compartido: record.compartido_con_alumno,
+            telemetria: record.telemetria,
+            url_video: record.url_video,
+            usuario_id: record.usuario_id
         });
 
     } catch (error: any) {

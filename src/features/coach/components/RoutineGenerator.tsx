@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRAINING_GOALS, GYM_EQUIPMENT } from '@/lib/constants/gym';
 import { AI_PROMPT_TEMPLATES } from '@/lib/constants/ai-templates';
+import { AlertTriangle, Activity } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 /**
  * RoutineGenerator Component
@@ -43,6 +45,7 @@ interface Student {
     email: string;
     role?: string;
     informacion_medica?: Record<string, any>; // JSONB from DB
+    restricciones_adicionales?: string;
 }
 
 export default function RoutineGenerator({ initialTemplate }: { initialTemplate?: string | null } = {}) {
@@ -235,7 +238,30 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
         if (!routine || !selectedStudent) return;
 
         setSaving(true);
+        const toastId = toast.loading('Guardando y asignando rutina...');
         try {
+            // 1. Guardar cambios en el plan de nutrición si existe y fue editado
+            if (nutritionPlan && nutritionPlan.id) {
+                const nutRes = await fetch(`/api/coach/nutrition/${nutritionPlan.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        calorias_diarias: nutritionPlan.calorias_diarias || nutritionPlan.daily_calories,
+                        gramos_proteina: nutritionPlan.gramos_proteina || nutritionPlan.protein_grams,
+                        gramos_carbohidratos: nutritionPlan.gramos_carbohidratos || nutritionPlan.carbs_grams,
+                        gramos_grasas: nutritionPlan.gramos_grasas || nutritionPlan.fats_grams,
+                        comidas: nutritionPlan.comidas
+                    })
+                });
+
+                if (!nutRes.ok) {
+                    const nutErr = await nutRes.json();
+                    console.error('Error al guardar el plan nutricional:', nutErr);
+                    toast.error('Ocurrió un problema al guardar la actualización del plan de alimentación.', { id: toastId });
+                }
+            }
+
+            // 2. Guardar la rutina en Supabase
             const res = await fetch('/api/routines', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -243,7 +269,7 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
                     studentId: selectedStudent,
                     name: routine.name || 'Rutina Personalizada',
                     goal: goal,
-                    duration: '4', // Default duration if not from AI
+                    duration: '4', 
                     description: routine.description || `Rutina generada para ${goal}`,
                     exercises: routine.exercises,
                     generatedByAI: true,
@@ -256,12 +282,13 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
                 throw new Error(error.error || 'Error al guardar rutina');
             }
 
-            alert('✅ Rutina asignada y guardada exitosamente');
-            setRoutine(null); // Reset
+            toast.success('✅ ¡Rutina y plan nutricional asignados exitosamente!', { id: toastId });
+            setRoutine(null); 
             setCoachNotes('');
-        } catch (error) {
+            setNutritionPlan(null);
+        } catch (error: any) {
             console.error('Error saving routine:', error);
-            alert('❌ Hubo un error al guardar la rutina');
+            toast.error(error.message || 'Hubo un error al guardar la rutina', { id: toastId });
         } finally {
             setSaving(false);
         }
@@ -331,6 +358,31 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Alerta Médica Preventiva (Sprint 4.2) */}
+                            {selectedStudentData.informacion_medica && (
+                                (() => {
+                                    const medInfo = selectedStudentData.informacion_medica;
+                                    const alerta = medInfo.lesiones || medInfo.dolores || medInfo.condiciones_medicas || medInfo.limitaciones || medInfo.enfermedades || medInfo.restricciones_adicionales || selectedStudentData.restricciones_adicionales;
+                                    
+                                    if (alerta) {
+                                        return (
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3 shadow-[0_0_15px_rgba(239,68,68,0.05)]"
+                                            >
+                                                <AlertTriangle className="text-red-500 w-5 h-5 flex-shrink-0 animate-pulse mt-0.5" />
+                                                <div>
+                                                    <p className="text-red-400 text-xs font-black uppercase tracking-widest mb-1">Alerta Médica de Resguardo</p>
+                                                    <p className="text-white text-xs font-bold leading-relaxed">{alerta}</p>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    }
+                                    return null;
+                                })()
+                            )}
 
                             {/* New: Real-Time Session History */}
                             <div className="bg-purple-900/10 border border-purple-500/30 rounded-lg p-4">
@@ -539,33 +591,134 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
                             ))}
                         </div>
 
-                        {/* Nutrition Plan Preview */}
+                        {/* Nutrition Plan Preview (Sprint 3.1) */}
                         {nutritionPlan && (
-                            <div className="bg-gradient-to-br from-[#0a0a0a] to-[#1c1c1e] rounded-2xl p-6 border border-green-500/20 shadow-xl">
-                                <h2 className="text-xl font-black mb-4 text-green-500 flex items-center gap-2">
-                                    🍎 Fueling Plan <span className="text-[8px] bg-green-500/20 px-2 py-1 rounded text-green-400 border border-green-500/10 tracking-widest uppercase">Performance AI</span>
-                                </h2>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                        <p className="text-gray-500 text-[9px] uppercase font-bold tracking-tighter mb-1">Daily Target</p>
-                                        <p className="text-lg font-black text-white tracking-widest">{nutritionPlan.daily_calories}<span className="text-[10px] text-gray-500 ml-1">kcal</span></p>
+                            <div className="bg-gradient-to-br from-[#0a0a0a] to-[#1c1c1e] rounded-[2.5rem] p-8 border border-green-500/20 shadow-2xl relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+                                <div className="mb-6 relative z-10">
+                                    <p className="text-[10px] font-black text-green-500 uppercase tracking-[0.3em] mb-1">Fueling Plan Editor</p>
+                                    <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-1">
+                                        🍎 Nutrición Personalizada
+                                    </h2>
+                                    <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest">Optimización de macros y ingestas diarias</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 relative z-10">
+                                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl">
+                                        <p className="text-gray-500 text-[9px] uppercase font-black tracking-widest mb-1.5">Objetivo Calórico</p>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                value={nutritionPlan.calorias_diarias || nutritionPlan.daily_calories || 0}
+                                                onChange={(e) => setNutritionPlan({
+                                                    ...nutritionPlan,
+                                                    calorias_diarias: parseInt(e.target.value) || 0,
+                                                    daily_calories: parseInt(e.target.value) || 0
+                                                })}
+                                                className="w-20 bg-transparent border-b border-white/10 font-black text-white outline-none focus:border-green-500 text-lg tracking-widest text-center"
+                                            />
+                                            <span className="text-[10px] text-gray-500 font-bold uppercase ml-1">kcal</span>
+                                        </div>
                                     </div>
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                        <p className="text-gray-500 text-[9px] uppercase font-bold tracking-tighter mb-1">Proteins</p>
-                                        <p className="text-lg font-black text-blue-400 tracking-widest">{nutritionPlan.protein_grams}<span className="text-[10px] text-gray-500 ml-1">g</span></p>
+                                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl">
+                                        <p className="text-gray-500 text-[9px] uppercase font-black tracking-widest mb-1.5">Proteínas</p>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                value={nutritionPlan.gramos_proteina || nutritionPlan.protein_grams || 0}
+                                                onChange={(e) => setNutritionPlan({
+                                                    ...nutritionPlan,
+                                                    gramos_proteina: parseInt(e.target.value) || 0,
+                                                    protein_grams: parseInt(e.target.value) || 0
+                                                })}
+                                                className="w-16 bg-transparent border-b border-white/10 font-black text-blue-400 outline-none focus:border-green-500 text-lg tracking-widest text-center"
+                                            />
+                                            <span className="text-[10px] text-gray-500 font-bold uppercase ml-1">g</span>
+                                        </div>
                                     </div>
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                        <p className="text-gray-500 text-[9px] uppercase font-bold tracking-tighter mb-1">Carbs</p>
-                                        <p className="text-lg font-black text-green-400 tracking-widest">{nutritionPlan.carbs_grams}<span className="text-[10px] text-gray-500 ml-1">g</span></p>
+                                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl">
+                                        <p className="text-gray-500 text-[9px] uppercase font-black tracking-widest mb-1.5">Carbos</p>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                value={nutritionPlan.gramos_carbohidratos || nutritionPlan.carbs_grams || 0}
+                                                onChange={(e) => setNutritionPlan({
+                                                    ...nutritionPlan,
+                                                    gramos_carbohidratos: parseInt(e.target.value) || 0,
+                                                    carbs_grams: parseInt(e.target.value) || 0
+                                                })}
+                                                className="w-16 bg-transparent border-b border-white/10 font-black text-green-400 outline-none focus:border-green-500 text-lg tracking-widest text-center"
+                                            />
+                                            <span className="text-[10px] text-gray-500 font-bold uppercase ml-1">g</span>
+                                        </div>
                                     </div>
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                        <p className="text-gray-500 text-[9px] uppercase font-bold tracking-tighter mb-1">Fats</p>
-                                        <p className="text-lg font-black text-yellow-400 tracking-widest">{nutritionPlan.fats_grams}<span className="text-[10px] text-gray-500 ml-1">g</span></p>
+                                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl">
+                                        <p className="text-gray-500 text-[9px] uppercase font-black tracking-widest mb-1.5">Grasas</p>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                value={nutritionPlan.gramos_grasas || nutritionPlan.fats_grams || 0}
+                                                onChange={(e) => setNutritionPlan({
+                                                    ...nutritionPlan,
+                                                    gramos_grasas: parseInt(e.target.value) || 0,
+                                                    fats_grams: parseInt(e.target.value) || 0
+                                                })}
+                                                className="w-16 bg-transparent border-b border-white/10 font-black text-yellow-400 outline-none focus:border-green-500 text-lg tracking-widest text-center"
+                                            />
+                                            <span className="text-[10px] text-gray-500 font-bold uppercase ml-1">g</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-xl">
-                                    <p className="text-[10px] text-orange-200 leading-relaxed font-medium">
-                                        <span className="font-black text-orange-500 mr-2">DISCLAIMER PROFESIONAL:</span> Esta guía de alimentación ha sido optimizada por IA para el objetivo de {goal}. Representa una sugerencia técnica que el alumno debe validar con un profesional nutricionista. Al asignarla, el alumno recibirá este aviso de seguridad.
+
+                                {/* Menu Meals List */}
+                                <div className="mt-6 space-y-3 relative z-10">
+                                    <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-2">Menú de Ingestas Sugeridas</p>
+                                    {nutritionPlan.comidas && (
+                                        typeof nutritionPlan.comidas === 'object' && !Array.isArray(nutritionPlan.comidas) ? (
+                                            // Handle Object Meals
+                                            Object.entries(nutritionPlan.comidas).map(([momento, comidaData]: [string, any], index: number) => (
+                                                <div key={index} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                                    <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest min-w-[100px]">{momento}</span>
+                                                    <input
+                                                        type="text"
+                                                        value={comidaData.descripcion || comidaData || ''}
+                                                        onChange={(e) => {
+                                                            const updatedComidas = { ...nutritionPlan.comidas };
+                                                            if (typeof comidaData === 'object') {
+                                                                updatedComidas[momento] = { ...comidaData, descripcion: e.target.value };
+                                                            } else {
+                                                                updatedComidas[momento] = e.target.value;
+                                                            }
+                                                            setNutritionPlan({ ...nutritionPlan, comidas: updatedComidas });
+                                                        }}
+                                                        className="flex-1 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-green-500 font-bold"
+                                                    />
+                                                </div>
+                                            ))
+                                        ) : Array.isArray(nutritionPlan.comidas) ? (
+                                            // Handle Array Meals
+                                            nutritionPlan.comidas.map((comida: any, index: number) => (
+                                                <div key={index} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                                    <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest min-w-[100px]">{comida.momento || `Ingesta ${index + 1}`}</span>
+                                                    <input
+                                                        type="text"
+                                                        value={comida.descripcion || ''}
+                                                        onChange={(e) => {
+                                                            const updatedComidas = [...nutritionPlan.comidas];
+                                                            updatedComidas[index] = { ...comida, descripcion: e.target.value };
+                                                            setNutritionPlan({ ...nutritionPlan, comidas: updatedComidas });
+                                                        }}
+                                                        className="flex-1 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-green-500 font-bold"
+                                                    />
+                                                </div>
+                                            ))
+                                        ) : null
+                                    )}
+                                </div>
+
+                                <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-2xl mt-6 relative z-10">
+                                    <p className="text-[10px] text-orange-200 leading-relaxed font-bold uppercase tracking-wide">
+                                        <span className="font-black text-orange-500 mr-2">Disclaimers & Resguardo:</span> Al modificar las sugerencias nutricionales, estas se guardarán y sincronizarán en la ficha digital del alumno con la debida etiqueta de edición del coach.
                                     </p>
                                 </div>
                             </div>
@@ -573,6 +726,107 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <AnimatePresence>
+                {loading && <BiomechanicalLoader />}
+            </AnimatePresence>
         </div>
+    );
+}
+
+// Biomechanical Loader Component (Sprint 4.1)
+function BiomechanicalLoader() {
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/95 backdrop-blur-md z-[110] flex flex-col items-center justify-center p-6 text-center"
+        >
+            <div className="relative w-48 h-48 mb-8 flex items-center justify-center">
+                {/* Circulos rotativos de red neural */}
+                <div className="absolute inset-0 border-4 border-dashed border-orange-500/20 rounded-full animate-[spin_20s_linear_infinite]" />
+                <div className="absolute inset-4 border-2 border-orange-500/10 rounded-full animate-[spin_10s_linear_infinite_reverse]" />
+                
+                {/* Biomechanical SVG (Sentadilla vector animado) */}
+                <svg className="w-32 h-32 text-orange-500 animate-pulse" viewBox="0 0 100 100">
+                    <defs>
+                        <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feMerge>
+                                <feMergeNode in="blur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    
+                    {/* Huesos/Líneas de la estructura biomecánica */}
+                    {/* Cabeza */}
+                    <circle cx="50" cy="22" r="5" stroke="#f97316" strokeWidth="2.5" fill="none" filter="url(#neon-glow)" />
+                    
+                    {/* Columna/Caderas */}
+                    <line x1="50" y1="27" x2="50" y2="52" stroke="#f97316" strokeWidth="2.5" filter="url(#neon-glow)" />
+                    
+                    {/* Brazos (Animación de flexión/press) */}
+                    <motion.g
+                        animate={{
+                            y: [0, 6, 0],
+                        }}
+                        transition={{
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                        }}
+                    >
+                        {/* Hombro a codo */}
+                        <line x1="50" y1="30" x2="35" y2="35" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        <line x1="50" y1="30" x2="65" y2="35" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        {/* Codo a muñeca */}
+                        <line x1="35" y1="35" x2="38" y2="46" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        <line x1="65" y1="35" x2="62" y2="46" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        {/* Articulaciones */}
+                        <circle cx="35" cy="35" r="2" fill="#fff" />
+                        <circle cx="65" cy="35" r="2" fill="#fff" />
+                        <circle cx="38" cy="46" r="2" fill="#fff" />
+                        <circle cx="62" cy="46" r="2" fill="#fff" />
+                    </motion.g>
+
+                    {/* Piernas (Animación de Sentadilla - Biomecánica) */}
+                    <motion.g
+                        animate={{
+                            y: [0, 8, 0]
+                        }}
+                        transition={{
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                        }}
+                    >
+                        {/* Cadera a rodilla */}
+                        <line x1="50" y1="52" x2="38" y2="65" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        <line x1="50" y1="52" x2="62" y2="65" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        
+                        {/* Rodilla a tobillo */}
+                        <line x1="38" y1="65" x2="42" y2="80" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        <line x1="62" y1="65" x2="58" y2="80" stroke="#f97316" strokeWidth="2" filter="url(#neon-glow)" />
+                        
+                        {/* Articulaciones */}
+                        <circle cx="50" cy="52" r="2.5" fill="#fff" />
+                        <circle cx="38" cy="65" r="2" fill="#fff" />
+                        <circle cx="62" cy="65" r="2" fill="#fff" />
+                        <circle cx="42" cy="80" r="2" fill="#fff" />
+                        <circle cx="58" cy="80" r="2" fill="#fff" />
+                    </motion.g>
+                </svg>
+            </div>
+            
+            <h3 className="text-3xl font-black text-white italic tracking-tighter uppercase mb-2">VirtudCoach AI Engine</h3>
+            <p className="text-orange-500 text-[10px] font-black uppercase tracking-[0.3em] mb-6 animate-pulse">Analizando Vectores Biomecánicos...</p>
+            <div className="max-w-md bg-white/5 border border-white/5 p-4 rounded-2xl backdrop-blur-xl">
+                <p className="text-xs text-gray-400 font-bold italic">
+                    "Evaluando restricciones médicas y consultando equipamiento del gimnasio para crear un plan al 100% de adherencia..."
+                </p>
+            </div>
+        </motion.div>
     );
 }

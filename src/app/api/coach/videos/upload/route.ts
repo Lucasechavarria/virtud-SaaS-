@@ -17,6 +17,16 @@ export const maxDuration = 60;export async function POST(req: Request) {
         const usuarioId = formData.get('usuarioId') as string;
         const ejercicioId = formData.get('ejercicioId') as string;
         const exerciseName = formData.get('exerciseName') as string;
+        const telemetriaRaw = formData.get('telemetria') as string;
+
+        let telemetria = [];
+        if (telemetriaRaw) {
+            try {
+                telemetria = JSON.parse(telemetriaRaw);
+            } catch (err) {
+                console.error('Error parsing telemetria from client:', err);
+            }
+        }
 
         if (!videoFile || !usuarioId) {
             return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 });
@@ -75,6 +85,7 @@ export const maxDuration = 60;export async function POST(req: Request) {
                 ejercicio_id: ejercicioId || null,
                 nombre_ejercicio_custom: exerciseName || null,
                 url_video: publicUrl,
+                telemetria: telemetria, // Guardar la telemetria biomecánica extraída en el cliente
                 estado: 'subido'
             })
             .select()

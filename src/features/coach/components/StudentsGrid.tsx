@@ -2,16 +2,20 @@
 
 import React, { useState, useEffect, ReactNode } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, Filter, UserPlus, MoreVertical,
     ChevronRight, Activity, Calendar, Target,
-    Mail, Phone, MapPin, Loader2, X, Zap, Users
+    Mail, Phone, MapPin, Loader2, X, Zap, Users,
+    AlertTriangle, CheckCircle2, Moon, Sparkles, Video, Film
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'react-hot-toast';
 import { StudentAction } from './StudentAction';
 import { SupabaseUserProfile } from '@/types/user';
+const supabase = createClient();
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Student {
     id: string;
@@ -19,6 +23,7 @@ interface Student {
 }
 
 export default function StudentsGrid() {
+    const { tenantSlug } = useParams() as { tenantSlug: string };
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'all' | 'alert' | 'active'>('all');
     const [students, setStudents] = useState<Student[]>([]);
@@ -135,7 +140,10 @@ export default function StudentsGrid() {
                                             <h3 className="font-black text-xl text-white italic uppercase tracking-tighter group-hover:text-orange-500 transition-colors">
                                                 {student.nombre}
                                             </h3>
-                                            <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest opacity-60">Atleta Nivel Elite</p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest opacity-60">Atleta Nivel Elite</p>
+                                                <StudentFatigueBadge studentId={student.id} />
+                                            </div>
                                         </div>
                                     </div>
                                     {student.status === 'alert' && (
@@ -169,7 +177,7 @@ export default function StudentsGrid() {
                                         <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest group-hover/btn:text-white">Op</span>
                                     </button>
                                     <Link
-                                        href={`/coach/messages?athlete=${student.id}`}
+                                        href={`/tenants/${tenantSlug}/coach/messages?athlete=${student.id}`}
                                         className="flex flex-col items-center justify-center gap-2 p-4 rounded-[1.5rem] bg-white/5 border border-white/5 hover:border-orange-500/30 transition-all hover:bg-orange-500/5 group/btn"
                                     >
                                         <Mail className="w-4 h-4 text-gray-400 group-hover/btn:text-orange-500" />
@@ -304,56 +312,369 @@ function RoutineModal({ student, onClose }: StudentModalProps) {
     );
 }
 
+// Student Fatigue Badge (Sprint 4.1)
+function StudentFatigueBadge({ studentId }: { studentId: string }) {
+    const [fatigueIndex, setFatigueIndex] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchFatigue = async () => {
+            try {
+                const res = await fetch(`/api/coach/students/${studentId}/fatigue-index`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        setFatigueIndex(data.indiceFatiga);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchFatigue();
+    }, [studentId]);
+
+    if (loading) {
+        return (
+            <span className="text-[8px] bg-white/5 text-gray-500 px-2 py-0.5 rounded-full font-black animate-pulse">
+                ⏳...
+            </span>
+        );
+    }
+
+    if (fatigueIndex === null) return null;
+
+    let color = 'bg-green-500/20 text-green-400 border-green-500/20';
+    if (fatigueIndex >= 5.0 && fatigueIndex < 7.5) {
+        color = 'bg-amber-500/20 text-amber-400 border-amber-500/20';
+    } else if (fatigueIndex >= 7.5) {
+        color = 'bg-red-500/20 text-red-400 border-red-500/20 animate-pulse';
+    }
+
+    return (
+        <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest uppercase border ${color}`} title="Índice de fatiga muscular">
+            ⚡ FTG: {fatigueIndex}
+        </span>
+    );
+}
+
 // Progress Modal
 function ProgressModal({ student, onClose }: StudentModalProps) {
+    const { tenantSlug } = useParams() as { tenantSlug: string };
+    const [analytics, setAnalytics] = useState<any>(null);
+    const [fatigue, setFatigue] = useState<any>(null);
+    const [videos, setVideos] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [tab, setTab] = useState<'biometry' | 'vision'>('biometry');
+
+    useEffect(() => {
+        const loadStudentData = async () => {
+            try {
+                setLoading(true);
+                const [analyticsRes, fatigueRes] = await Promise.all([
+                    fetch(`/api/coach/analytics?mode=individual&studentId=${student.id}`),
+                    fetch(`/api/coach/students/${student.id}/fatigue-index`)
+                ]);
+
+                if (analyticsRes.ok) {
+                    const analyticsData = await analyticsRes.json();
+                    if (analyticsData.success) {
+                        setAnalytics(analyticsData.metrics);
+                    }
+                }
+
+                if (fatigueRes.ok) {
+                    const fatigueData = await fatigueRes.json();
+                    if (fatigueData.success) {
+                        setFatigue(fatigueData);
+                    }
+                }
+
+                // Cargar registros biomecánicos del alumno
+                const { data: dbVideos, error: videosError } = await supabase
+                    .from('videos_ejercicio')
+                    .select('*')
+                    .eq('usuario_id', student.id)
+                    .order('creado_en', { ascending: false });
+
+                if (videosError) throw videosError;
+                setVideos(dbVideos || []);
+
+            } catch (err) {
+                console.error('Error al cargar métricas de fatiga y rendimiento:', err);
+                toast.error('Error al cargar métricas de progreso');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadStudentData();
+    }, [student.id]);
+
+    if (loading) {
+        return (
+            <div className="p-12 flex flex-col items-center justify-center min-h-[300px] gap-4">
+                <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Descifrando Señales Biométricas...</p>
+            </div>
+        );
+    }
+
+    // Formatear mediciones para el gráfico de Recharts
+    const chartData = analytics?.measurements?.map((m: any) => ({
+        fecha: new Date(m.registrado_en).toLocaleDateString([], { day: '2-digit', month: '2-digit' }),
+        peso: Number(m.peso || 0),
+        grasa: Number(m.grasa_corporal || 0),
+        musculo: Number(m.masa_muscular || 0)
+    })) || [];
+
+    const fatigueVal = fatigue?.indiceFatiga || 1.0;
+    const strokeDasharray = 251.2; // 2 * PI * r (r=40)
+    const strokeDashoffset = strokeDasharray - (strokeDasharray * fatigueVal) / 10;
+
+    let fatigueColor = '#10b981'; // Green
+    let fatigueBg = 'rgba(16,185,129,0.1)';
+    if (fatigueVal >= 5.0 && fatigueVal < 7.5) {
+        fatigueColor = '#f59e0b'; // Amber
+        fatigueBg = 'rgba(245,158,11,0.1)';
+    } else if (fatigueVal >= 7.5) {
+        fatigueColor = '#ef4444'; // Red
+        fatigueBg = 'rgba(239,68,68,0.1)';
+    }
+
     return (
-        <div className="p-12">
-            <div className="mb-10">
-                <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-2">Metrics Analysis</p>
-                <h2 className="text-5xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">Reporte de <span className="text-orange-500">Rendimiento</span></h2>
-                <p className="text-gray-500 font-bold uppercase text-[10px] tracking-widest">{student.nombre}</p>
+        <div className="p-8 md:p-12 space-y-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-4">
+                <div>
+                    <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-2">Metrics & Fatigue Analysis</p>
+                    <h2 className="text-5xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">Reporte de <span className="text-orange-500">Rendimiento</span></h2>
+                    <p className="text-gray-500 font-bold uppercase text-[10px] tracking-widest">{student.nombre}</p>
+                </div>
+
+                {/* Tab Selector */}
+                <div className="flex p-1 bg-white/5 border border-white/5 rounded-2xl w-full md:w-auto">
+                    <button
+                        onClick={() => setTab('biometry')}
+                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${tab === 'biometry'
+                            ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                            : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        📈 Biometría & Fatiga
+                    </button>
+                    <button
+                        onClick={() => setTab('vision')}
+                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${tab === 'vision'
+                            ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                            : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        🎥 Vision Lab
+                    </button>
+                </div>
             </div>
 
-            <div className="space-y-8">
-                <div className="grid grid-cols-3 gap-4">
-                    {[
-                        { label: 'Días Entrenados', value: '12', sub: '/16', color: 'text-white' },
-                        { label: 'Efficiency', value: '94', sub: '%', color: 'text-orange-500' },
-                        { label: 'Strength Up', value: '12', sub: 'kg', color: 'text-white' },
-                    ].map((stat, i) => (
-                        <div key={i} className="bg-white/5 border border-white/5 p-6 rounded-[2.5rem] flex flex-col items-center">
-                            <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2">{stat.label}</p>
-                            <p className={`text-3xl font-black italic ${stat.color}`}>{stat.value}<span className="text-xs">{stat.sub}</span></p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center justify-between text-center">
+                    <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2">Asistencias Semanales</p>
+                    <p className="text-3xl font-black text-white italic">
+                        {analytics?.attendance?.totalAttended || 0}
+                        <span className="text-xs text-gray-500">/clases</span>
+                    </p>
+                </div>
+                <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center justify-between text-center">
+                    <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2">Ratio Asistencia</p>
+                    <p className="text-3xl font-black text-orange-500 italic">
+                        {analytics?.attendance?.attendanceRate || 0}%
+                    </p>
+                </div>
+                <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center justify-between text-center">
+                    <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2">Volumen de Carga</p>
+                    <p className="text-3xl font-black text-white italic">
+                        {analytics?.prescribedVolume || 0}
+                        <span className="text-xs text-gray-500"> reps</span>
+                    </p>
+                </div>
+            </div>
+
+            {tab === 'biometry' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Velocímetro de Fatiga Reactivo */}
+                    <div className="bg-white/5 border border-white/5 p-8 rounded-[2.5rem] relative overflow-hidden flex flex-col justify-between">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500/0 via-orange-500 to-orange-500/0" />
+                        <div>
+                            <h4 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <Activity className="w-4 h-4 text-orange-500 animate-pulse" />
+                                Índice de Fatiga
+                            </h4>
+                            
+                            <div className="flex justify-center items-center relative py-6">
+                                <svg className="w-32 h-32 transform -rotate-90">
+                                    <circle
+                                        cx="64"
+                                        cy="64"
+                                        r="40"
+                                        className="stroke-zinc-800"
+                                        strokeWidth="8"
+                                        fill="transparent"
+                                    />
+                                    <motion.circle
+                                        cx="64"
+                                        cy="64"
+                                        r="40"
+                                        stroke={fatigueColor}
+                                        strokeWidth="8"
+                                        fill="transparent"
+                                        strokeDasharray={strokeDasharray}
+                                        initial={{ strokeDashoffset: strokeDasharray }}
+                                        animate={{ strokeDashoffset }}
+                                        transition={{ duration: 1.0, ease: 'easeOut' }}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="absolute flex flex-col items-center justify-center">
+                                    <span className="text-3xl font-black text-white italic tracking-tighter">{fatigueVal}</span>
+                                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Escala 10</span>
+                                </div>
+                            </div>
                         </div>
-                    ))}
-                </div>
 
-                <div className="bg-white/5 border border-white/5 p-10 rounded-[3rem] relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500/0 via-orange-500 to-orange-500/0" />
-                    <h4 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-                        <Activity className="w-4 h-4 text-orange-500" />
-                        Evolución Biométrica
-                    </h4>
-                    <div className="h-48 flex items-end gap-3 px-4">
-                        {[65, 68, 66, 72, 70, 75, 76].map((weight, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{ height: 0 }}
-                                animate={{ height: `${(weight / 80) * 100}%` }}
-                                className="flex-1 bg-gradient-to-t from-orange-500 via-orange-400 to-white/20 rounded-full min-w-[8px]"
-                            />
-                        ))}
+                        <div className="mt-4 p-4 rounded-2xl border border-white/5" style={{ backgroundColor: fatigueBg }}>
+                            <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: fatigueColor }}>
+                                Estado: {fatigue?.estado?.replace('_', ' ') || 'Normal'}
+                            </p>
+                            <p className="text-xs font-medium text-gray-300">{fatigue?.recomendacion}</p>
+                        </div>
                     </div>
-                    <div className="flex justify-between mt-6 px-4">
-                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Base Line</span>
-                        <span className="text-[8px] font-black text-orange-500 uppercase tracking-widest">Target Reached</span>
+
+                    {/* Historial Biométrico Real */}
+                    <div className="bg-white/5 border border-white/5 p-8 rounded-[2.5rem] relative overflow-hidden flex flex-col">
+                        <h4 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-orange-500" />
+                            Histórico de Peso (Kg)
+                        </h4>
+                        {chartData.length > 0 ? (
+                            <div className="h-48 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={chartData}>
+                                        <XAxis dataKey="fecha" stroke="#4b5563" fontSize={9} tickLine={false} />
+                                        <YAxis domain={['auto', 'auto']} stroke="#4b5563" fontSize={9} tickLine={false} axisLine={false} />
+                                        <Tooltip 
+                                            contentStyle={{ backgroundColor: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                                            labelStyle={{ color: '#fff', fontWeight: 'bold' }}
+                                        />
+                                        <Line type="monotone" dataKey="peso" name="Peso" stroke="#f97316" strokeWidth={3} dot={{ fill: '#f97316', r: 4 }} activeDot={{ r: 6 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 py-8 border-2 border-dashed border-white/5 rounded-2xl">
+                                <Sparkles className="w-8 h-8 mb-2" />
+                                <p className="text-[9px] font-black uppercase tracking-widest">Sin mediciones físicas registradas</p>
+                            </div>
+                        )}
                     </div>
                 </div>
+            ) : (
+                /* Vision Lab / Historial Biomecánico (Sprint 4.2) */
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center bg-white/5 border border-white/5 p-4 rounded-2xl">
+                        <div>
+                            <h4 className="text-xs font-black text-white uppercase tracking-[0.2em]">Historial Biomecánico AI</h4>
+                            <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-0.5">Correcciones de postura y trayectoria motora</p>
+                        </div>
+                        <Link
+                            href={`/tenants/${tenantSlug}/coach/vision?athlete=${student.id}`}
+                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+                        >
+                            🎥 Analizar Video
+                        </Link>
+                    </div>
 
-                <button className="w-full mt-4 py-6 bg-zinc-900 border border-white/10 text-white font-black uppercase italic tracking-widest rounded-[2rem] hover:border-orange-500/50 transition-all">
-                    Descargar Dossier Full
-                </button>
-            </div>
+                    <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
+                        {videos.length > 0 ? (
+                            videos.map((vid: any) => {
+                                const resultado = vid.correcciones_ia || vid.resultado_ia;
+                                const isReady = vid.estado === 'analizado';
+                                const hasError = vid.estado === 'error';
+                                const score = resultado?.puntaje_general || 0;
+
+                                let statusBadge = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20';
+                                if (isReady) statusBadge = 'bg-green-500/20 text-green-400 border-green-500/20';
+                                if (hasError) statusBadge = 'bg-red-500/20 text-red-400 border-red-500/20';
+
+                                return (
+                                    <div key={vid.id} className="p-6 bg-white/5 border border-white/5 rounded-[2rem] space-y-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h5 className="text-sm font-black text-white uppercase tracking-tight">
+                                                    🏋️ {vid.nombre_ejercicio_custom || 'Ejercicio Sin Nombre'}
+                                                </h5>
+                                                <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-1">
+                                                    📅 {new Date(vid.creado_en).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${statusBadge}`}>
+                                                    {vid.estado}
+                                                </span>
+                                                {isReady && (
+                                                    <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-indigo-500/20 text-indigo-400 border-indigo-500/20">
+                                                        🏆 Score: {score}%
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {isReady && resultado && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                                                <div className="bg-green-500/5 border border-green-500/10 p-4 rounded-xl">
+                                                    <span className="text-[8px] text-green-400 font-black uppercase tracking-widest mb-1.5 block">✓ Puntos Fuertes</span>
+                                                    <ul className="space-y-1">
+                                                        {resultado.puntos_fuertes?.slice(0, 2).map((pf: string, i: number) => (
+                                                            <li key={i} className="text-[10px] text-zinc-300">• {pf}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                                <div className="bg-red-500/5 border border-red-500/10 p-4 rounded-xl">
+                                                    <span className="text-[8px] text-red-400 font-black uppercase tracking-widest mb-1.5 block">⚠ Correcciones</span>
+                                                    <ul className="space-y-1">
+                                                        {resultado.correcciones?.slice(0, 2).map((c: string, i: number) => (
+                                                            <li key={i} className="text-[10px] text-zinc-300">• {c}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <a
+                                                href={vid.url_video}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-4 py-2 border border-white/10 hover:border-orange-500/50 text-gray-300 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                👁️ Ver Clip Video
+                                            </a>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="text-center py-12 opacity-30 border border-dashed border-white/5 rounded-2xl">
+                                <Film className="w-8 h-8 mx-auto mb-2" />
+                                <p className="text-[9px] font-black uppercase tracking-widest">Sin registros biomecánicos aún</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            <button onClick={onClose} className="w-full mt-4 py-5 bg-zinc-900 border border-white/10 text-white font-black uppercase italic tracking-widest rounded-2xl hover:border-orange-500/50 transition-all text-xs">
+                Cerrar Reporte de Rendimiento
+            </button>
         </div>
     );
 }

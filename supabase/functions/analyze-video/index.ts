@@ -15,7 +15,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Manejar preflight request de CORS
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -60,106 +60,159 @@ serve(async (req) => {
       .update({ estado: "procesando", actualizado_en: new Date().toISOString() })
       .eq("id", videoId);
 
-    // 3. Extraer la ruta relativa del archivo desde la URL pública
-    // Ejemplo: URL pública de Supabase Storage contiene ".../object/public/videos_ejercicio/usuarioId/fileName"
-    // Opcional: Si el bucket es privado, descargamos usando la API de Storage
-    const urlParts = urlVideo.split("/videos_ejercicio/");
-    if (urlParts.length < 2) {
-      throw new Error("No se pudo parsear el path relativo del video desde la URL proporcionada.");
-    }
-    const filePath = urlParts[1];
-
-    console.log(`[IA-Worker] Descargando video desde Storage con path relativo: ${filePath}`);
-
-    // 4. Descargar archivo del storage a memoria en Deno (funciona con buckets privados y públicos)
-    const { data: blob, error: downloadError } = await supabase.storage
+    // Obtener los datos del registro nuevamente por si no venían completos en el payload del webhook
+    const { data: currentVideo, error: fetchError } = await supabase
       .from("videos_ejercicio")
-      .download(filePath);
+      .select("telemetria, nombre_ejercicio_custom")
+      .eq("id", videoId)
+      .single();
 
-    if (downloadError || !blob) {
-      throw new Error(`Error descargando video desde Supabase Storage: ${downloadError?.message || "Archivo vacío"}`);
-    }
+    const telemetriaData = currentVideo?.telemetria || videoRecord.telemetria;
+    const tieneTelemetria = Array.isArray(telemetriaData) && telemetriaData.length > 0;
 
-    const arrayBuffer = await blob.arrayBuffer();
-    const base64Video = btoa(
-      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-    );
+    let analysisJson: any = null;
 
-    console.log(`[IA-Worker] Archivo descargado con éxito. Tamaño: ${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)} MB. Invocando Gemini Vision...`);
+    if (tieneTelemetria) {
+      console.log(`[IA-Worker] Telemetría biomecánica encontrada (${telemetriaData.length} frames). Procesando directo con Gemini Text...`);
 
-    // 5. Estructurar Prompt Biomecánico y Schema de Respuesta JSON
-    const prompt = `
-      Actúa como un Especialista en Biomecánica de Élite y Fisioterapeuta Deportivo.
-      Realiza un análisis biomecánico exhaustivo de la técnica de ejecución de este ejercicio: ${exerciseName}.
-      
-      Debes identificar:
-      - 1. Postura y alineación articular (columna, rodillas, cadera).
-      - 2. Rango de movimiento (ROM) y control de tempo.
-      - 3. Errores biomecánicos o patrones compensatorios con su severidad ("baja", "media", "alta").
-      - 4. Cronología de errores indicando el segundo aproximado de ocurrencia.
-      - 5. Recomendaciones accionables ("cues" de entrenamiento).
-      - 6. Puntaje general de ejecución del 0 al 100.
+      const prompt = `
+        Actúa como un Especialista en Biomecánica de Élite y Fisioterapeuta Deportivo.
+        Realiza un análisis biomecánico de la técnica de ejecución de este ejercicio: "${exerciseName}".
+        
+        A continuación se muestra la telemetría esquelética extraída frame a frame (cada 200ms) del video del atleta.
+        Cada frame contiene coordenadas X, Y, Z (valores normalizados 0-1 de la cámara) y ángulos calculados para ciertas articulaciones.
+        
+        Telemetría en formato JSON:
+        ${JSON.stringify(telemetriaData)}
 
-      La respuesta debe ser obligatoriamente un objeto JSON con la siguiente estructura:
-      {
-        "version": "1.0",
-        "analisis": {
-          "postura": [
-            {
-              "timestamp_ms": 3200,
-              "issue": "Descripción de la desviación postural",
-              "severity": "media",
-              "recommendation": "Acción correctiva inmediata"
-            }
+        Analiza la telemetría para encontrar desviaciones biomecánicas (como valgo de rodilla, pérdida de estabilidad en cadera, inclinación de torso excesiva, rango de movimiento incompleto o asimetrías).
+        Debes identificar en qué rango de segundos ocurre cada problema.
+
+        Debes retornar OBLIGATORIAMENTE un JSON estricto con la siguiente estructura (une el informe de texto y las correcciones visuales para el canvas del frontend):
+        {
+          "puntaje_general": 85,
+          "feedback_texto": "Resumen técnico detallado de la ejecución, destacando el control en la fase concéntrica y excéntrica.",
+          "puntos_fuertes": [
+            "Punto fuerte 1 (ej: Buena profundidad de cadera)",
+            "Punto fuerte 2"
           ],
-          "rango_movimiento": [
-            {
-              "timestamp_ms": 5000,
-              "issue": "Descripción del rango de movimiento incompleto",
-              "severity": "baja",
-              "recommendation": "Acción correctiva"
-            }
+          "tecnica": [
+            "Desviación o error 1 (ej: Leve valgo de rodilla en el segundo 4)",
+            "Desviación o error 2"
           ],
-          "tecnica_general": "Resumen global técnico del ejercicio",
-          "puntaje_tecnico": 75.0,
-          "puntaje_seguridad": 90.0
+          "recomendaciones": [
+            "Indicación correctiva 1 (ej: Empujar rodillas hacia afuera al subir)",
+            "Indicación correctiva 2"
+          ],
+          "correcciones_visuales": [
+            {
+              "segundo_inicio": 3.8,
+              "segundo_fin": 4.6,
+              "articulacion_foco": "rodilla_izq",
+              "tipo_error": "Valgo de rodilla",
+              "color_overlay": "#FF3333",
+              "mensaje_tooltip": "La rodilla izquierda colapsó hacia adentro en la fase concéntrica. Enfócate en empujar hacia afuera."
+            }
+          ]
+        }
+      `;
+
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
         },
-        "recomendaciones": [
-          "Recomendación general 1",
-          "Recomendación general 2"
-        ]
+      });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      if (!text) {
+        throw new Error("El modelo de IA de Gemini devolvió una respuesta vacía al procesar la telemetría.");
       }
-    `;
 
-    // Inicializar modelo multimodal Gemini 1.5 Flash (Optimizado para video y baja latencia/costo)
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      },
-    });
+      analysisJson = JSON.parse(text);
 
-    // Invocación multimodal pasándole el buffer de video en base64
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: base64Video,
-          mimeType: blob.type || "video/mp4",
+    } else {
+      console.log("[IA-Worker] No se encontró telemetría de MediaPipe. Ejecutando análisis fallback con Gemini Vision...");
+      
+      const urlParts = urlVideo.split("/videos_ejercicio/");
+      if (urlParts.length < 2) {
+        throw new Error("No se pudo parsear el path relativo del video desde la URL proporcionada.");
+      }
+      const filePath = urlParts[1];
+
+      console.log(`[IA-Worker] Descargando video desde Storage con path relativo: ${filePath}`);
+
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from("videos_ejercicio")
+        .download(filePath);
+
+      if (downloadError || !blob) {
+        throw new Error(`Error descargando video desde Supabase Storage: ${downloadError?.message || "Archivo vacío"}`);
+      }
+
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64Video = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+
+      const prompt = `
+        Actúa como un Especialista en Biomecánica de Élite y Fisioterapeuta Deportivo.
+        Realiza un análisis biomecánico exhaustivo de la técnica de ejecución de este ejercicio: "${exerciseName}".
+        
+        Analiza visualmente el video del atleta.
+        Debes retornar OBLIGATORIAMENTE un JSON estricto con la siguiente estructura:
+        {
+          "puntaje_general": 85,
+          "feedback_texto": "Resumen técnico detallado de la ejecución.",
+          "puntos_fuertes": [
+            "Punto fuerte 1",
+            "Punto fuerte 2"
+          ],
+          "tecnica": [
+            "Desviación o error 1",
+            "Desviación o error 2"
+          ],
+          "recomendaciones": [
+            "Indicación correctiva 1",
+            "Indicación correctiva 2"
+          ],
+          "correcciones_visuales": []
+        }
+      `;
+
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
         },
-      },
-    ]);
+      });
 
-    const response = await result.response;
-    const text = response.text();
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: base64Video,
+            mimeType: blob.type || "video/mp4",
+          },
+        },
+      ]);
 
-    if (!text) {
-      throw new Error("El modelo de IA de Gemini devolvió una respuesta vacía.");
+      const response = await result.response;
+      const text = response.text();
+
+      if (!text) {
+        throw new Error("El modelo de IA de Gemini devolvió una respuesta vacía en el análisis de video fallback.");
+      }
+
+      analysisJson = JSON.parse(text);
     }
 
     console.log("[IA-Worker] Análisis de IA recibido exitosamente. Guardando en base de datos...");
-    const analysisJson = JSON.parse(text);
 
     // 6. Almacenar Resultados en Base de Datos y Actualizar Estado
     const { error: updateError } = await supabase
@@ -167,7 +220,7 @@ serve(async (req) => {
       .update({
         estado: "analizado",
         correcciones_ia: analysisJson,
-        puntaje_confianza: analysisJson.analisis?.puntaje_tecnico || 0,
+        puntaje_confianza: analysisJson.puntaje_general ? analysisJson.puntaje_general / 100 : 0.8,
         procesado_en: new Date().toISOString(),
         actualizado_en: new Date().toISOString()
       })
@@ -180,7 +233,7 @@ serve(async (req) => {
     console.log(`[IA-Worker] Procesamiento biomecánico finalizado con éxito para el Video ID: ${videoId}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: "Análisis biomecánico asíncrono guardado correctamente." }),
+      JSON.stringify({ success: true, message: "Análisis biomecánico guardado correctamente." }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
