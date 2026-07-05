@@ -87,5 +87,22 @@ export function useChat(conversacionId: string | null) {
         return true;
     };
 
-    return { messages, loading, sendMessage };
+    /**
+     * Marcar como leídos todos los mensajes recibidos por el usuario actual
+     * en la conversación seleccionada activamente.
+     */
+    const markAsRead = async (currentUserId: string) => {
+        if (!conversacionId || !currentUserId) return;
+        try {
+            await (supabase.from('mensajes') as any)
+                .update({ leido: true })
+                .eq('conversacion_id', conversacionId)
+                .eq('receptor_id', currentUserId)
+                .eq('leido', false);
+        } catch (err) {
+            console.error('Error marcando mensajes como leídos:', err);
+        }
+    };
+
+    return { messages, loading, sendMessage, markAsRead };
 }

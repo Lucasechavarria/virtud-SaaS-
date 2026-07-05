@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useIsSubdomain } from '@/hooks/useIsSubdomain';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft,
@@ -78,6 +79,7 @@ export default function ReceptionReportPage() {
     const params = useParams();
     const router = useRouter();
     const tenantSlug = params?.tenantSlug as string | undefined;
+    const { isSubdomain } = useIsSubdomain();
 
     const [activeTab, setActiveTab] = useState<'attendance' | 'cash'>('attendance');
     const [range, setRange] = useState('week');
@@ -177,16 +179,7 @@ export default function ReceptionReportPage() {
     };
 
     const handleBack = () => {
-        if (typeof window !== 'undefined') {
-            const host = window.location.host.split(':')[0];
-            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
-            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
-            const isSubdomain = host !== baseDomain && host !== `www.${baseDomain}`;
-            
-            router.push(isSubdomain ? '/admin/reports' : `/${tenantSlug}/admin/reports`);
-        } else {
-            router.push(`/${tenantSlug}/admin/reports`);
-        }
+        router.push(isSubdomain ? '/admin/reports' : `/${tenantSlug}/admin/reports`);
     };
 
     const formatCurrency = (value: any) => {

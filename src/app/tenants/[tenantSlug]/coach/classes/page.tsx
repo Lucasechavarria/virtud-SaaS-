@@ -413,6 +413,23 @@ export default function CoachClassesPage({ params }: { params: { tenantSlug: str
 
 // Student List Modal
 function StudentListModal({ classData }: { classData: GymClass }) {
+    const assisted = classData.students.filter(s => s.estado === 'asistida');
+    const reserved = classData.students.filter(s => s.estado === 'reservada' || !s.estado);
+
+    const renderStudentCard = (student: Student) => (
+        <div key={student.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-orange-500/20 transition-all">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-orange-500/30 overflow-hidden flex items-center justify-center text-white font-black text-sm italic">
+                    {student.nombre_completo.charAt(0)}
+                </div>
+                <div>
+                    <p className="text-sm font-black text-white uppercase tracking-tight leading-none mb-1">{student.nombre_completo}</p>
+                    <p className="text-[10px] text-gray-500 font-bold lowercase">{student.email}</p>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="p-8 md:p-10 space-y-6">
             <div>
@@ -421,22 +438,36 @@ function StudentListModal({ classData }: { classData: GymClass }) {
                 <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{classData.actividad?.nombre} • {classData.hora_inicio.slice(0, 5)}hs</p>
             </div>
 
-            <div className="space-y-3">
-                {classData.students.length > 0 ? (
-                    classData.students.map((student) => (
-                        <div key={student.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-orange-500/20 transition-all">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-orange-500/30 overflow-hidden flex items-center justify-center text-white font-black text-sm italic">
-                                    {student.nombre_completo.charAt(0)}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-black text-white uppercase tracking-tight leading-none mb-1">{student.nombre_completo}</p>
-                                    <p className="text-[10px] text-gray-500 font-bold lowercase">{student.email}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))
-                ) : (
+            <div className="space-y-6">
+                <div>
+                    <h4 className="text-xs font-black text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2 font-rajdhani">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        Asistidos ({assisted.length})
+                    </h4>
+                    <div className="space-y-2">
+                        {assisted.length > 0 ? (
+                            assisted.map(renderStudentCard)
+                        ) : (
+                            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider pl-4">Ningún alumno marcado como asistido</p>
+                        )}
+                    </div>
+                </div>
+
+                <div>
+                    <h4 className="text-xs font-black text-orange-400 uppercase tracking-widest mb-3 flex items-center gap-2 font-rajdhani">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                        Reservados ({reserved.length})
+                    </h4>
+                    <div className="space-y-2">
+                        {reserved.length > 0 ? (
+                            reserved.map(renderStudentCard)
+                        ) : (
+                            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider pl-4 font-rajdhani">Ningún alumno con reserva activa</p>
+                        )}
+                    </div>
+                </div>
+
+                {classData.students.length === 0 && (
                     <div className="py-12 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
                         <Users className="w-10 h-10 mx-auto mb-3" />
                         <p className="text-[10px] font-black uppercase tracking-widest">Sin atletas reservados aún</p>

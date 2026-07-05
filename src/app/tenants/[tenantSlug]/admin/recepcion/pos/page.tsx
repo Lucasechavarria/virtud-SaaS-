@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 
 interface Product {
     id: string;
@@ -114,9 +115,9 @@ export default function POSPage() {
     const [saleError, setSaleError] = useState<string | null>(null);
     const [isSearchingMember, setIsSearchingMember] = useState(false);
 
-    // Modal Post-Cobro
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [lastSaleDetails, setLastSaleDetails] = useState<SaleDetails | null>(null);
+    const [sendingReceipt, setSendingReceipt] = useState(false);
 
     // CAJA Y ARQUEO DIARIO STATES
     const [aperturaMonto, setAperturaMonto] = useState('');
@@ -802,6 +803,44 @@ export default function POSPage() {
         processingSale,
         handleCheckout
     ]);
+
+    const handleSendEmailReceipt = async () => {
+        if (!lastSaleDetails) return;
+        
+        let clientEmail = lastSaleDetails.socio?.email;
+        if (!clientEmail) {
+            const prompted = prompt("Por favor ingresa la dirección de correo electrónico del cliente:");
+            if (!prompted) return;
+            clientEmail = prompted;
+        }
+
+        try {
+            setSendingReceipt(true);
+            const res = await fetch('/api/admin/recepcion/pos/send-receipt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: clientEmail,
+                    socioId: lastSaleDetails.socio?.id,
+                    amount: lastSaleDetails.total,
+                    ticketNum: lastSaleDetails.ticketNum,
+                    socioName: lastSaleDetails.socio?.name
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success('🧾 Recibo enviado por correo exitosamente');
+            } else {
+                throw new Error(data.error || 'Error al enviar recibo');
+            }
+        } catch (err: any) {
+            console.error('Error sending receipt email:', err);
+            toast.error(err.message || 'Error al enviar recibo');
+        } finally {
+            setSendingReceipt(false);
+        }
+    };
 
     // BLOQUEO DE PÁGINA SI LA CAJA ESTÁ CERRADA
     if (!isCashRegisterOpen) {
@@ -1685,21 +1724,28 @@ export default function POSPage() {
 
                             {/* Botones de acción en el Modal */}
                             <div className="p-6 border-t border-white/5 bg-black/20 flex flex-col gap-3">
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-3 gap-2">
                                     <button
                                         onClick={() => window.print()}
-                                        className="bg-white text-black hover:bg-gray-200 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
+                                        className="bg-white text-black hover:bg-gray-200 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-colors text-center"
                                     >
-                                        Imprimir Ticket
+                                        Imprimir
                                     </button>
                                     <a
                                         href={`https://wa.me/${lastSaleDetails.socio?.dni || ''}?text=Hola%20${encodeURIComponent(lastSaleDetails.socio?.name || 'Socio')},%20aqu%C3%AD%20tienes%20el%20comprobante%20de%20tu%20compra%20en%20Virtud%20Gym%20por%20un%20total%20de%20$${lastSaleDetails.total.toLocaleString('es-AR')}.%20Ticket%20%23${lastSaleDetails.ticketNum}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider text-center transition-colors"
+                                        className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider text-center transition-colors flex items-center justify-center"
                                     >
                                         WhatsApp
                                     </a>
+                                    <button
+                                        onClick={handleSendEmailReceipt}
+                                        disabled={sendingReceipt}
+                                        className="bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-colors text-center disabled:opacity-50"
+                                    >
+                                        {sendingReceipt ? 'Enviando...' : 'Email'}
+                                    </button>
                                 </div>
                                 <button
                                     onClick={() => {

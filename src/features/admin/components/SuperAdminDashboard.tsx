@@ -109,7 +109,26 @@ export default function SuperAdminOverview() {
     const [historyMetrics, setHistoryMetrics] = useState<{ mes: string; mrr: number; churn: number }[]>([]);
 
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-    const [newAnnouncement, setNewAnnouncement] = useState({ titulo: '', contenido: '', tipo: 'info', destino: 'todos', sendEmail: false });
+    const [newAnnouncement, setNewAnnouncement] = useState({ titulo: '', contenido: '', tipo: 'info', destino: 'todos', sendEmail: false, planSaaS: 'todos' });
+    const [saasPlans, setSaasPlans] = useState<any[]>([]);
+
+    const fetchSaasPlans = async () => {
+        try {
+            const res = await fetch('/api/admin/plans');
+            const data = await res.json();
+            if (res.ok && data.plans) {
+                setSaasPlans(data.plans);
+            } else {
+                const resList = await fetch('/api/admin/plans/list');
+                const dataList = await resList.json();
+                if (resList.ok && dataList.plans) {
+                    setSaasPlans(dataList.plans);
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching SaaS plans:', err);
+        }
+    };
 
     // Estados para el Modal de Impersonación Premium
     const [impersonationTarget, setImpersonationTarget] = useState<{ id: string; nombre: string } | null>(null);
@@ -163,6 +182,7 @@ export default function SuperAdminOverview() {
 
     useEffect(() => {
         fetchGlobalData();
+        fetchSaasPlans();
     }, []);
 
     useEffect(() => {
@@ -256,7 +276,7 @@ export default function SuperAdminOverview() {
             if (res.ok) {
                 toast.success('Anuncio enviado exitosamente');
                 setShowBroadcastModal(false);
-                setNewAnnouncement({ titulo: '', contenido: '', tipo: 'info', destino: 'todos', sendEmail: false });
+                setNewAnnouncement({ titulo: '', contenido: '', tipo: 'info', destino: 'todos', sendEmail: false, planSaaS: 'todos' });
                 fetchGlobalData();
             } else {
                 const d = await res.json();
@@ -695,16 +715,32 @@ export default function SuperAdminOverview() {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Destinatarios</label>
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Destinatarios (Rol)</label>
                                     <select
                                         value={newAnnouncement.destino}
                                         onChange={e => setNewAnnouncement({ ...newAnnouncement, destino: e.target.value })}
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500/50 transition-all appearance-none"
+                                        className="w-full bg-[#1c1c1e] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500/50 transition-all appearance-none"
                                     >
                                         <option value="todos">Toda la Red (Todos)</option>
                                         <option value="admin_gym">Solo Administradores</option>
                                         <option value="coaches">Solo Profesores / Coaches</option>
                                         <option value="alumnos">Solo Alumnos</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Plan SaaS de Origen (Filtro Sedes)</label>
+                                    <select
+                                        value={newAnnouncement.planSaaS}
+                                        onChange={e => setNewAnnouncement({ ...newAnnouncement, planSaaS: e.target.value })}
+                                        className="w-full bg-[#1c1c1e] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500/50 transition-all appearance-none"
+                                    >
+                                        <option value="todos">Todos los Planes SaaS</option>
+                                        {saasPlans.map((plan: any) => (
+                                            <option key={plan.id} value={plan.id} className="bg-[#1c1c1e]">{plan.nombre}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>

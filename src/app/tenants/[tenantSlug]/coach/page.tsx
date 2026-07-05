@@ -9,6 +9,7 @@ import { CoachAttendanceWidget } from '@/features/coach/components/CoachAttendan
 import { IntelligenceCardsGrid } from '@/components/coach/IntelligenceCards';
 import { BulkStudentManager } from '@/components/coach/BulkStudentManager';
 import { Zap, Users, Calendar, ClipboardCheck, Bell, Activity, ShieldCheck, Mail, BarChart3 } from 'lucide-react';
+import { useTenantNavigation } from '@/hooks/useTenantNavigation';
 
 const container = {
     hidden: { opacity: 0 },
@@ -25,7 +26,9 @@ const item = {
     show: { opacity: 1, y: 0 }
 };
 
-export default function CoachDashboard({ params }: { params: { tenantSlug: string } }) {
+export default function CoachDashboard({ params }: { params: Promise<{ tenantSlug: string }> }) {
+    const resolvedParams = React.use(params);
+    const { tenantHref } = useTenantNavigation();
     const [loading, setLoading] = useState(true);
     const [sendingPush, setSendingPush] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
@@ -38,7 +41,7 @@ export default function CoachDashboard({ params }: { params: { tenantSlug: strin
 
     useEffect(() => {
         const fetchDashboardData = async () => {
-            const gymSlug = params.tenantSlug;
+            const gymSlug = resolvedParams.tenantSlug;
             if (!gymSlug) return;
             try {
                 const [dashboardRes, analyticsRes, studentsRes] = await Promise.all([
@@ -68,7 +71,7 @@ export default function CoachDashboard({ params }: { params: { tenantSlug: strin
             }
         };
         fetchDashboardData();
-    }, [params.tenantSlug]);
+    }, [resolvedParams.tenantSlug]);
 
     const sendTestPush = async () => {
         setSendingPush(true);
@@ -137,7 +140,7 @@ export default function CoachDashboard({ params }: { params: { tenantSlug: strin
 
                 {/* Next Class Hero - High Profile */}
                 <div className="xl:col-span-2">
-                    <Link href="/coach/classes">
+                    <Link href={tenantHref('/coach/classes')}>
                         <motion.div
                             variants={item}
                             whileHover={{ y: -5 }}
@@ -309,10 +312,10 @@ export default function CoachDashboard({ params }: { params: { tenantSlug: strin
 
                 {/* Tactical Operations (Action Grid) */}
                 <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <ActionCard label="Rutinas" sub="Digital Gear" icon={<ClipboardCheck />} href="/coach/routines" delay={0.4} color="gray" />
-                    <ActionCard label="Clases" sub="Operation Log" icon={<Calendar />} href="/coach/classes" delay={0.5} color="gray" />
-                    <ActionCard label="Asistencia" sub="Check-In" icon={< ShieldCheck />} href="/coach/classes" delay={0.6} color="gray" />
-                    <ActionCard label="Alumnos" sub={`${data.stats.activeStudents} Unidades`} icon={<Users />} href="/coach/students" delay={0.7} color="orange" />
+                    <ActionCard label="Rutinas" sub="Digital Gear" icon={<ClipboardCheck />} href={tenantHref('/coach/routines')} delay={0.4} color="gray" />
+                    <ActionCard label="Clases" sub="Operation Log" icon={<Calendar />} href={tenantHref('/coach/classes')} delay={0.5} color="gray" />
+                    <ActionCard label="Asistencia" sub="Check-In" icon={< ShieldCheck />} href={tenantHref('/coach/classes')} delay={0.6} color="gray" />
+                    <ActionCard label="Alumnos" sub={`${data.stats.activeStudents} Unidades`} icon={<Users />} href={tenantHref('/coach/students')} delay={0.7} color="orange" />
                 </div>
 
             </div>

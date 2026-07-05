@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 
@@ -15,29 +15,6 @@ interface StudentReport {
     createdAt: string;
     resolvedAt?: string;
 }
-
-const MOCK_REPORTS: StudentReport[] = [
-    {
-        id: '1',
-        studentId: 'student1',
-        studentName: 'Ana Gómez',
-        type: 'question',
-        title: 'Ajuste de rutina',
-        description: 'Necesito ajustar mi rutina porque tengo menos tiempo disponible',
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-    },
-    {
-        id: '2',
-        studentId: 'student2',
-        studentName: 'Carlos Ruiz',
-        type: 'pain',
-        title: 'Dolor de espalda',
-        description: 'Siento molestia en la espalda baja después de hacer peso muerto',
-        status: 'pending',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-];
 
 const TYPE_ICONS = {
     injury: '🏥',
@@ -54,18 +31,53 @@ const TYPE_LABELS = {
 };
 
 export function ReportsPanel() {
-    const [reports, setReports] = useState<StudentReport[]>(MOCK_REPORTS);
+    const [reports, setReports] = useState<StudentReport[]>([]);
     const [selectedReport, setSelectedReport] = useState<StudentReport | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     const pendingReports = reports.filter(r => r.status === 'pending');
 
-    const handleResolve = (reportId: string) => {
-        setReports(reports.map(r =>
-            r.id === reportId ? { ...r, status: 'resolved', resolvedAt: new Date().toISOString() } : r
-        ));
-        toast.success('Reporte marcado como resuelto');
-        setSelectedReport(null);
+    const fetchReports = async () => {
+        try {
+            setLoading(true);
+            const res = await fetch('/api/coach/reports');
+            const data = await res.json();
+            if (data.success) {
+                setReports(data.reports || []);
+            } else {
+                toast.error('Error al cargar reportes');
+            }
+        } catch (error) {
+            console.error('Error fetching reports:', error);
+            toast.error('Error al cargar reportes');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchReports();
+    }, []);
+
+    const handleResolve = async (reportId: string) => {
+        const toastId = toast.loading('Actualizando reporte...');
+        try {
+            const res = await fetch('/api/coach/reports', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reportId, status: 'resolved' })
+            });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error);
+
+            toast.success('Reporte marcado como resuelto', { id: toastId });
+            setSelectedReport(null);
+            fetchReports();
+        } catch (error: any) {
+            toast.error(error.message || 'Error al resolver reporte', { id: toastId });
+        }
     };
 
     return (
@@ -87,7 +99,11 @@ export function ReportsPanel() {
                 </button>
             </div>
 
-            {pendingReports.length === 0 ? (
+            {loading ? (
+                <div className="text-center py-8 text-gray-500 animate-pulse">
+                    Cargando reportes...
+                </div>
+            ) : pendingReports.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                     <span className="text-4xl block mb-2">✅</span>
                     No hay reportes pendientes
@@ -180,30 +196,76 @@ export function ReportsPanel() {
             {/* Create Report Modal */}
             <AnimatePresence>
                 {showCreateModal && (
-                    <CreateReportModal onClose={() => setShowCreateModal(false)} />
+                    <CreateReportModal
+                        onClose={() => setShowCreateModal(false)}
+                        onSuccess={() => {
+                            setShowCreateModal(false);
+                            fetchReports();
+                        }}
+                    />
                 )}
             </AnimatePresence>
         </div>
     );
 }
 
-function CreateReportModal({ onClose }: { onClose: () => void }) {
+interface StudentOption {
+    id: string;
+    full_name: string;
+}
+
+function CreateReportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+    const [students, setStudents] = useState<StudentOption[]>([]);
+    const [loadingStudents, setLoadingStudents] = useState(true);
     const [formData, setFormData] = useState({
-        studentName: '',
+        studentId: '',
         type: 'question' as 'injury' | 'pain' | 'question' | 'concern',
         title: '',
         description: '',
     });
 
-    const handleSubmit = () => {
-        if (!formData.studentName || !formData.title || !formData.description) {
+    useEffect(() => {
+        const fetchStudents = async () => {
+            try {
+                const res = await fetch('/api/coach/students');
+                const data = await res.json();
+                if (data.success && data.students) {
+                    setStudents(data.students);
+                    if (data.students.length > 0) {
+                        setFormData(prev => ({ ...prev, studentId: data.students[0].id }));
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching students for reports modal:', err);
+            } finally {
+                setLoadingStudents(false);
+            }
+        };
+        fetchStudents();
+    }, []);
+
+    const handleSubmit = async () => {
+        if (!formData.studentId || !formData.title || !formData.description) {
             toast.error('Completa todos los campos');
             return;
         }
 
+        const toastId = toast.loading('Creando reporte...');
+        try {
+            const res = await fetch('/api/coach/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+            const data = await res.json();
 
-        toast.success('Reporte creado exitosamente');
-        onClose();
+            if (!res.ok) throw new Error(data.error);
+
+            toast.success('Reporte creado exitosamente', { id: toastId });
+            onSuccess();
+        } catch (error: any) {
+            toast.error(error.message || 'Error al crear reporte', { id: toastId });
+        }
     };
 
     return (
@@ -226,13 +288,19 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
                 <div className="space-y-4">
                     <div>
                         <label className="block text-gray-300 mb-2 font-bold text-sm">Alumno</label>
-                        <input
-                            type="text"
-                            value={formData.studentName}
-                            onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white"
-                            placeholder="Nombre del alumno"
-                        />
+                        {loadingStudents ? (
+                            <div className="text-gray-500 text-xs">Cargando lista de alumnos...</div>
+                        ) : (
+                            <select
+                                value={formData.studentId}
+                                onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg p-3 text-white focus:outline-none"
+                            >
+                                {students.map(s => (
+                                    <option key={s.id} value={s.id}>{s.full_name}</option>
+                                ))}
+                            </select>
+                        )}
                     </div>
 
                     <div>
@@ -240,7 +308,7 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
                         <select
                             value={formData.type}
                             onChange={(e) => setFormData({ ...formData, type: e.target.value as 'injury' | 'pain' | 'question' | 'concern' })}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white"
+                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg p-3 text-white focus:outline-none"
                         >
                             <option value="question">Consulta</option>
                             <option value="pain">Dolor</option>
@@ -255,7 +323,7 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
                             type="text"
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:outline-none"
                             placeholder="Título breve"
                         />
                     </div>
@@ -265,14 +333,15 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
                         <textarea
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white h-32 resize-none"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white h-32 resize-none focus:outline-none"
                             placeholder="Describe el problema o consulta..."
                         />
                     </div>
 
                     <button
                         onClick={handleSubmit}
-                        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-all"
+                        disabled={loadingStudents || !formData.studentId}
+                        className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-all"
                     >
                         Crear Reporte
                     </button>

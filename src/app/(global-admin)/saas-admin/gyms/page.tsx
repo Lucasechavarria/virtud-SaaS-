@@ -40,6 +40,7 @@ interface Gimnasio {
     plan_id?: string;
     estado_pago_saas?: string;
     config_visual?: Record<string, unknown>;
+    umbral_churn_dias?: number;
 }
 
 export default function GymsManagementPage() {
@@ -129,7 +130,8 @@ export default function GymsManagementPage() {
         plan_id: '',
         estado_pago_saas: '',
         color_primario: '#6d28d9',
-        modulos: {} as Record<string, boolean>
+        modulos: {} as Record<string, boolean>,
+        umbral_churn_dias: 14
     });
 
     const [plans, setPlans] = useState<{ id: string; nombre: string; precio_mensual: number }[]>([]);
@@ -478,6 +480,7 @@ export default function GymsManagementPage() {
                     plan_id: configData.plan_id,
                     estado_pago_saas: configData.estado_pago_saas,
                     modulos_activos: configData.modulos,
+                    umbral_churn_dias: configData.umbral_churn_dias,
                     config_visual: {
                         logo_url: configData.logo_url,
                         tema: 'dark'
@@ -525,7 +528,8 @@ export default function GymsManagementPage() {
                 nutricion_ia: true,
                 pagos_online: true,
                 clases_reserva: true
-            }
+            },
+            umbral_churn_dias: gym.umbral_churn_dias || 14
         });
         setShowConfigModal(true);
     };
@@ -855,6 +859,18 @@ export default function GymsManagementPage() {
                                             onChange={e => setConfigData({ ...configData, color_primario: e.target.value })}
                                         />
                                     </div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2 block">Umbral Churn (Días de Inactividad)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-red-500 outline-none transition-all"
+                                        value={configData.umbral_churn_dias || 14}
+                                        onChange={e => setConfigData({ ...configData, umbral_churn_dias: parseInt(e.target.value) || 14 })}
+                                    />
                                 </div>
                             </div>
 

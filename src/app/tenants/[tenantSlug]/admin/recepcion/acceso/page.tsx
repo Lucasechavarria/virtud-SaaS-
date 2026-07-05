@@ -19,19 +19,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import { useIsSubdomain } from '@/hooks/useIsSubdomain';
 
 export default function QRAccessPage() {
     const params = useParams();
     const tenantSlug = params?.tenantSlug as string;
-    const [isSubdomain, setIsSubdomain] = useState(false);
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const host = window.location.host.split(':')[0];
-            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
-            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
-            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
-        }
-    }, []);
+    const { isSubdomain } = useIsSubdomain();
 
     const getTenantLink = (href: string) => {
         return isSubdomain ? href : (tenantSlug ? `/${tenantSlug}${href}` : href);
@@ -47,13 +40,10 @@ export default function QRAccessPage() {
         const resolveGymId = async () => {
             if (!tenantSlug) return;
             try {
-                const { data, error } = await supabase
-                    .from('gimnasios')
-                    .select('id')
-                    .eq('slug', tenantSlug)
-                    .single();
-                if (data) {
-                    setGymId(data.id);
+                const res = await fetch(`/api/tenant/resolve?slug=${tenantSlug}`);
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    setGymId(data.gymId);
                 }
             } catch (err) {
                 console.error('Error resolving gym ID from slug:', err);
@@ -65,6 +55,8 @@ export default function QRAccessPage() {
     // Estados de Ingreso Excepcional (Bypass)
     const [showBypassModal, setShowBypassModal] = useState(false);
     const [bypassJustification, setBypassJustification] = useState('');
+    const [selectedReason, setSelectedReason] = useState('Olvido de credencial / QR');
+    const [customReason, setCustomReason] = useState('');
     const [submittingBypass, setSubmittingBypass] = useState(false);
 
     // Estados de Búsqueda Manual
@@ -475,7 +467,16 @@ export default function QRAccessPage() {
     // Procesar la autorización de ingreso excepcional (Bypass)
     const handleBypassSubmit = async () => {
         const studentId = lastScanResult?.member?.id;
-        if (!studentId || bypassJustification.trim().length < 6) return;
+        if (!studentId) return;
+
+        const motivoBypass = customReason.trim()
+            ? `[${selectedReason}] ${customReason.trim()}`
+            : selectedReason;
+
+        if (motivoBypass.length < 6) {
+            alert('La justificación debe tener al menos 6 caracteres.');
+            return;
+        }
 
         try {
             setSubmittingBypass(true);
@@ -484,7 +485,7 @@ export default function QRAccessPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     socioId: studentId,
-                    motivo: bypassJustification.trim()
+                    motivo: motivoBypass
                 })
             });
 
@@ -527,7 +528,8 @@ export default function QRAccessPage() {
             });
 
             setShowBypassModal(false);
-            setBypassJustification('');
+            setSelectedReason('Olvido de credencial / QR');
+            setCustomReason('');
 
         } catch (error: any) {
             console.error('Error al enviar bypass:', error);
@@ -972,19 +974,41 @@ export default function QRAccessPage() {
                                 Ingresa la justificación de este acceso excepcional (mínimo 6 caracteres). Este evento quedará registrado de forma inmutable en la auditoría del gimnasio.
                             </p>
 
-                            <textarea
-                                value={bypassJustification}
-                                onChange={(e) => setBypassJustification(e.target.value)}
-                                placeholder="Ej: Trajo certificado médico en papel / Se comprometió a regularizar su deuda mañana..."
-                                className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500 transition-colors h-24 text-white resize-none"
-                                disabled={submittingBypass}
-                            />
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest block ml-1">Motivo de Excepción</label>
+                                    <select
+                                        value={selectedReason}
+                                        onChange={(e) => setSelectedReason(e.target.value)}
+                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors appearance-none cursor-pointer"
+                                        disabled={submittingBypass}
+                                    >
+                                        <option value="Olvido de credencial / QR">Olvido de credencial / QR</option>
+                                        <option value="Pago en efectivo pendiente">Pago en efectivo pendiente</option>
+                                        <option value="Fallo del sistema de molinete">Fallo del sistema de molinete</option>
+                                        <option value="Autorización manual del Admin">Autorización manual del Admin</option>
+                                        <option value="Trajo certificado / documentación">Trajo certificado / documentación</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest block ml-1">Observaciones / Comentarios</label>
+                                    <textarea
+                                        value={customReason}
+                                        onChange={(e) => setCustomReason(e.target.value)}
+                                        placeholder="Ej: Se compromete a pagar el saldo mañana / Autorizado verbalmente por el director..."
+                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500 transition-colors h-20 text-white resize-none"
+                                        disabled={submittingBypass}
+                                    />
+                                </div>
+                            </div>
 
                             <div className="flex gap-3 mt-6">
                                 <button
                                     onClick={() => {
                                         setShowBypassModal(false);
-                                        setBypassJustification('');
+                                        setSelectedReason('Olvido de credencial / QR');
+                                        setCustomReason('');
                                     }}
                                     disabled={submittingBypass}
                                     className="flex-1 bg-[#2c2c2e] hover:bg-[#3c3c3e] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
@@ -993,7 +1017,7 @@ export default function QRAccessPage() {
                                 </button>
                                 <button
                                     onClick={handleBypassSubmit}
-                                    disabled={submittingBypass || bypassJustification.trim().length < 6}
+                                    disabled={submittingBypass || (customReason.trim() ? `[${selectedReason}] ${customReason.trim()}` : selectedReason).length < 6}
                                     className="flex-1 bg-amber-500 hover:bg-amber-600 text-black py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
                                 >
                                     {submittingBypass ? 'Procesando...' : 'Confirmar'}

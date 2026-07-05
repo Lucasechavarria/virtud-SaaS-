@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Line } from 'recharts';
-import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import MetricsDashboard from '@/features/coach/components/MetricsDashboard';
 
 // Mock data for metrics
 // Mock data for metrics removed as it was unused
@@ -163,64 +162,65 @@ export default function CoachMetricsPage() {
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Attendance Chart */}
-                <div className="bg-[#1c1c1e]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-                    <h3 className="text-xl font-bold text-white mb-4">📅 Asistencia Mensual</h3>
-                    <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={metrics?.attendance || []}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3c" />
-                            <XAxis dataKey="month" stroke="#888" />
-                            <YAxis stroke="#888" />
-                            <Tooltip
-                                contentStyle={{ background: '#1c1c1e', border: '1px solid #3a3a3c', borderRadius: '8px' }}
-                                labelStyle={{ color: '#fff' }}
-                            />
-                            <Line type="monotone" dataKey="rate" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 5 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
+            <MetricsDashboard studentId={selectedStudent} viewMode={viewMode} />
 
-                {/* Performance Chart (Placeholder for now until logging is implemented) */}
-                <div className="bg-[#1c1c1e]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-                    <h3 className="text-xl font-bold text-white mb-4">💪 Volumen de Entrenamiento</h3>
-                    <div className="flex flex-col items-center justify-center h-[250px]">
-                        <span className="text-5xl mb-4">🏋️</span>
-                        <p className="text-3xl font-black text-purple-400">{metrics?.prescribedVolume || 0}</p>
-                        <p className="text-gray-500 text-sm">Sets x Reps Totales Prescritas</p>
+            {viewMode === 'group' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Top Volume */}
+                    <div className="bg-[#1c1c1e]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            <span>🏋️</span> Top 3 Volumen Semanal (Ton)
+                        </h3>
+                        <div className="space-y-3">
+                            {(metrics?.topVolume || []).map((athlete: any, index: number) => (
+                                <div key={athlete.name} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                                    <div className="flex items-center gap-3">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                                            index === 0 ? 'bg-yellow-500 text-black' :
+                                            index === 1 ? 'bg-zinc-400 text-black' :
+                                            'bg-amber-700 text-white'
+                                        }`}>
+                                            {index + 1}
+                                        </span>
+                                        <span className="text-white font-medium">{athlete.name}</span>
+                                    </div>
+                                    <span className="text-orange-400 font-bold">{athlete.volume} Ton</span>
+                                </div>
+                            ))}
+                            {(!metrics?.topVolume || metrics.topVolume.length === 0) && (
+                                <p className="text-zinc-500 text-sm text-center py-4">Sin datos de volumen.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Top Streak */}
+                    <div className="bg-[#1c1c1e]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            <span>🔥</span> Top 3 Racha de Asistencia
+                        </h3>
+                        <div className="space-y-3">
+                            {(metrics?.topStreak || []).map((athlete: any, index: number) => (
+                                <div key={athlete.name} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                                    <div className="flex items-center gap-3">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                                            index === 0 ? 'bg-yellow-500 text-black' :
+                                            index === 1 ? 'bg-zinc-400 text-black' :
+                                            'bg-amber-700 text-white'
+                                        }`}>
+                                            {index + 1}
+                                        </span>
+                                        <span className="text-white font-medium">{athlete.name}</span>
+                                    </div>
+                                    <span className="text-green-400 font-bold">{athlete.streak} Clases</span>
+                                </div>
+                            ))}
+                            {(!metrics?.topStreak || metrics.topStreak.length === 0) && (
+                                <p className="text-zinc-500 text-sm text-center py-4">Sin datos de asistencia.</p>
+                            )}
+                        </div>
                     </div>
                 </div>
-
-                {/* Body Metrics Chart */}
-                <div className="bg-[#1c1c1e]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 lg:col-span-2">
-                    <h3 className="text-xl font-bold text-white mb-4">📉 Evolución Corporal</h3>
-                    {metrics?.measurements?.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={metrics.measurements.map((m: any, _i: number) => ({
-                                date: new Date(m.recorded_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }),
-                                peso: m.weight,
-                                grasa: m.body_fat
-                            }))}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3c" />
-                                <XAxis dataKey="date" stroke="#888" />
-                                <YAxis stroke="#888" />
-                                <Tooltip
-                                    contentStyle={{ background: '#1c1c1e', border: '1px solid #3a3a3c', borderRadius: '8px' }}
-                                    labelStyle={{ color: '#fff' }}
-                                />
-                                <Legend />
-                                <Line type="monotone" dataKey="peso" stroke="#f59e0b" strokeWidth={3} name="Peso (kg)" />
-                                <Line type="monotone" dataKey="grasa" stroke="#ef4444" strokeWidth={3} name="% Grasa" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-[250px] text-gray-500">
-                            <span className="text-4xl mb-2">⚖️</span>
-                            <p>Sin mediciones registradas recientemente.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
+            )}
 
             {/* Recent Activities */}
             <div className="bg-[#1c1c1e]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6">

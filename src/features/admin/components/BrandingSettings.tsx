@@ -46,13 +46,11 @@ export default function BrandingSettings() {
                 if (isUUID) {
                     resolvedId = tenantSlug;
                 } else {
-                    const { data: gym } = await supabase
-                        .from('gimnasios')
-                        .select('id')
-                        .eq('slug', tenantSlug)
-                        .is('deleted_at', null)
-                        .single();
-                    if (gym) resolvedId = gym.id;
+                    const res = await fetch(`/api/tenant/resolve?slug=${tenantSlug}`);
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        resolvedId = data.gymId;
+                    }
                 }
             } else {
                 resolvedId = profile?.gimnasio_id || '';
@@ -257,51 +255,128 @@ export default function BrandingSettings() {
                     </button>
                 </form>
 
-                {/* Preview Card */}
+                {/* Interactive Preview Panel */}
                 <div className="space-y-6">
                     <div className="bg-[#1c1c1e] border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl sticky top-8">
                         <div className="p-8 border-b border-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <Eye size={18} className="text-primary" />
-                                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Vista Previa PWA</h4>
+                                <Eye size={18} style={{ color: formData.color_primario }} />
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Vista Previa en Tiempo Real</h4>
                             </div>
                             <div className="flex gap-1">
-                                <div className="w-2 h-2 rounded-full bg-red-500/20" />
-                                <div className="w-2 h-2 rounded-full bg-yellow-500/20" />
-                                <div className="w-2 h-2 rounded-full bg-green-500/20" />
+                                <div className="w-2 h-2 rounded-full bg-red-500/40" />
+                                <div className="w-2 h-2 rounded-full bg-yellow-500/40" />
+                                <div className="w-2 h-2 rounded-full bg-green-500/40" />
                             </div>
                         </div>
 
-                        <div className="p-10 space-y-10 aspect-[9/16] max-h-[600px] flex flex-col items-center justify-center text-center bg-black/40">
-                            {formData.logo_url ? (
-                                <div className="relative w-[120px] h-[120px] mb-4">
-                                    <Image src={formData.logo_url} alt="Preview Logo" fill className="object-contain rounded-3xl" unoptimized />
+                        {/* Simulated Dashboard Layout */}
+                        <div className="flex" style={{ minHeight: '420px' }}>
+                            {/* Mini Sidebar */}
+                            <div className="w-[60px] bg-black/60 border-r border-white/5 flex flex-col items-center py-4 gap-3">
+                                {/* Logo */}
+                                <div
+                                    className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden mb-2 border"
+                                    style={{ borderColor: `${formData.color_primario}40`, background: `${formData.color_primario}15` }}
+                                >
+                                    {formData.logo_url ? (
+                                        <Image src={formData.logo_url} alt="Logo" width={28} height={28} className="object-contain" unoptimized />
+                                    ) : (
+                                        <span className="text-lg">🏋️</span>
+                                    )}
                                 </div>
-                            ) : (
-                                <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center mb-4 border border-primary/20">
-                                    <ImageIcon className="text-primary" size={40} />
+
+                                {/* Nav items */}
+                                {['📊', '👥', '🎯', '💬', '⚙️'].map((icon, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="w-9 h-9 rounded-xl flex items-center justify-center text-sm transition-all cursor-default"
+                                        style={{
+                                            background: idx === 0 ? `${formData.color_primario}20` : 'transparent',
+                                            border: idx === 0 ? `1px solid ${formData.color_primario}40` : '1px solid transparent',
+                                        }}
+                                    >
+                                        {icon}
+                                    </div>
+                                ))}
+
+                                {/* Bottom separator + logout */}
+                                <div className="mt-auto">
+                                    <div className="w-6 h-px bg-white/10 mb-3" />
+                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm text-gray-600">
+                                        🚪
+                                    </div>
                                 </div>
-                            )}
-                            <div className="space-y-2">
-                                <h5 className="text-3xl font-black text-white italic uppercase tracking-tighter">{formData.nombre || 'Nombre Gym'}</h5>
-                                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Powered by Virtud Gym</p>
                             </div>
 
-                            <div className="w-full p-4 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4 text-left">
-                                <div className="w-8 h-8 rounded-lg bg-primary" />
-                                <div className="flex-1">
-                                    <div className="h-2 w-20 bg-white/10 rounded-full mb-2" />
-                                    <div className="h-2 w-12 bg-white/5 rounded-full" />
+                            {/* Main Content Area */}
+                            <div className="flex-1 p-4 space-y-3 bg-[#0a0a0b]">
+                                {/* Header bar */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-600">Panel de Control</p>
+                                        <p className="text-[10px] font-bold text-white">{formData.nombre || 'Mi Gym'}</p>
+                                    </div>
+                                    <div
+                                        className="w-7 h-7 rounded-full"
+                                        style={{ background: `linear-gradient(135deg, ${formData.color_primario}, ${formData.color_primario}80)` }}
+                                    />
+                                </div>
+
+                                {/* Stat cards */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: 'Socios', value: '248', icon: '👥' },
+                                        { label: 'Ingresos', value: '$1.2M', icon: '💰' },
+                                        { label: 'Clases Hoy', value: '12', icon: '📅' },
+                                        { label: 'Retención', value: '94%', icon: '📈' },
+                                    ].map((stat, i) => (
+                                        <div
+                                            key={i}
+                                            className="p-2.5 rounded-xl border"
+                                            style={{
+                                                background: i === 0 ? `${formData.color_primario}10` : 'rgba(255,255,255,0.03)',
+                                                borderColor: i === 0 ? `${formData.color_primario}25` : 'rgba(255,255,255,0.05)',
+                                            }}
+                                        >
+                                            <span className="text-xs">{stat.icon}</span>
+                                            <p className="text-white text-sm font-black mt-0.5">{stat.value}</p>
+                                            <p className="text-[7px] font-bold uppercase tracking-widest text-gray-600">{stat.label}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* CTA Button */}
+                                <button
+                                    type="button"
+                                    className="w-full py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-white shadow-lg transition-all"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${formData.color_primario}, ${formData.color_primario}cc)`,
+                                        boxShadow: `0 4px 14px ${formData.color_primario}30`,
+                                    }}
+                                >
+                                    Crear Nuevo Evento
+                                </button>
+
+                                {/* Chart placeholder */}
+                                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 space-y-2">
+                                    <p className="text-[7px] font-black uppercase tracking-widest text-gray-600">Asistencia Semanal</p>
+                                    <div className="flex items-end gap-1 h-10">
+                                        {[40, 65, 50, 80, 70, 90, 60].map((h, i) => (
+                                            <div
+                                                key={i}
+                                                className="flex-1 rounded-sm transition-all"
+                                                style={{
+                                                    height: `${h}%`,
+                                                    background: i === 5
+                                                        ? formData.color_primario
+                                                        : `${formData.color_primario}30`,
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-
-                            <button
-                                type="button"
-                                style={{ backgroundColor: formData.color_primario }}
-                                className="w-full py-4 rounded-xl font-black uppercase italic tracking-widest text-white shadow-xl opacity-80"
-                            >
-                                Iniciar Entrenamiento
-                            </button>
                         </div>
                     </div>
 

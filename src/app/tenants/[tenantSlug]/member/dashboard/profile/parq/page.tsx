@@ -16,20 +16,13 @@ const QUESTIONS = [
     { id: 7, text: '¿Sabe de alguna otra razón por la que no deba realizar actividad física?' }
 ];
 
+import { useIsSubdomain } from '@/hooks/useIsSubdomain';
+
 export default function ParqPage() {
     const params = useParams();
     const router = useRouter();
     const tenantSlug = params.tenantSlug as string;
-    const [isSubdomain, setIsSubdomain] = useState(false);
-
-    React.useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const host = window.location.host.split(':')[0];
-            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
-            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
-            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
-        }
-    }, []);
+    const { isSubdomain } = useIsSubdomain();
 
     const [answers, setAnswers] = useState<Record<number, boolean>>({});
     const [acceptedConsent, setAcceptedConsent] = useState(false);

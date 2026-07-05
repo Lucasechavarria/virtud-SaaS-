@@ -9,7 +9,7 @@ export async function POST(request: Request) {
         const { error: authError, user: adminUser } = await authenticateAndRequireRole(request, ['superadmin']);
         if (authError || !adminUser) return authError || NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const { titulo, contenido, tipo, destino, sendEmail } = await request.json();
+        const { titulo, contenido, tipo, destino, sendEmail, planSaaS } = await request.json();
 
         if (!titulo || !contenido) {
             return NextResponse.json({ error: 'Título y contenido son obligatorios' }, { status: 400 });
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
         const adminClient = createAdminClient();
 
-        // 1. Insertar el anuncio en la base de datos
+        // 1. Insertar el anuncio en la base de datos con el campo plan_saas_destino
         const { data, error } = await adminClient
             .from('anuncios_globales')
             .insert({
@@ -26,7 +26,8 @@ export async function POST(request: Request) {
                 tipo: tipo || 'info',
                 destino: destino || 'todos',
                 creado_por: adminUser.id,
-                activo: true
+                activo: true,
+                plan_saas_destino: planSaaS || 'todos'
             })
             .select()
             .single();
@@ -49,6 +50,17 @@ export async function POST(request: Request) {
                     query = query.neq('rol', 'superadmin');
                 } else {
                     query = query.eq('rol', destino as any);
+                }
+
+                // Filtrar por plan SaaS del gimnasio
+                if (planSaaS && planSaaS !== 'todos') {
+                    const { data: gyms } = await adminClient
+                        .from('gimnasios')
+                        .select('id')
+                        .eq('plan_id', planSaaS);
+
+                    const gymIds = gyms?.map(g => g.id) || [];
+                    query = query.in('gimnasio_id', gymIds);
                 }
 
                 const { data: users, error: usersError } = await query;

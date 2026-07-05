@@ -15,7 +15,7 @@ export async function POST(request: Request) {
         // 3. Buscar el último acceso activo de este superadmin (sin fecha de salida)
         const { data: lastLog, error: fetchError } = await adminClient
             .from('logs_acceso_remoto')
-            .select('id')
+            .select('id, gimnasio_id')
             .eq('superadmin_id', adminUser.id)
             .is('fecha_salida', null)
             .order('fecha', { ascending: false })
@@ -36,6 +36,20 @@ export async function POST(request: Request) {
             if (updateError) {
                 console.error('❌ Error al actualizar la fecha de salida en la auditoría:', updateError);
             }
+
+            // Registrar en auditoria_global
+            await adminClient
+                .from('auditoria_global' as any)
+                .insert({
+                    accion: 'impersonate_end',
+                    entidad_tipo: 'gimnasio',
+                    entidad_id: lastLog.gimnasio_id,
+                    usuario_id: adminUser.id,
+                    gimnasio_id: lastLog.gimnasio_id,
+                    detalles: {
+                        superadmin_email: adminUser.email
+                    }
+                });
         }
 
         // 5. Crear la respuesta y eliminar la cookie vtd_impersonation

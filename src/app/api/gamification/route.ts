@@ -19,6 +19,7 @@ interface LeaderboardRecord {
     perfiles: {
         nombre_completo: string | null;
         url_avatar: string | null;
+        gimnasio_id: string | null;
     } | null;
 }
 
@@ -40,11 +41,24 @@ export async function GET() {
             .select('*, logros(*)')
             .eq('usuario_id', user.id) as { data: AchievementResponse[] | null };
 
-        // 3. Fetch Leaderboard (Top 10)
-        const { data: leaderboard } = await (supabase.from('gamificacion_del_usuario') as any)
-            .select('puntos, racha_actual, perfiles(nombre_completo, url_avatar)')
+        // Obtener el perfil para saber su gimnasio_id
+        const { data: userProfile } = await supabase
+            .from('perfiles')
+            .select('gimnasio_id')
+            .eq('id', user.id)
+            .single();
+
+        // 3. Fetch Leaderboard (Top 10) aislado por gimnasio (Tenant)
+        let query = (supabase.from('gamificacion_del_usuario') as any)
+            .select('puntos, racha_actual, perfiles!inner(nombre_completo, url_avatar, gimnasio_id)')
             .order('puntos', { ascending: false })
-            .limit(10) as { data: LeaderboardRecord[] | null };
+            .limit(10);
+
+        if (userProfile?.gimnasio_id) {
+            query = query.eq('perfiles.gimnasio_id', userProfile.gimnasio_id);
+        }
+
+        const { data: leaderboard } = await query as { data: LeaderboardRecord[] | null };
 
         // 4. Determine Rank (Logic duplicated from frontend or shared lib? Let's just return raw points for now)
 

@@ -14,7 +14,7 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ conversationId, currentUserId, receiverId, receiverName, onClose }: ChatWindowProps) {
-    const { messages, loading, sendMessage } = useChat(conversationId);
+    const { messages, loading, sendMessage, markAsRead } = useChat(conversationId);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -25,6 +25,13 @@ export function ChatWindow({ conversationId, currentUserId, receiverId, receiver
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    // Marcar como leídos los mensajes recibidos al abrir/cambiar de conversación
+    useEffect(() => {
+        if (conversationId && currentUserId && !loading) {
+            markAsRead(currentUserId);
+        }
+    }, [conversationId, currentUserId, loading, messages.length]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();

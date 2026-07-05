@@ -20,6 +20,7 @@ jest.mock('@/lib/supabase/server', () => ({
                 in: jest.fn(function () { return this; }),
                 order: jest.fn(function () { return this; }),
                 limit: jest.fn(function () { return this; }),
+                gte: jest.fn(function () { return this; }),
                 single: jest.fn(function () {
                     if (table === 'perfiles') {
                         return Promise.resolve({ data: { id: 'coach123', rol: 'coach' }, error: null });
