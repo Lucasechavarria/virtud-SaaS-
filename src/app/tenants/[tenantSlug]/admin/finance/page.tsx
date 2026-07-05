@@ -52,6 +52,7 @@ export default function FinanceHubPage() {
     const [saasPayments, setSaaSPayments] = useState<SaaSPayment[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeView, setActiveView] = useState<'members' | 'saas' | 'saas_billing'>('members');
+    const [userRole, setUserRole] = useState<string | null>(null);
     const [gyms, setGyms] = useState<{ id: string; nombre: string }[]>([]);
     const [selectedGym, setSelectedGym] = useState('all');
     const [startDate, setStartDate] = useState('');
@@ -166,6 +167,7 @@ export default function FinanceHubPage() {
                     router.push(gymId ? `/${gymId}/admin/recepcion/pos` : '/admin/recepcion/pos');
                     return;
                 }
+                setUserRole(profile?.rol || null);
                 setCheckingAccess(false);
                 fetchFinanceData();
                 fetchGyms();
@@ -359,7 +361,7 @@ export default function FinanceHubPage() {
                         { id: 'members', label: 'Cobros Alumnos', icon: <CreditCard size={14} /> },
                         { id: 'saas', label: 'Historial de Licencia', icon: <TrendingUp size={14} /> },
                         { id: 'saas_billing', label: 'Costo del Sistema e IA', icon: <Sparkles size={14} /> }
-                    ].map(tab => (
+                    ].filter(tab => userRole === 'superadmin' || tab.id === 'members').map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveView(tab.id as any)}

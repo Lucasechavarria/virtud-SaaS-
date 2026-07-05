@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { hasModuleAccess } from '@/lib/saas/modules';
+import { useIsSubdomain } from '@/hooks/useIsSubdomain';
 
 
 interface NavItem {
@@ -109,23 +110,12 @@ export function UniversalSidebar({
     const [visionBadgeCount, setVisionBadgeCount] = useState(0);
     const [loggingOut, setLoggingOut] = useState(false);
     const [gymInfo, setGymInfo] = useState<{ nombre?: string, logo_url?: string, modulos_activos?: any }>({});
-    const [isSubdomainMode, setIsSubdomainMode] = useState(false);
+    const { isSubdomain: isSubdomainMode } = useIsSubdomain();
     const [userPermisos, setUserPermisos] = useState<any>({});
     const [userGymPrefix, setUserGymPrefix] = useState<string | null>(null);
 
     // 1. Resolver metadatos del gimnasio localmente desde la sesión (Claims JWT)
     useEffect(() => {
-        // Detectar si estamos navegando bajo un subdominio/marca blanca
-        if (typeof window !== 'undefined') {
-            const host = window.location.host;
-            const hostWithoutPort = host.split(':')[0];
-            const isLocalhost = hostWithoutPort.endsWith('localhost') || hostWithoutPort === '127.0.0.1';
-            const baseDomain = isLocalhost ? hostWithoutPort : 'virtud.fit';
-            
-            if (hostWithoutPort !== baseDomain && hostWithoutPort !== `www.${baseDomain}`) {
-                setIsSubdomainMode(true);
-            }
-        }
 
         // Obtener claims del usuario para inyectar en la sidebar de forma instantánea
         supabase.auth.getUser().then(({ data: { user } }) => {

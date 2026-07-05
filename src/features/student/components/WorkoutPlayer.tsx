@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { WorkoutSessionState, ExerciseLog } from '@/types/workout';
 import { toast } from 'react-hot-toast';
 
 interface Exercise {
@@ -21,6 +20,7 @@ interface Exercise {
 interface Routine {
     id: string;
     nombre: string;
+    permitir_edicion_alumno?: boolean;
     ejercicios: Exercise[];
 }
 
@@ -30,24 +30,31 @@ interface WorkoutPlayerProps {
     onComplete: (session: { id: string; total_points: number }) => void;
 }
 
+interface SetRecord {
+    set_numero: number;
+    reps_realizadas: number;
+    peso_kg: number;
+    completed: boolean;
+}
+
 export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutPlayerProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [isResting, setIsResting] = useState(false);
     const [restTimeLeft, setRestTimeLeft] = useState(0);
     const [sessionStatus, setSessionStatus] = useState<'loading' | 'active' | 'completed'>('loading');
-    const [loggedExercises, setLoggedExercises] = useState<Array<{ series: number; reps: number; weight: number }>>([]);
     const [earnedPoints, setEarnedPoints] = useState(0);
-
-    const [currentWeight, setCurrentWeight] = useState<string>('');
-    // Tracking actual performance
-    const [currentReps, setCurrentReps] = useState<string>('');
+    
+    // Telemetría fina de sets para el ejercicio actual
+    const [setsData, setSetsData] = useState<SetRecord[]>([]);
+    
+    // Acumulador de volumen de la sesión
+    const [totalSessionVolume, setTotalSessionVolume] = useState(0);
 
     const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
     const currentExercise = routine.ejercicios[currentIndex];
 
-    // 1. Initialize Session
+    // 1. Iniciar sesión
     useEffect(() => {
         const startSession = async () => {
             try {
@@ -76,7 +83,7 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
         };
     }, [routine.id]);
 
-    // 2. Timer Logic
+    // 2. Lógica del timer de descanso
     useEffect(() => {
         if (isResting && restTimeLeft > 0) {
             restTimerRef.current = setInterval(() => {
@@ -96,55 +103,65 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
         };
     }, [isResting, restTimeLeft]);
 
+    // 3. Inicializar sets para el ejercicio actual
+    useEffect(() => {
+        if (!currentExercise) return;
+        
+        const count = currentExercise.series || 3;
+        const defaultReps = parseInt(currentExercise.repeticiones) || 10;
+        
+        const initialSets = Array.from({ length: count }, (_, i) => ({
+            set_numero: i + 1,
+            reps_realizadas: defaultReps,
+            peso_kg: 0,
+            completed: false
+        }));
+        
+        setSetsData(initialSets);
+    }, [currentIndex, currentExercise]);
+
     const handleNextExercise = async () => {
-        const reps = parseInt(currentReps) || (currentExercise ? parseInt(currentExercise.repeticiones) : 10) || 10;
-        const weight = parseFloat(currentWeight) || 0;
-        const series = currentExercise ? currentExercise.series : 3;
+        // Calcular volumen del ejercicio actual
+        const currentExerciseVolume = setsData.reduce((acc, s) => acc + (s.reps_realizadas * s.peso_kg), 0);
+        const newTotalVolume = totalSessionVolume + currentExerciseVolume;
+        setTotalSessionVolume(newTotalVolume);
 
-        // Guardar logs locales para el cálculo de volumen final
-        const currentLog = { series, reps, weight };
-        const updatedLogs = [...loggedExercises, currentLog];
-        setLoggedExercises(updatedLogs);
-
-        // Log performance for current exercise in server
+        // Guardar sets en la base de datos
         if (sessionId && currentExercise) {
             try {
-                await fetch('/api/student/sessions/log-exercise', {
+                const setsToLog = setsData.map(s => ({
+                    set_numero: s.set_numero,
+                    reps_realizadas: s.reps_realizadas,
+                    peso_kg: s.peso_kg
+                }));
+
+                await fetch('/api/student/sessions/log-set', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         sessionId,
-                        ejercicio_id: currentExercise.id,
-                        series_reales: series,
-                        repeticiones_reales: reps.toString(),
-                        peso_real: weight,
-                        fue_completado: true
+                        exerciseId: currentExercise.id,
+                        sets: setsToLog
                     })
                 });
-            } catch (logErr) {
-                console.error('Error logging exercise details:', logErr);
+            } catch (err) {
+                console.error('Error logging sets performance:', err);
             }
         }
 
         if (currentIndex < routine.ejercicios.length - 1) {
             setCurrentIndex(prev => prev + 1);
-            setCurrentWeight('');
-            setCurrentReps('');
 
-            // Start rest period if configured
+            // Iniciar descanso si está programado
             if (currentExercise.descanso_segundos > 0) {
                 setRestTimeLeft(currentExercise.descanso_segundos);
                 setIsResting(true);
             }
         } else {
-            // Calcular volumen total acumulado de la sesión (tonelaje: series * repeticiones * peso)
-            const totalVolume = updatedLogs.reduce((sum, item) => sum + (item.series * item.reps * item.weight), 0);
-            
-            // Asignación de puntos: 100 puntos base por asistencia + 1 punto por cada 10 kg de volumen total.
-            // Con un límite máximo de 800 puntos para evitar abusos o devaluación del ranking.
-            const calculatedPoints = Math.min(800, 100 + Math.floor(totalVolume / 10));
+            // Completar sesión
+            // 100 base + 1 por cada 10kg volumen, max 800
+            const calculatedPoints = Math.min(800, 100 + Math.floor(newTotalVolume / 10));
             setEarnedPoints(calculatedPoints);
-
             await handleCompleteSession(calculatedPoints);
         }
     };
@@ -164,16 +181,13 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
             const data = await res.json();
             if (res.ok) {
                 setSessionStatus('completed');
-                onComplete({ id: sessionId || '', total_points: points });
             } else {
                 throw new Error(data.error || 'Error al guardar la sesión');
             }
         } catch (err: any) {
             console.error('Error completing session:', err);
             toast.error(err.message || 'Fallo de comunicación con la central táctica.');
-            // Fallback para permitirle cerrar la sesión si ya entreno físicamente
             setSessionStatus('completed');
-            onComplete({ id: sessionId || '', total_points: points });
         }
     };
 
@@ -189,13 +203,25 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
     if (sessionStatus === 'completed') {
         return (
             <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-6 text-center">
-                <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-md w-full bg-[#1c1c1e] p-8 rounded-[2.5rem] border border-white/10">
                     <h2 className="text-5xl mb-4">🏆</h2>
-                    <h3 className="text-2xl font-black text-white mb-2 uppercase italic">¡Entrenamiento Completado!</h3>
-                    <p className="text-orange-500 font-bold text-lg mb-8">+{earnedPoints} PTS GANADOS</p>
+                    <h3 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tight">¡Entrenamiento Completado!</h3>
+                    <p className="text-orange-500 font-bold text-lg mb-6">+{earnedPoints} PTS GANADOS</p>
+                    
+                    <div className="bg-black/40 border border-white/5 rounded-2xl p-6 mb-8 text-left space-y-3">
+                        <div className="flex justify-between text-xs">
+                            <span className="text-gray-400 font-bold uppercase">Ejercicios:</span>
+                            <span className="text-white font-black">{routine.ejercicios.length}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                            <span className="text-gray-400 font-bold uppercase">Volumen Total:</span>
+                            <span className="text-white font-black">{(totalSessionVolume / 1000).toFixed(2)} Ton ({totalSessionVolume} kg)</span>
+                        </div>
+                    </div>
+
                     <button
-                        onClick={onClose}
-                        className="px-8 py-3 bg-white text-black font-black rounded-xl hover:bg-orange-500 hover:text-white transition-all"
+                        onClick={() => onComplete({ id: sessionId || '', total_points: earnedPoints })}
+                        className="w-full py-4 bg-orange-500 text-white font-black rounded-2xl hover:bg-orange-600 transition-all uppercase tracking-widest text-xs"
                     >
                         VOLVER AL DASHBOARD
                     </button>
@@ -205,23 +231,23 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
     }
 
     return (
-        <div className="fixed inset-0 bg-[#0a0a0a] z-50 flex flex-col overflow-hidden">
+        <div className="fixed inset-0 bg-[#0a0a0a] z-50 flex flex-col overflow-hidden font-rajdhani">
             {/* Header */}
             <div className="p-4 flex items-center justify-between border-b border-white/5">
-                <button onClick={onClose} className="text-gray-500 hover:text-white">✕</button>
+                <button onClick={onClose} className="text-gray-500 hover:text-white text-xl px-2">✕</button>
                 <div className="flex flex-col items-center">
-                    <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Ejecución en vivo</span>
-                    <h4 className="text-white font-bold text-sm">{routine.nombre}</h4>
+                    <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Ejecución en vivo</span>
+                    <h4 className="text-white font-black text-sm uppercase italic">{routine.nombre}</h4>
                 </div>
                 <div className="w-8" />
             </div>
 
             {/* Progress Bar */}
-            <div className="h-1 w-full bg-white/5">
+            <div className="h-1.5 w-full bg-white/5">
                 <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${((currentIndex + 1) / routine.ejercicios.length) * 100}%` }}
-                    className="h-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]"
+                    className="h-full bg-gradient-to-r from-orange-500 to-red-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]"
                 />
             </div>
 
@@ -235,54 +261,90 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
                         className="flex-1 flex flex-col"
                     >
                         {/* Exercise Name & Info */}
-                        <div className="mb-8">
+                        <div className="mb-6">
                             <span className="text-[10px] text-orange-500 font-black uppercase tracking-widest">
                                 {currentExercise.grupo_muscular || 'CORE'} • {currentIndex + 1}/{routine.ejercicios.length}
                             </span>
-                            <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none mt-2">
+                            <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none mt-1">
                                 {currentExercise.nombre}
                             </h2>
-                            <p className="text-gray-500 text-sm mt-4 leading-relaxed line-clamp-3">
-                                {currentExercise.instrucciones}
+                            <p className="text-zinc-500 text-xs mt-3 leading-relaxed">
+                                {currentExercise.instrucciones || currentExercise.descripcion}
                             </p>
                         </div>
 
-                        {/* Visual Target */}
-                        <div className="grid grid-cols-2 gap-4 mb-8">
-                            <div className="bg-white/5 p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
-                                <span className="text-[10px] text-gray-500 font-bold uppercase mb-1">Series</span>
-                                <span className="text-4xl font-black text-white">{currentExercise.series}</span>
+                        {/* Prescribed Goals */}
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                                <span className="text-[9px] text-gray-500 font-black uppercase mb-0.5">Series Prescritas</span>
+                                <span className="text-3xl font-black text-white">{currentExercise.series}</span>
                             </div>
-                            <div className="bg-white/5 p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
-                                <span className="text-[10px] text-gray-500 font-bold uppercase mb-1">Repeticiones</span>
-                                <span className="text-4xl font-black text-white">{currentExercise.repeticiones}</span>
+                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                                <span className="text-[9px] text-gray-500 font-black uppercase mb-0.5">Reps Prescritas</span>
+                                <span className="text-3xl font-black text-white">{currentExercise.repeticiones}</span>
                             </div>
                         </div>
 
-                        {/* Performance Input */}
-                        <div className="bg-gradient-to-br from-orange-500/10 to-transparent p-6 rounded-3xl border border-orange-500/20 mb-8">
-                            <h5 className="text-white font-black text-xs uppercase mb-4 tracking-widest">Log de Esfuerzo</h5>
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className="text-[9px] text-gray-500 font-bold uppercase block mb-2">Peso (kg)</label>
-                                    <input
-                                        type="number"
-                                        value={currentWeight}
-                                        onChange={(e) => setCurrentWeight(e.target.value)}
-                                        placeholder="0"
-                                        className="w-full bg-black/50 border border-white/10 p-4 rounded-xl text-white font-black text-center focus:border-orange-500 outline-none"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="text-[9px] text-gray-500 font-bold uppercase block mb-2">Reps Reales</label>
-                                    <input
-                                        type="text"
-                                        value={currentReps}
-                                        onChange={(e) => setCurrentReps(e.target.value)}
-                                        placeholder={currentExercise.repeticiones}
-                                        className="w-full bg-black/50 border border-white/10 p-4 rounded-xl text-white font-black text-center focus:border-orange-500 outline-none"
-                                    />
-                                </div>
+                        {/* Performance Input — Individual Sets */}
+                        <div className="bg-gradient-to-br from-orange-500/10 to-transparent p-6 rounded-3xl border border-orange-500/20 mb-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h5 className="text-white font-black text-xs uppercase tracking-widest">Sets & Telemetría</h5>
+                                {routine.permitir_edicion_alumno ? (
+                                    <span className="text-[9px] bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Edición Libre</span>
+                                ) : (
+                                    <span className="text-[9px] bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Plan Prescrito</span>
+                                )}
+                            </div>
+                            
+                            <div className="space-y-3">
+                                {setsData.map((set, sIdx) => (
+                                    <div key={set.set_numero} className="flex items-center gap-4 bg-black/40 p-3 rounded-2xl border border-white/5">
+                                        <span className="text-xs font-black text-orange-500 w-8">SET {set.set_numero}</span>
+                                        
+                                        <div className="flex-1 flex gap-2">
+                                            <div className="flex-1 flex items-center gap-1.5 bg-black/60 px-3 py-1.5 rounded-xl border border-white/5">
+                                                <span className="text-[9px] text-gray-500 uppercase font-black">Reps</span>
+                                                <input
+                                                    type="number"
+                                                    disabled={!routine.permitir_edicion_alumno}
+                                                    value={set.reps_realizadas}
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value) || 0;
+                                                        setSetsData(prev => prev.map((s, idx) => idx === sIdx ? { ...s, reps_realizadas: val } : s));
+                                                    }}
+                                                    className="w-full bg-transparent text-white font-black text-center outline-none text-xs disabled:opacity-60"
+                                                />
+                                            </div>
+
+                                            <div className="flex-1 flex items-center gap-1.5 bg-black/60 px-3 py-1.5 rounded-xl border border-white/5">
+                                                <span className="text-[9px] text-gray-500 uppercase font-black">Kg</span>
+                                                <input
+                                                    type="number"
+                                                    disabled={!routine.permitir_edicion_alumno}
+                                                    value={set.peso_kg}
+                                                    onChange={(e) => {
+                                                        const val = parseFloat(e.target.value) || 0;
+                                                        setSetsData(prev => prev.map((s, idx) => idx === sIdx ? { ...s, peso_kg: val } : s));
+                                                    }}
+                                                    className="w-full bg-transparent text-white font-black text-center outline-none text-xs disabled:opacity-60"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                setSetsData(prev => prev.map((s, idx) => idx === sIdx ? { ...s, completed: !s.completed } : s));
+                                            }}
+                                            className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${
+                                                set.completed 
+                                                    ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-500/20 font-black' 
+                                                    : 'border-white/10 text-zinc-500 hover:border-white/20 font-black'
+                                            }`}
+                                        >
+                                            ✓
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </motion.div>
@@ -296,7 +358,7 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-blue-600/90 z-40 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md"
+                        className="absolute inset-0 bg-blue-900/95 z-40 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md"
                     >
                         <h4 className="text-white font-black text-sm uppercase tracking-widest mb-2">Descanso Activo</h4>
                         <span className="text-8xl font-black text-white tabular-nums">{restTimeLeft}s</span>
@@ -311,13 +373,13 @@ export default function WorkoutPlayer({ routine, onClose, onComplete }: WorkoutP
                 )}
             </AnimatePresence>
 
-            {/* Main Action Bar */}
+            {/* Action Bar */}
             <div className="p-6 bg-[#1c1c1e] border-t border-white/5">
                 <button
                     onClick={handleNextExercise}
-                    className="w-full py-5 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl shadow-xl shadow-orange-500/20 transition-all flex items-center justify-center gap-3"
+                    className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl shadow-xl shadow-orange-500/20 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-xs"
                 >
-                    {currentIndex < routine.ejercicios.length - 1 ? 'SIGUIENTE EJERCICIO ➜' : 'FINALIZAR ENTRENAMIENTO 🎉'}
+                    {currentIndex < routine.ejercicios.length - 1 ? 'Siguiente Ejercicio ➜' : 'Finalizar Entrenamiento 🎉'}
                 </button>
             </div>
         </div>

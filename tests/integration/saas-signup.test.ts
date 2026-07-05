@@ -36,6 +36,9 @@ const mockSupabaseClient = {
             deleteUser: jest.fn((id: string) => {
                 mockAuthDeleteUser(id);
                 return Promise.resolve({ error: null });
+            }),
+            updateUserById: jest.fn((id: string, params: any) => {
+                return Promise.resolve({ data: { user: { id } }, error: null });
             })
         }
     },

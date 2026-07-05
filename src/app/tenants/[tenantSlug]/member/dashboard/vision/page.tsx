@@ -110,7 +110,7 @@ export default function VisionPage({ _params }: { _params: { gymId: string } }) 
         }
     };
 
-    const _handleVideoSelect = (video: any) => {
+    const handleVideoSelect = (video: any) => {
         setSelectedVideo(video);
         setRating(video.calificacion_alumno || 0);
         setComment(video.feedback_alumno || '');
@@ -215,7 +215,7 @@ export default function VisionPage({ _params }: { _params: { gymId: string } }) 
                                         .map(video => (
                                             <button
                                                 key={video.id}
-                                                onClick={() => setSelectedVideo(video)}
+                                                onClick={() => handleVideoSelect(video)}
                                                 className={`w-full group p-4 rounded-2xl border transition-all text-left ${selectedVideo?.id === video.id ? 'bg-orange-500/10 border-orange-500/50 shadow-lg shadow-orange-500/5' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
                                             >
                                                 <div className="flex items-center gap-4">

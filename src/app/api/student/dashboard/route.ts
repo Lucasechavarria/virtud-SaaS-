@@ -63,7 +63,7 @@ export async function GET() {
                 .limit(10),
 
             // Attendance
-            supabase
+            (supabase as any)
                 .from('reservas_de_clase')
                 .select('fecha')
                 .eq('usuario_id', user.id)
@@ -71,7 +71,7 @@ export async function GET() {
                 .gte('fecha', new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString().split('T')[0]),
 
             // Active Routine
-            supabase
+            (supabase as any)
                 .from('rutinas')
                 .select('*')
                 .eq('usuario_id', user.id)
@@ -79,14 +79,14 @@ export async function GET() {
                 .maybeSingle(),
 
             // Profile
-            supabase
+            (supabase as any)
                 .from('perfiles')
                 .select('exencion_aceptada, nombre_completo, url_avatar, fecha_fin_membresia, estado_membresia, gender, informacion_medica, gimnasios(nombre)')
                 .eq('id', user.id)
                 .single(),
 
             // Volume
-            supabase
+            (supabase as any)
                 .from('sesiones_de_entrenamiento')
                 .select(`
                     id,
@@ -137,13 +137,13 @@ export async function GET() {
  * @param bookings - Array de bookings (solo necesita fecha)
  * @returns Array con conteo de asistencias por mes
  */
-function processAttendance(bookings: Pick<ClassBooking, 'fecha'>[]): Array<{ month: string; rate: number }> {
+function processAttendance(bookings: Pick<ClassBooking, 'fecha'>[]): Array<{ month: string; count: number }> {
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
     // Validación de entrada
     if (!Array.isArray(bookings)) {
         console.warn('⚠️ processAttendance recibió datos inválidos');
-        return months.map(m => ({ month: m, rate: 0 }));
+        return months.map(m => ({ month: m, count: 0 }));
     }
 
     const result = bookings.reduce((acc: Record<string, number>, booking) => {
@@ -167,7 +167,7 @@ function processAttendance(bookings: Pick<ClassBooking, 'fecha'>[]): Array<{ mon
         return acc;
     }, {});
 
-    return months.map(m => ({ month: m, rate: result[m] || 0 }));
+    return months.map(m => ({ month: m, count: result[m] || 0 }));
 }
 
 interface WorkoutSessionLog {
@@ -183,11 +183,10 @@ interface WorkoutSessionLog {
 /**
  * Calcula el tonelaje total (volumen) por sesión
  */
-function processVolume(sessions: WorkoutSessionLog[]): Array<{ week: string; volume: number }> {
+function processVolume(sessions: WorkoutSessionLog[]): Array<{ week: string; volume: number; fecha: string }> {
     return sessions.map(session => {
         let totalVolume = 0;
         session.logs?.forEach((log) => {
-            // we assume repeticiones_reales is numeric for volume calculation if possible
             const reps = parseInt(log.repeticiones_reales) || 0;
             const weight = typeof log.peso_real === 'string' ? parseFloat(log.peso_real) : log.peso_real || 0;
             const sets = log.series_reales || 1;
@@ -196,7 +195,8 @@ function processVolume(sessions: WorkoutSessionLog[]): Array<{ week: string; vol
 
         return {
             week: new Date(session.hora_inicio).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }),
-            volume: Math.round(totalVolume)
+            volume: Math.round(totalVolume),
+            fecha: session.hora_inicio
         };
     });
 }

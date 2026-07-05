@@ -88,17 +88,23 @@ export default function VisionLabPage() {
         }
 
         try {
-            const { error } = await supabase
-                .from('videos_ejercicio')
-                .update({ compartido_con_alumno: true, compartido_en: new Date().toISOString() })
-                .eq('id', currentVideoId);
+            const res = await fetch('/api/coach/videos/share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    videoId: currentVideoId,
+                    studentId: selectedStudent
+                })
+            });
+            const data = await res.json();
 
-            if (error) throw error;
+            if (!res.ok) throw new Error(data.error || 'Error al compartir');
+            
             toast.success('¡Análisis compartido con el alumno!');
             setVideoStatus((prev: any) => ({ ...prev, compartido: true }));
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toast.error('Error al compartir');
+            toast.error(error.message || 'Error al compartir');
         }
     };
 

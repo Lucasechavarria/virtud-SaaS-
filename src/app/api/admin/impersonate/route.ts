@@ -70,6 +70,21 @@ export async function POST(request: Request) {
             }, { status: 500 });
         }
 
+        // Registrar en auditoria_global
+        await adminClient
+            .from('auditoria_global' as any)
+            .insert({
+                accion: 'impersonate_start',
+                entidad_tipo: 'gimnasio',
+                entidad_id: gymId,
+                usuario_id: adminUser.id,
+                gimnasio_id: gymId,
+                detalles: {
+                    motivo: reason || 'Soporte Técnico / Verificación',
+                    superadmin_email: adminUser.email
+                }
+            });
+
         // 2. Generar cookie de impersonación segura y de corta duración
         const response = NextResponse.json({
             success: true,

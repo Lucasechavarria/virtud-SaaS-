@@ -16,7 +16,7 @@ export async function GET(request: Request) {
         if (error) return error;
 
         // Obtener rutina activa
-        const { data: routine, error: routineError } = await supabase
+        const { data: routine, error: routineError } = await (supabase as any)
             .from('rutinas')
             .select(`
                 *,
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
         }
 
         // Obtener ejercicios de la rutina
-        const { data: exercises, error: exercisesError } = await supabase
+        const { data: exercises, error: exercisesError } = await (supabase as any)
             .from('ejercicios')
             .select('*')
             .eq('rutina_id', routine.id)
@@ -43,19 +43,36 @@ export async function GET(request: Request) {
 
         if (exercisesError) throw exercisesError;
 
+        // Obtener completados de hoy
+        const todayStr = new Date().toISOString().split('T')[0];
+        const { data: completedToday, error: completedError } = await (supabase as any)
+            .from('ejercicios_completados_dia')
+            .select('ejercicio_id')
+            .eq('usuario_id', user.id)
+            .eq('fecha', todayStr);
+
+        if (completedError) console.error('Error fetching completed exercises:', completedError);
+
+        const completedSet = new Set(completedToday?.map((c: any) => c.ejercicio_id) || []);
+
+        const exercisesWithStatus = (exercises || []).map((ex: any) => ({
+            ...ex,
+            esta_completado: completedSet.has(ex.id)
+        }));
+
         // Incrementar contador de vistas
-        await supabase
+        await (supabase as any)
             .from('rutinas')
             .update({
                 contador_vistas: (routine.contador_vistas || 0) + 1,
                 ultima_vista_en: new Date().toISOString()
-            } as any)
+            })
             .eq('id', routine.id);
 
         return NextResponse.json({
             success: true,
             routine,
-            exercises,
+            exercises: exercisesWithStatus,
             userId: user.id
         });
 

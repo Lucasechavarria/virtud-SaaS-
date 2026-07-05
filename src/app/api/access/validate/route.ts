@@ -175,7 +175,6 @@ export async function POST(request: Request) {
             .eq('usuario_id', student.id)
             .eq('gimnasio_id', targetGymId)
             .gte('entrada', haceVeinteMinutos)
-            .not('source', 'eq', 'reception_bypass')
             .order('entrada', { ascending: false })
             .limit(1)
             .maybeSingle();

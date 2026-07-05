@@ -52,13 +52,11 @@ export default function LandingSettings() {
                 if (isUUID) {
                     resolvedId = tenantSlug;
                 } else {
-                    const { data: gym } = await supabase
-                        .from('gimnasios')
-                        .select('id')
-                        .eq('slug', tenantSlug)
-                        .is('deleted_at', null)
-                        .single();
-                    if (gym) resolvedId = gym.id;
+                    const res = await fetch(`/api/tenant/resolve?slug=${tenantSlug}`);
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        resolvedId = data.gymId;
+                    }
                 }
             } else {
                 resolvedId = profile?.gimnasio_id || '';

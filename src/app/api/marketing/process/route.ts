@@ -63,11 +63,40 @@ export async function POST(request: Request) {
             
             let query = (supabase as any)
                 .from('perfiles')
-                .select('id');
+                .select('id')
+                .eq('gimnasio_id', campaignData.gimnasio_id);
 
             // Aplicar filtros de segmentación
             if (segment.rol) {
                 query = query.eq('rol', segment.rol);
+            }
+            if (segment.estado_membresia) {
+                query = query.eq('estado_membresia', segment.estado_membresia);
+            }
+            if (segment.plan_id) {
+                query = query.eq('plan_id', segment.plan_id);
+            }
+            if (segment.gender) {
+                query = query.eq('gender', segment.gender);
+            }
+            if (segment.dias_inactivo) {
+                const cutoffDate = new Date();
+                cutoffDate.setDate(cutoffDate.getDate() - parseInt(segment.dias_inactivo));
+                const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+                const [bookingsRes, sessionsRes] = await Promise.all([
+                    (supabase as any).from('reservas_de_clase').select('usuario_id').eq('estado', 'asistida').gte('fecha', cutoffStr),
+                    (supabase as any).from('sesiones_de_entrenamiento').select('usuario_id').gte('hora_inicio', cutoffStr)
+                ]);
+
+                const activeUserIds = new Set([
+                    ...(bookingsRes.data?.map((b: any) => b.usuario_id) || []),
+                    ...(sessionsRes.data?.map((s: any) => s.usuario_id) || [])
+                ]);
+
+                if (activeUserIds.size > 0) {
+                    query = query.not('id', 'in', `(${Array.from(activeUserIds).join(',')})`);
+                }
             }
 
             if (segment.objetivo_principal) {

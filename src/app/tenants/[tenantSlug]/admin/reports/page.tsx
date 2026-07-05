@@ -24,21 +24,13 @@ import {
 } from 'recharts';
 import { toast } from 'react-hot-toast';
 import { useParams, useRouter } from 'next/navigation';
+import { useIsSubdomain } from '@/hooks/useIsSubdomain';
 
 export default function AdminReportsPage() {
     const params = useParams();
     const router = useRouter();
     const tenantSlug = params?.tenantSlug;
-    const [isSubdomain, setIsSubdomain] = useState(false);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const host = window.location.host.split(':')[0];
-            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
-            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
-            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
-        }
-    }, []);
+    const { isSubdomain } = useIsSubdomain();
 
     const getLink = (path: string) => {
         return isSubdomain ? path : `/${tenantSlug}${path}`;

@@ -43,7 +43,7 @@ export async function GET(request: Request) {
         }
 
         // 1. Obtener los horarios de clase recurrentes del coach para este día de la semana
-        const { data: classes, error: classesError } = await supabase
+        const { data: classes, error: classesError } = await (supabase as any)
             .from('horarios_de_clase')
             .select(`
                 id,
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
         const classIds = classes.map(c => c.id);
 
         // 2. Obtener las reservas de clase reales para este conjunto de horarios en la fecha dada
-        const { data: bookings, error: bookingsError } = await supabase
+        const { data: bookings, error: bookingsError } = await (supabase as any)
             .from('reservas_de_clase')
             .select(`
                 id,
@@ -98,7 +98,7 @@ export async function GET(request: Request) {
             `)
             .in('horario_clase_id', classIds)
             .eq('fecha', dateParam)
-            .eq('gimnasio_id', targetGymId);
+            .neq('estado', 'cancelada');
 
         if (bookingsError) {
             throw bookingsError;

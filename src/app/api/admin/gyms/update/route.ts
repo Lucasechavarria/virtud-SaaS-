@@ -20,7 +20,8 @@ export async function POST(request: Request) {
             estado_pago_saas,
             config_visual,
             modulos_activos,
-            configuracion
+            configuracion,
+            umbral_churn_dias
         } = await request.json();
 
         if (!id) {
@@ -109,7 +110,8 @@ export async function POST(request: Request) {
                 estado_pago_saas,
                 config_visual,
                 modulos_activos,
-                configuracion: newConfig
+                configuracion: newConfig,
+                umbral_churn_dias: umbral_churn_dias !== undefined ? Number(umbral_churn_dias) : 14
             })
             .eq('id', id)
             .is('deleted_at', null)

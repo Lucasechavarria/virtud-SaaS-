@@ -14,19 +14,15 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'react-hot-toast';
 import { StudentAction } from './StudentAction';
 import { SupabaseUserProfile } from '@/types/user';
+import { CoachStudent } from '@/types/sprint5';
 const supabase = createClient();
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-
-interface Student {
-    id: string;
-    [key: string]: any;
-}
 
 export default function StudentsGrid() {
     const { tenantSlug } = useParams() as { tenantSlug: string };
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'all' | 'alert' | 'active'>('all');
-    const [students, setStudents] = useState<Student[]>([]);
+    const [students, setStudents] = useState<CoachStudent[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
     const [modalOpen, setModalOpen] = useState<'routine' | 'chat' | 'progress' | null>(null);
@@ -43,21 +39,22 @@ export default function StudentsGrid() {
 
                 if (data.students) {
                     // Map to component structure using real data from the API
-                    const formattedStudents = data.students.map((p: any) => ({
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const formattedStudents = data.students.map((p: Record<string, any>) => ({
                         id: p.id,
                         nombre: p.nombre_completo || 'Sin Nombre',
                         email: p.email,
                         experiencia: p.active_goal?.objetivo_principal
                             ? `Meta: ${p.active_goal.objetivo_principal}`
                             : 'Sin objetivo activo',
-                        status: p.active_routine ? 'active' : 'alert',
-                        lastAttendance: 'Consultar', // Pendiente de implementar en DB
-                        nextClass: 'Pendiente',      // Pendiente de implementar en DB
+                        status: p.active_routine ? 'active' as const : 'alert' as const,
+                        lastAttendance: p.ultima_asistencia ? new Date(p.ultima_asistencia).toLocaleDateString() : 'Sin asistencias',
+                        nextClass: p.proxima_clase ? new Date(p.proxima_clase).toLocaleDateString() : 'Ninguna',
                         edad: p.informacion_medica?.edad || 0,
                         active_goal: p.active_goal,
                         active_routine: p.active_routine
                     }));
-                    setStudents(formattedStudents as Student[]);
+                    setStudents(formattedStudents as CoachStudent[]);
                 }
             } catch (error) {
                 console.error('Error fetching students:', error);
@@ -257,7 +254,7 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
 }
 
 interface StudentModalProps {
-    student: Student;
+    student: CoachStudent;
     onClose: () => void;
 }
 

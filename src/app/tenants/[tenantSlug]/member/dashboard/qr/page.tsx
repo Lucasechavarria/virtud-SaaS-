@@ -8,20 +8,12 @@ import { createClient } from '@/lib/supabase/client';
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useIsSubdomain } from '@/hooks/useIsSubdomain';
 
 export default function StudentQRPage() {
     const params = useParams();
     const tenantSlug = params.tenantSlug as string;
-    const [isSubdomain, setIsSubdomain] = useState(false);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const host = window.location.host.split(':')[0];
-            const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
-            const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
-            setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
-        }
-    }, []);
+    const { isSubdomain } = useIsSubdomain();
 
     const getLink = (path: string) => {
         return isSubdomain ? path : `/${tenantSlug}${path}`;

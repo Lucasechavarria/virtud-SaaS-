@@ -82,40 +82,37 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
         }
     }, [initialTemplate]);
 
+    const fetchStudents = async () => {
+        try {
+            setLoadingStudents(true);
+            setStudentsError(null);
+            const res = await fetch('/api/coach/students');
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al obtener alumnos');
+            }
+
+            if (data.students) {
+                setStudents(data.students);
+                if (data.students.length === 0) {
+                    setStudentsError('No hay alumnos asignados');
+                }
+            } else {
+                setStudentsError('Formato de respuesta inválido');
+            }
+        } catch (error: any) {
+            console.error('Error fetching students:', error);
+            setStudentsError(`Fallo al cargar alumnos: ${error.message || 'Error desconocido'}`);
+            toast.error('Error al cargar la lista de alumnos.');
+            setStudents([]);
+        } finally {
+            setLoadingStudents(false);
+        }
+    };
+
     // Fetch real students from Supabase
     useEffect(() => {
-        const fetchStudents = async () => {
-            try {
-                setLoadingStudents(true);
-                setStudentsError(null);
-                const res = await fetch('/api/coach/students');
-                const data = await res.json();
-
-                if (!res.ok) {
-                    throw new Error(data.error || 'Error al obtener alumnos');
-                }
-
-                if (data.students) {
-                    setStudents(data.students);
-                    if (data.students.length === 0) {
-                        setStudentsError('No hay alumnos asignados');
-                    }
-                } else {
-                    setStudentsError('Formato de respuesta inválido');
-                }
-            } catch (error: any) {
-                console.error('Error fetching students:', error);
-                setStudentsError(`Fallo al cargar alumnos: ${error.message || 'Error desconocido'}`);
-                // Fallback to mock data for demo
-                setStudents([
-                    { id: 'demo1', full_name: 'Juan Pérez (Demo)', email: 'juan@demo.com' },
-                    { id: 'demo2', full_name: 'María García (Demo)', email: 'maria@demo.com' },
-                ]);
-            } finally {
-                setLoadingStudents(false);
-            }
-        };
-
         fetchStudents();
     }, []);
 
@@ -317,8 +314,14 @@ export default function RoutineGenerator({ initialTemplate }: { initialTemplate?
                             Alumno
                         </label>
                         {studentsError && (
-                            <div className="mb-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2">
+                            <div className="mb-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-center justify-between">
                                 <p className="text-yellow-400 text-xs">⚠️ {studentsError}</p>
+                                <button
+                                    onClick={fetchStudents}
+                                    className="px-3 py-1 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 text-[10px] font-bold rounded uppercase tracking-wider transition-all shrink-0"
+                                >
+                                    Reintentar
+                                </button>
                             </div>
                         )}
                         <select

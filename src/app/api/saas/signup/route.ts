@@ -63,6 +63,25 @@ export async function POST(request: Request) {
             throw profileError;
         }
 
+        // 4. Actualizar metadatos de la aplicación en Supabase Auth (Claims de Seguridad)
+        const { error: updateAuthError } = await supabase.auth.admin.updateUserById(
+            userId,
+            {
+                app_metadata: {
+                    rol: 'admin',
+                    gimnasio_id: gymData.id
+                }
+            }
+        );
+
+        if (updateAuthError) {
+            // Cleanup
+            await supabase.from('perfiles').delete().eq('id', userId);
+            await supabase.from('gimnasios').delete().eq('id', gymData.id);
+            await supabase.auth.admin.deleteUser(userId);
+            throw updateAuthError;
+        }
+
         return NextResponse.json({
             success: true,
             message: 'Gimnasio y cuenta creados con éxito',

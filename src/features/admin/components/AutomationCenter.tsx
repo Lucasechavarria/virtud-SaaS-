@@ -84,10 +84,26 @@ export default function AutomationCenter() {
         tipo: 'recordatorio_pago' as Campaign['tipo'],
         mensaje_titulo: '',
         mensaje_cuerpo: '',
-        segmento: {}
+        segmento: {} as any
     });
 
     const [submitting, setSubmitting] = useState(false);
+    const [gymPlans, setGymPlans] = useState<any[]>([]);
+
+    const fetchGymPlans = async () => {
+        try {
+            const url = tenantSlug
+                ? `/api/admin/gym-plans?gymId=${tenantSlug}`
+                : '/api/admin/gym-plans';
+            const res = await fetch(url);
+            const data = await res.json();
+            if (res.ok && data.plans) {
+                setGymPlans(data.plans);
+            }
+        } catch (err) {
+            console.error('Error fetching plans for segmentation:', err);
+        }
+    };
 
     const fetchAutomationData = async () => {
         try {
@@ -112,6 +128,7 @@ export default function AutomationCenter() {
 
     useEffect(() => {
         fetchAutomationData();
+        fetchGymPlans();
     }, [tenantSlug]);
 
     const toggleStatus = async (id: string, currentStatus: string) => {
@@ -436,6 +453,81 @@ export default function AutomationCenter() {
                                         required
                                         disabled={submitting}
                                     />
+                                </div>
+
+                                {/* Advanced Segmentation Section */}
+                                <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
+                                    <h5 className="text-white font-bold text-xs uppercase tracking-wider">Filtros de Segmentación</h5>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block">Membresía</label>
+                                            <select
+                                                value={newCampaign.segmento.estado_membresia || ''}
+                                                onChange={e => setNewCampaign({
+                                                    ...newCampaign,
+                                                    segmento: { ...newCampaign.segmento, estado_membresia: e.target.value || undefined }
+                                                })}
+                                                className="w-full bg-[#1c1c1e] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none"
+                                            >
+                                                <option value="">Cualquiera</option>
+                                                <option value="active">Activa</option>
+                                                <option value="expired">Vencida</option>
+                                                <option value="suspended">Suspendida</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block">Inactividad</label>
+                                            <select
+                                                value={newCampaign.segmento.dias_inactivo || ''}
+                                                onChange={e => setNewCampaign({
+                                                    ...newCampaign,
+                                                    segmento: { ...newCampaign.segmento, dias_inactivo: e.target.value ? parseInt(e.target.value) : undefined }
+                                                })}
+                                                className="w-full bg-[#1c1c1e] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none"
+                                            >
+                                                <option value="">Cualquiera</option>
+                                                <option value="7">&gt; 7 días</option>
+                                                <option value="14">&gt; 14 días</option>
+                                                <option value="30">&gt; 30 días</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block">Plan Específico</label>
+                                            <select
+                                                value={newCampaign.segmento.plan_id || ''}
+                                                onChange={e => setNewCampaign({
+                                                    ...newCampaign,
+                                                    segmento: { ...newCampaign.segmento, plan_id: e.target.value || undefined }
+                                                })}
+                                                className="w-full bg-[#1c1c1e] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none"
+                                            >
+                                                <option value="">Todos los planes</option>
+                                                {gymPlans.map((plan: any) => (
+                                                    <option key={plan.id} value={plan.id}>{plan.nombre}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block">Género</label>
+                                            <select
+                                                value={newCampaign.segmento.gender || ''}
+                                                onChange={e => setNewCampaign({
+                                                    ...newCampaign,
+                                                    segmento: { ...newCampaign.segmento, gender: e.target.value || undefined }
+                                                })}
+                                                className="w-full bg-[#1c1c1e] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none"
+                                            >
+                                                <option value="">Todos</option>
+                                                <option value="male">Masculino</option>
+                                                <option value="female">Femenino</option>
+                                                <option value="other">Otro</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-4 pt-3">

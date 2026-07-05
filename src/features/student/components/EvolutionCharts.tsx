@@ -24,15 +24,22 @@ export function EvolutionCharts({ chartData, attendance, volumeData = [], itemVa
     const [activeTab, setActiveTab] = useState<'progress' | 'attendance' | 'strength'>('progress');
     const [timeRange, setTimeRange] = useState<'1m' | '3m' | 'all'>('all');
 
-    const filterDataByRange = (data: any[]) => {
+    const filterDataByRange = (data: any[], dateField: string) => {
         if (timeRange === 'all') return data;
         const months = timeRange === '1m' ? 1 : 3;
-        // Simulación de filtrado por semanas (asumiendo 4 semanas por mes)
-        return data.slice(-(months * 4));
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - months);
+        const cutoffTimestamp = cutoffDate.getTime();
+
+        return data.filter(item => {
+            const dateStr = item[dateField];
+            if (!dateStr) return false;
+            return Date.parse(dateStr) >= cutoffTimestamp;
+        });
     };
 
-    const filteredChartData = filterDataByRange(chartData);
-    const filteredVolumeData = filterDataByRange(volumeData);
+    const filteredChartData = filterDataByRange(chartData, 'registrado_en');
+    const filteredVolumeData = filterDataByRange(volumeData, 'fecha');
 
     const tabs = [
         { id: 'progress', label: 'Antropometría', icon: TrendingUp, color: 'text-emerald-500' },
@@ -204,7 +211,7 @@ export function EvolutionCharts({ chartData, attendance, volumeData = [], itemVa
                                         <XAxis dataKey="month" stroke="#ffffff20" tick={{ fill: '#666', fontSize: 10, fontWeight: 900, fontFamily: 'Rajdhani' }} axisLine={false} tickLine={false} />
                                         <YAxis stroke="#ffffff20" tick={{ fill: '#666', fontSize: 10, fontWeight: 900, fontFamily: 'Rajdhani' }} axisLine={false} tickLine={false} />
                                         <Tooltip cursor={{ fill: 'rgba(255,255,255,0.02)' }} contentStyle={{ backgroundColor: '#050505', border: '1px solid #ffffff10', borderRadius: '1.5rem', fontFamily: 'Rajdhani' }} />
-                                        <Bar dataKey="rate" name="Asistencia" fill="#00F5FF" radius={[4, 4, 0, 0]} barSize={30} />
+                                        <Bar dataKey="count" name="Asistencia" fill="#00F5FF" radius={[4, 4, 0, 0]} barSize={30} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             )}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -8,36 +8,60 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Mock Data
-const VOLUME_DATA = [
-    { week: 'Sem 1', kg: 12000, rpe: 7 },
-    { week: 'Sem 2', kg: 13500, rpe: 7.5 },
-    { week: 'Sem 3', kg: 15000, rpe: 8 },
-    { week: 'Sem 4', kg: 11000, rpe: 6 }, // Descarga
-    { week: 'Sem 5', kg: 16000, rpe: 8.5 },
-    { week: 'Sem 6', kg: 17500, rpe: 9 },
-];
+interface MetricsDashboardProps {
+    studentId?: string;
+    viewMode: 'individual' | 'group' | 'class';
+    gymId?: string;
+}
 
-const SKILLS_DATA = [
-    { subject: 'Fuerza', A: 120, fullMark: 150 },
-    { subject: 'Cardio', A: 98, fullMark: 150 },
-    { subject: 'Movilidad', A: 86, fullMark: 150 },
-    { subject: 'Potencia', A: 99, fullMark: 150 },
-    { subject: 'Resistencia', A: 85, fullMark: 150 },
-    { subject: 'Técnica', A: 65, fullMark: 150 },
-];
-
-const PROGRESS_DATA = [
-    { name: 'Ene', squat: 100, deadlift: 120, bench: 80 },
-    { name: 'Feb', squat: 110, deadlift: 130, bench: 85 },
-    { name: 'Mar', squat: 115, deadlift: 135, bench: 87.5 },
-    { name: 'Abr', squat: 125, deadlift: 145, bench: 92.5 },
-    { name: 'May', squat: 130, deadlift: 155, bench: 95 },
-    { name: 'Jun', squat: 140, deadlift: 165, bench: 100 },
-];
-
-export default function MetricsDashboard() {
+export default function MetricsDashboard({ studentId, viewMode, gymId }: MetricsDashboardProps) {
     const [activeTab, setActiveTab] = useState<'volume' | 'skills' | 'progress'>('volume');
+    const [loading, setLoading] = useState(true);
+    const [metrics, setMetrics] = useState<any>(null);
+
+    useEffect(() => {
+        const loadMetrics = async () => {
+            if (viewMode === 'individual' && !studentId) {
+                setMetrics(null);
+                setLoading(false);
+                return;
+            }
+            try {
+                setLoading(true);
+                const params = new URLSearchParams({
+                    mode: viewMode,
+                    ...(studentId && { studentId }),
+                    ...(gymId && { gymId })
+                });
+                const res = await fetch(`/api/coach/analytics?${params}`);
+                const data = await res.json();
+                if (data.success) {
+                    setMetrics(data.metrics);
+                }
+            } catch (err) {
+                console.error('Error fetching metrics in dashboard:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadMetrics();
+    }, [studentId, viewMode, gymId]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[500px] text-gray-500 animate-pulse">
+                Cargando métricas de rendimiento...
+            </div>
+        );
+    }
+
+    if (!metrics) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[500px] text-gray-500">
+                ⚠️ No hay datos de rendimiento disponibles.
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">
@@ -76,7 +100,7 @@ export default function MetricsDashboard() {
                         >
                             <h3 className="text-xl font-bold text-white mb-2">Volumen Semanal (Kg Totales)</h3>
                             <ResponsiveContainer width="100%" height="90%">
-                                <AreaChart data={VOLUME_DATA}>
+                                <AreaChart data={metrics.volume || []}>
                                     <defs>
                                         <linearGradient id="colorKg" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#f97316" stopOpacity={0.8} />
@@ -106,11 +130,11 @@ export default function MetricsDashboard() {
                         >
                             <h3 className="text-xl font-bold text-white mb-2">Perfil de Rendimiento</h3>
                             <ResponsiveContainer width="100%" height="90%">
-                                <RadarChart outerRadius="80%" data={SKILLS_DATA}>
+                                <RadarChart outerRadius="80%" data={metrics.skills || []}>
                                     <PolarGrid stroke="#333" />
                                     <PolarAngleAxis dataKey="subject" tick={{ fill: '#aaa', fontSize: 12 }} />
                                     <PolarRadiusAxis angle={30} domain={[0, 150]} stroke="#333" />
-                                    <Radar name="Alumnos Promedio" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.5} />
+                                    <Radar name={viewMode === 'individual' ? 'Alumno' : 'Promedio Grupal'} dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.5} />
                                     <Tooltip contentStyle={{ backgroundColor: '#1c1c1e', border: '1px solid #333', borderRadius: '12px' }} />
                                     <Legend />
                                 </RadarChart>
@@ -128,7 +152,7 @@ export default function MetricsDashboard() {
                         >
                             <h3 className="text-xl font-bold text-white mb-2">Evolución de Fuerza (1RM Estimado)</h3>
                             <ResponsiveContainer width="100%" height="90%">
-                                <LineChart data={PROGRESS_DATA}>
+                                <LineChart data={metrics.progress || []}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                                     <XAxis dataKey="name" stroke="#666" />
                                     <YAxis stroke="#666" />
@@ -146,9 +170,9 @@ export default function MetricsDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                    { label: 'Volumen Total', value: '45.2 Ton', trend: '+12%', color: 'text-orange-500' },
-                    { label: 'Asistencia Promedio', value: '88%', trend: '+5%', color: 'text-green-500' },
-                    { label: 'PRs este mes', value: '24', trend: 'Nuevo Récord', color: 'text-purple-500' },
+                    { label: 'Volumen Total', value: metrics?.prescribedVolume ? `${(metrics.prescribedVolume / 1000).toFixed(1)} Ton` : '0 Ton', trend: '+12%', color: 'text-orange-500' },
+                    { label: 'Asistencia Promedio', value: metrics?.summary?.attendanceRate ? `${metrics.summary.attendanceRate}%` : '0%', trend: '+5%', color: 'text-green-500' },
+                    { label: 'Clases Asistidas', value: metrics?.summary?.totalAttended || '0', trend: 'Total Histórico', color: 'text-purple-500' },
                 ].map((stat, i) => (
                     <motion.div
                         key={i}

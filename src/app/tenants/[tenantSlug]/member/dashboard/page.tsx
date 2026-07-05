@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
+import { useIsSubdomain } from '@/hooks/useIsSubdomain';
 import { StatsOverview } from '@/features/student/components/StatsOverview';
 import { EvolutionCharts } from '@/features/student/components/EvolutionCharts';
 import { RoutinePreview } from '@/features/student/components/RoutinePreview';
@@ -33,17 +34,8 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
     refreshData
   } = useStudentDashboard(tenantSlug);
 
-  const [isSubdomain, setIsSubdomain] = React.useState(false);
+  const { isSubdomain } = useIsSubdomain();
   const [unreadMessages, setUnreadMessages] = React.useState(0);
-
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const host = window.location.host.split(':')[0];
-      const isLocalhost = host.endsWith('localhost') || host === '127.0.0.1';
-      const baseDomain = isLocalhost ? 'localhost' : (host.endsWith('vercel.app') ? host : 'virtud.fit');
-      setIsSubdomain(host !== baseDomain && host !== `www.${baseDomain}`);
-    }
-  }, []);
 
   React.useEffect(() => {
     let channel: any = null;
@@ -126,13 +118,36 @@ export default function StudentDashboard({ params }: { params: Promise<{ tenantS
     week: p.registrado_en ? new Date(p.registrado_en).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }) : '--/--',
     peso: p.peso,
     grasa: p.grasa_corporal,
-    musculo: p.musculo_esqueletico
+    musculo: p.musculo_esqueletico,
+    registrado_en: p.registrado_en
   })) : [];
 
+  // Calcular tendencias reales de peso y grasa corporal
+  const computeTrend = (metric: string) => {
+    if (progress.length < 2) return null;
+    const sorted = [...progress]
+      .filter((p: Record<string, any>) => p[metric] != null)
+      .sort((a: Record<string, any>, b: Record<string, any>) =>
+        new Date(a.registrado_en).getTime() - new Date(b.registrado_en).getTime()
+      );
+    if (sorted.length < 2) return null;
+    const prev = sorted[sorted.length - 2][metric] as number;
+    const curr = sorted[sorted.length - 1][metric] as number;
+    const diff = curr - prev;
+    const pct = prev !== 0 ? Math.abs((diff / prev) * 100).toFixed(1) : '0';
+    return {
+      direction: diff > 0 ? 'up' : diff < 0 ? 'down' : 'stable',
+      label: diff > 0 ? `+${pct}%` : diff < 0 ? `-${pct}%` : 'Estable',
+    };
+  };
+
+  const pesoTrend = computeTrend('peso');
+  const grasaTrend = computeTrend('grasa_corporal');
+
   const stats = [
-    { label: 'Peso Actual', value: `${latestProgress?.peso || '--'} kg`, icon: '⚖️', trend: 'Objetivo Personal', color: 'from-blue-600 to-cyan-500' },
-    { label: 'Clases Asistidas', value: attendance.reduce((acc: number, curr: { rate: number }) => acc + (curr.rate || 0), 0).toString(), icon: '🗓️', trend: 'Total Histórico', color: 'from-purple-600 to-indigo-500' },
-    { label: 'Grasa Corporal', value: `${latestProgress?.grasa_corporal || '--'}%`, icon: '💧', trend: 'Bajo Control', color: 'from-primary/80 to-primary' },
+    { label: 'Peso Actual', value: `${latestProgress?.peso || '--'} kg`, icon: '⚖️', trend: pesoTrend ? `${pesoTrend.direction === 'up' ? '↑' : pesoTrend.direction === 'down' ? '↓' : '→'} ${pesoTrend.label}` : 'Objetivo Personal', color: 'from-blue-600 to-cyan-500' },
+    { label: 'Clases Asistidas', value: attendance.reduce((acc: number, curr: { count: number }) => acc + (curr.count || 0), 0).toString(), icon: '🗓️', trend: 'Total Histórico', color: 'from-purple-600 to-indigo-500' },
+    { label: 'Grasa Corporal', value: `${latestProgress?.grasa_corporal || '--'}%`, icon: '💧', trend: grasaTrend ? `${grasaTrend.direction === 'up' ? '↑' : grasaTrend.direction === 'down' ? '↓' : '→'} ${grasaTrend.label}` : 'Sin datos previos', color: 'from-primary/80 to-primary' },
     { label: 'Músculo', value: `${latestProgress?.musculo_esqueletico || '--'} kg`, icon: '💪', trend: 'En Aumento', color: 'from-emerald-600 to-teal-500' },
   ];
 
