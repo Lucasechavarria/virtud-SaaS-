@@ -361,7 +361,7 @@ export default function FinanceHubPage() {
                         { id: 'members', label: 'Cobros Alumnos', icon: <CreditCard size={14} /> },
                         { id: 'saas', label: 'Historial de Licencia', icon: <TrendingUp size={14} /> },
                         { id: 'saas_billing', label: 'Costo del Sistema e IA', icon: <Sparkles size={14} /> }
-                    ].filter(tab => userRole === 'superadmin' || tab.id === 'members').map(tab => (
+                    ].filter(tab => userRole === 'superadmin' || userRole === 'admin' || tab.id === 'members').map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveView(tab.id as any)}
