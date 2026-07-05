@@ -57,7 +57,7 @@ export default function FinanceHubPage() {
     const [selectedGym, setSelectedGym] = useState('all');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    
+
     // Estados del Monedero de IA
     const [billingSummary, setBillingSummary] = useState<any>(null);
     const [rechargeAmount, setRechargeAmount] = useState<string>('');
@@ -92,8 +92,8 @@ export default function FinanceHubPage() {
 
     const fetchGymInfo = async () => {
         try {
-            const url = gymId 
-                ? `/api/admin/gym/info?gymId=${gymId}` 
+            const url = gymId
+                ? `/api/admin/gym/info?gymId=${gymId}`
                 : '/api/admin/gym/info';
             const res = await fetch(url);
             const data = await res.json();
@@ -242,8 +242,8 @@ export default function FinanceHubPage() {
 
     const fetchLocalBillingDetails = async () => {
         try {
-            const url = gymId 
-                ? `/api/admin/gym/billing?gymId=${gymId}` 
+            const url = gymId
+                ? `/api/admin/gym/billing?gymId=${gymId}`
                 : '/api/admin/gym/billing';
             const res = await fetch(url);
             const data = await res.json();
@@ -564,7 +564,7 @@ export default function FinanceHubPage() {
 
                         {/* Interactive Wallet & Scenario Cockpit */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            
+
                             {/* AI Wallet Card */}
                             <div className="bg-[#121214]/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-between relative overflow-hidden shadow-2xl">
                                 <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl" />
@@ -613,11 +613,10 @@ export default function FinanceHubPage() {
                                                         key={val}
                                                         disabled={updatingWallet}
                                                         onClick={() => handleUpdateBillingConfig(val, billingMethod)}
-                                                        className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${
-                                                            alertThreshold === val
+                                                        className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${alertThreshold === val
                                                                 ? 'bg-amber-500 text-black shadow-md font-black'
                                                                 : 'text-zinc-500 hover:text-white'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         ${val} USD
                                                     </button>
@@ -644,11 +643,10 @@ export default function FinanceHubPage() {
                                                         key={opt.id}
                                                         disabled={updatingWallet}
                                                         onClick={() => handleUpdateBillingConfig(alertThreshold, opt.id as any)}
-                                                        className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                                                            billingMethod === opt.id
+                                                        className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${billingMethod === opt.id
                                                                 ? 'bg-emerald-600 text-white font-black'
                                                                 : 'text-zinc-500 hover:text-white'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {opt.label}
                                                     </button>
@@ -694,7 +692,7 @@ export default function FinanceHubPage() {
                             <div className="bg-[#121214]/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/5 space-y-6 shadow-2xl flex flex-col justify-between">
                                 <div>
                                     <h4 className="text-xs font-black text-white uppercase tracking-wider mb-4">Consumo de Inteligencia Artificial este Mes</h4>
-                                    
+
                                     <div className="space-y-6">
                                         {/* Videos progress bar */}
                                         <div className="space-y-2">
@@ -845,11 +843,10 @@ export default function FinanceHubPage() {
                                             .map((tx: any, idx: number) => (
                                                 <div key={idx} className="bg-black/40 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
                                                     <div className="flex items-center gap-4">
-                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
-                                                            tx.monto > 0 
-                                                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${tx.monto > 0
+                                                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                                                                 : 'bg-red-500/10 text-red-500 border-red-500/20'
-                                                        }`}>
+                                                            }`}>
                                                             {tx.monto > 0 ? <TrendingUp size={16} className="text-emerald-400" /> : <TrendingUp size={16} className="text-red-400 rotate-180" />}
                                                         </div>
                                                         <div>
@@ -929,7 +926,7 @@ export default function FinanceHubPage() {
                                     const cleanFeatures = Array.isArray(p.caracteristicas)
                                         ? p.caracteristicas.map(mapFeatureToSpanish)
                                         : [];
-                                    
+
                                     const finalFeatures = [
                                         `${p.limite_sucursales === 9999 || p.limite_sucursales === 0 ? 'Sedes ilimitadas' : `Hasta ${p.limite_sucursales} sedes`}`,
                                         `${p.limite_usuarios === 9999 || p.limite_usuarios === 0 ? 'Alumnos ilimitados' : `Hasta ${p.limite_usuarios} alumnos`}`,
@@ -940,15 +937,14 @@ export default function FinanceHubPage() {
                                     const isFeatured = idx === 1 || p.nombre.toLowerCase().includes('pro') || p.nombre.toLowerCase().includes('profesional');
 
                                     return (
-                                        <div 
+                                        <div
                                             key={p.id}
-                                            className={`p-8 rounded-[2.5rem] border flex flex-col justify-between transition-all duration-300 relative overflow-hidden ${
-                                                isCurrentPlan 
-                                                    ? 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.05)]' 
-                                                    : isFeatured 
-                                                        ? 'bg-gradient-to-br from-emerald-600 to-emerald-800 border-emerald-500 shadow-xl shadow-emerald-900/20' 
+                                            className={`p-8 rounded-[2.5rem] border flex flex-col justify-between transition-all duration-300 relative overflow-hidden ${isCurrentPlan
+                                                    ? 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.05)]'
+                                                    : isFeatured
+                                                        ? 'bg-gradient-to-br from-emerald-600 to-emerald-800 border-emerald-500 shadow-xl shadow-emerald-900/20'
                                                         : 'bg-white/5 border-white/10 hover:border-white/20'
-                                            }`}
+                                                }`}
                                         >
                                             {isCurrentPlan && (
                                                 <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[8px] font-black px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest">
@@ -960,7 +956,7 @@ export default function FinanceHubPage() {
                                                     Recomendado
                                                 </div>
                                             )}
-                                            
+
                                             <div>
                                                 <h4 className="text-lg font-black italic uppercase tracking-tight text-white mb-4">
                                                     {p.nombre}
@@ -988,18 +984,17 @@ export default function FinanceHubPage() {
                                             <button
                                                 disabled={isCurrentPlan || initiatingPaymentPlanId !== null}
                                                 onClick={() => handleInitiatePlanPayment(p.id)}
-                                                className={`w-full py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${
-                                                    isCurrentPlan 
-                                                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5' 
-                                                        : isFeatured 
-                                                            ? 'bg-white text-emerald-950 hover:bg-zinc-100 shadow-md' 
+                                                className={`w-full py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${isCurrentPlan
+                                                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+                                                        : isFeatured
+                                                            ? 'bg-white text-emerald-950 hover:bg-zinc-100 shadow-md'
                                                             : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                                                }`}
+                                                    }`}
                                             >
-                                                {initiatingPaymentPlanId === p.id 
-                                                    ? 'Procesando...' 
-                                                    : isCurrentPlan 
-                                                        ? 'Tu Plan Actual' 
+                                                {initiatingPaymentPlanId === p.id
+                                                    ? 'Procesando...'
+                                                    : isCurrentPlan
+                                                        ? 'Tu Plan Actual'
                                                         : `Elegir ${p.nombre}`}
                                             </button>
                                         </div>
@@ -1057,7 +1052,7 @@ function MemberPaymentRow({ payment, index }: { payment: Payment, index: number 
             <div className="flex items-center gap-6">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all duration-300 ${payment.estado === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                     payment.estado === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    'bg-red-500/10 text-red-400 border-red-500/20'
+                        'bg-red-500/10 text-red-400 border-red-500/20'
                     }`}>
                     {payment.estado === 'approved' ? <CheckCircle2 size={24} /> : payment.estado === 'pending' ? <Clock size={24} /> : <XCircle size={24} />}
                 </div>
