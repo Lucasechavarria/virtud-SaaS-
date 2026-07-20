@@ -11,6 +11,10 @@ export async function GET(request: Request) {
     let offset = parseInt(searchParams.get('offset') || '0');
     if (isNaN(limit) || limit < 1) limit = 100;
     if (isNaN(offset) || offset < 0) offset = 0;
+
+    // Límite adaptativo de seguridad para prevenir sobrecarga (1000 para admins, 100 para consultas generales)
+    const maxLimit = (profile?.role === 'admin' || profile?.role === 'superadmin') ? 1000 : 100;
+    limit = Math.min(limit, maxLimit);
     const type = searchParams.get('type') || 'all';
 
     const startDate = searchParams.get('startDate');
@@ -22,6 +26,27 @@ export async function GET(request: Request) {
     let formattedEndDate = endDate;
     if (endDate && endDate.length === 10) {
         formattedEndDate = `${endDate}T23:59:59.999Z`;
+    }
+
+    // Validar intento de bypass de seguridad si un admin local intenta consultar otro gimnasio
+    if (profile?.role !== 'superadmin' && gymIdParam && gymIdParam !== profile?.gimnasio_id) {
+        const adminClient = createAdminClient();
+        await adminClient.from('logs_seguridad_global').insert({
+            usuario_id: profile?.id,
+            gimnasio_origen_id: profile?.gimnasio_id,
+            gimnasio_destino_intentado_id: gymIdParam,
+            tipo_evento: 'SECURITY_VIOLATION',
+            detalles: {
+                error: 'Intento de acceso no autorizado a logs de otro gimnasio',
+                path: request.url,
+                rol: profile?.role
+            }
+        });
+
+        return NextResponse.json({
+            error: 'Forbidden',
+            message: 'No tiene permisos para acceder a los datos de este gimnasio'
+        }, { status: 403 });
     }
 
     // Resolver el gimnasio objetivo para el admin/superadmin

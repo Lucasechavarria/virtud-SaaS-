@@ -192,4 +192,59 @@ describe('Audit Logs API Route', () => {
 
         expect(response.status).toBe(403);
     });
+
+    it('should fail with 403 and log violation if admin tries to query another gymId', async () => {
+        (authenticateAndRequireRole as jest.Mock).mockResolvedValue({
+            supabase: mockSupabase,
+            profile: { id: 'admin123', role: 'admin', gimnasio_id: 'gym_propio' },
+            error: null
+        });
+
+        // Configurar mock de insert para logs_seguridad_global
+        const insertMock = jest.fn().mockResolvedValue({ error: null });
+        mockSupabase.from = jest.fn().mockImplementation((table: string) => {
+            if (table === 'logs_seguridad_global') {
+                return { insert: insertMock };
+            }
+            return mockSupabase;
+        });
+
+        const request = new NextRequest('http://localhost:3000/api/admin/audit-logs?gymId=gym_ajeno');
+        const response = await GET(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(403);
+        expect(data.error).toBe('Forbidden');
+        expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({
+            usuario_id: 'admin123',
+            gimnasio_origen_id: 'gym_propio',
+            gimnasio_destino_intentado_id: 'gym_ajeno',
+            tipo_evento: 'SECURITY_VIOLATION'
+        }));
+    });
+
+    it('should cap the limit parameter at 1000 for admins requesting excessive logs', async () => {
+        (authenticateAndRequireRole as jest.Mock).mockResolvedValue({
+            supabase: mockSupabase,
+            profile: { role: 'admin', gimnasio_id: 'gym123' },
+            error: null
+        });
+
+        (resolveGymIdForAdmin as jest.Mock).mockResolvedValue({
+            targetGymId: 'gym123'
+        });
+
+        const mockSystemLogs = [{ id: '1', tabla: 'pagos', operacion: 'UPDATE', creado_en: '2026-06-23T20:00:00Z', gimnasio_id: 'gym123' }];
+        mockSupabase.then.mockImplementationOnce((callback: any) => {
+            callback({ data: mockSystemLogs, error: null });
+        });
+
+        // Solicitar un limit de 2000
+        const request = new NextRequest('http://localhost:3000/api/admin/audit-logs?type=system&limit=2000');
+        const response = await GET(request);
+
+        expect(response.status).toBe(200);
+        // Debe haber invocado range con offset y limit capado a 1000 (0 a 999)
+        expect(mockSupabase.range).toHaveBeenCalledWith(0, 999);
+    });
 });
