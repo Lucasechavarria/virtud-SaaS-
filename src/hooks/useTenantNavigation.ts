@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useIsSubdomain } from './useIsSubdomain';
 
 /**
@@ -9,6 +9,7 @@ import { useIsSubdomain } from './useIsSubdomain';
  */
 export function useTenantNavigation() {
     const params = useParams();
+    const router = useRouter();
     const tenantSlug = (params?.tenantSlug as string) || '';
     const { isSubdomain } = useIsSubdomain();
 
@@ -28,9 +29,24 @@ export function useTenantNavigation() {
         return cleanPath;
     };
 
+    const tenantPush = (path: string) => {
+        const targetUrl = tenantHref(path);
+        router.push(targetUrl);
+    };
+
+    const tenantLogin = () => {
+        if (tenantSlug) {
+            router.push(`/login?tenant=${tenantSlug}`);
+        } else {
+            router.push('/login');
+        }
+    };
+
     return {
         tenantSlug,
         isSubdomain,
-        tenantHref
+        tenantHref,
+        tenantPush,
+        tenantLogin
     };
 }

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import { useTenantNavigation } from '@/hooks/useTenantNavigation';
 
 const REPORT_TYPES = [
     { id: 'pain', label: 'Dolor/Molestia', icon: '🔴', description: 'Siento dolor o molestia física' },
@@ -13,6 +14,7 @@ const REPORT_TYPES = [
 ];
 
 export default function ReportIssuePage({ _params }: { _params: { gymId: string } }) {
+    const { tenantPush } = useTenantNavigation();
     const router = useRouter();
     const [formData, setFormData] = useState({
         tipo: '',
@@ -46,7 +48,7 @@ export default function ReportIssuePage({ _params }: { _params: { gymId: string 
 
 
             toast.success('Tu reporte ha sido enviado al coach exitosamente');
-            router.push('/dashboard');
+            tenantPush('/member/dashboard');
         } catch (error) {
             console.error('Error:', error);
             toast.error('Error al enviar el reporte. Intenta nuevamente.');
