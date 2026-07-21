@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import RegistrationForm from '@/features/profile/components/RegistrationForm';
 import { authService } from '@/services/auth.service';
+import { useTenantNavigation } from '@/hooks/useTenantNavigation';
 
 export default function CompleteProfilePage() {
-    const router = useRouter();
+    const { tenantPush, tenantLogin } = useTenantNavigation();
     const [userId, setUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -15,20 +15,20 @@ export default function CompleteProfilePage() {
             try {
                 const user = await authService.getCurrentUser();
                 if (!user) {
-                    router.push('/login');
+                    tenantLogin();
                     return;
                 }
                 setUserId(user.id);
             } catch (error) {
                 console.error(error);
-                router.push('/login');
+                tenantLogin();
             } finally {
                 setLoading(false);
             }
         };
 
         checkUser();
-    }, [router]);
+    }, []);
 
     if (loading) {
         return (
@@ -49,7 +49,7 @@ export default function CompleteProfilePage() {
 
             <RegistrationForm
                 userId={userId}
-                onComplete={() => router.push('/dashboard')}
+                onComplete={() => tenantPush('/member/dashboard')}
             />
         </div>
     );

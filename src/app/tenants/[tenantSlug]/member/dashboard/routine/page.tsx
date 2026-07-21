@@ -16,8 +16,11 @@ import {
     Info,
     CheckCircle2,
     Circle,
-    Play
+    Play,
+    Sparkles
 } from 'lucide-react';
+import { useTenantNavigation } from '@/hooks/useTenantNavigation';
+import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 
 interface Exercise {
@@ -50,6 +53,8 @@ interface Routine {
 }
 
 export default function MyRoutinePage({ params }: { params?: any }) {
+    const supabase = createClient();
+    const { tenantPush } = useTenantNavigation();
     const router = useRouter();
     const [routine, setRoutine] = useState<Routine | null>(null);
     const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -138,29 +143,166 @@ export default function MyRoutinePage({ params }: { params?: any }) {
         );
     }
 
+    const handleSelectGenericRoutine = async (goal: { nombre: string; objetivo: string; duracion: string; dias: number; ejercicios: any[] }) => {
+        if (!userId) return;
+        setLoading(true);
+        try {
+            const { data: newRoutine, error: rError } = await (supabase as any)
+                .from('rutinas')
+                .insert({
+                    usuario_id: userId,
+                    nombre: goal.nombre,
+                    objetivo: goal.objetivo,
+                    duracion_estimada: goal.duracion,
+                    nivel: 'Intermedio',
+                    creado_por_ia: false,
+                    es_plantilla: false,
+                    creado_en: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (rError) throw rError;
+
+            // Insertar ejercicios para la rutina genérica
+            const exercisesToInsert = goal.ejercicios.map((ex, idx) => ({
+                rutina_id: newRoutine.id,
+                nombre: ex.nombre,
+                grupo_muscular: ex.grupo_muscular,
+                series: ex.series,
+                repeticiones: ex.repeticiones,
+                descanso_segundos: ex.descanso_segundos,
+                dia_numero: ex.dia_numero || 1,
+                orden: idx + 1,
+                esta_completado: false
+            }));
+
+            await (supabase as any).from('rutina_ejercicios').insert(exercisesToInsert);
+
+            toast.success(`¡Rutina "${goal.nombre}" activada exitosamente!`);
+            setRoutine(newRoutine);
+            setExercises(exercisesToInsert as any);
+        } catch (err: any) {
+            console.error('Error al activar rutina genérica:', err);
+            toast.error('Error al asignar la rutina. Intenta nuevamente.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (!routine) {
+        const genericGoals = [
+            {
+                id: 'hypertrophy',
+                nombre: 'Hipertrofia 4 Días',
+                objetivo: 'Masa Muscular',
+                duracion: '60 min',
+                dias: 4,
+                icon: '🏋️',
+                desc: 'Enfocado en volumen muscular, tensión mecánica y bombeo.',
+                ejercicios: [
+                    { nombre: 'Press de Banca Plano', grupo_muscular: 'Pecho', series: 4, repeticiones: '8-10', descanso_segundos: 90, dia_numero: 1 },
+                    { nombre: 'Remo con Barra', grupo_muscular: 'Espalda', series: 4, repeticiones: '8-10', descanso_segundos: 90, dia_numero: 1 },
+                    { nombre: 'Press Militar con Mancuernas', grupo_muscular: 'Hombros', series: 3, repeticiones: '10-12', descanso_segundos: 60, dia_numero: 1 },
+                    { nombre: 'Curl de Biceps con Barra', grupo_muscular: 'Biceps', series: 3, repeticiones: '12-15', descanso_segundos: 60, dia_numero: 1 },
+                    { nombre: 'Extensión de Triceps en Polea', grupo_muscular: 'Triceps', series: 3, repeticiones: '12-15', descanso_segundos: 60, dia_numero: 1 }
+                ]
+            },
+            {
+                id: 'fatloss',
+                nombre: 'Pérdida de Grasa & Cardio',
+                objetivo: 'Definición & HIIT',
+                duracion: '45 min',
+                dias: 4,
+                icon: '🔥',
+                desc: 'Circuitos metabólicos para maximizar la quema de calorías.',
+                ejercicios: [
+                    { nombre: 'Burpees Metabólicos', grupo_muscular: 'Full Body', series: 4, repeticiones: '15', descanso_segundos: 45, dia_numero: 1 },
+                    { nombre: 'Kettlebell Swings', grupo_muscular: 'Cadena Posterior', series: 4, repeticiones: '20', descanso_segundos: 45, dia_numero: 1 },
+                    { nombre: 'Mountain Climbers', grupo_muscular: 'Core', series: 4, repeticiones: '30 seg', descanso_segundos: 30, dia_numero: 1 },
+                    { nombre: 'Sentadillas con Salto', grupo_muscular: 'Piernas', series: 4, repeticiones: '15', descanso_segundos: 45, dia_numero: 1 }
+                ]
+            },
+            {
+                id: 'strength',
+                nombre: 'Fuerza Máxima 5x5',
+                objetivo: 'Fuerza Bruta',
+                duracion: '60 min',
+                dias: 3,
+                icon: '⚡',
+                desc: 'Levantamientos pesados multiarticulares para ganancia de fuerza.',
+                ejercicios: [
+                    { nombre: 'Sentadilla Trasera Pesada', grupo_muscular: 'Piernas', series: 5, repeticiones: '5', descanso_segundos: 180, dia_numero: 1 },
+                    { nombre: 'Press de Banca Pesado', grupo_muscular: 'Pecho', series: 5, repeticiones: '5', descanso_segundos: 180, dia_numero: 1 },
+                    { nombre: 'Peso Muerto Convencional', grupo_muscular: 'Espalda/Piernas', series: 3, repeticiones: '5', descanso_segundos: 180, dia_numero: 1 }
+                ]
+            },
+            {
+                id: 'calisthenics',
+                nombre: 'Calistenia & Peso Corporal',
+                objetivo: 'Dominio Corporal',
+                duracion: '50 min',
+                dias: 4,
+                icon: '🤸',
+                desc: 'Ejercicios gimnásticos y control de peso corporal.',
+                ejercicios: [
+                    { nombre: 'Dominadas Pronas', grupo_muscular: 'Espalda', series: 4, repeticiones: '8-10', descanso_segundos: 90, dia_numero: 1 },
+                    { nombre: 'Fondos en Paralelas', grupo_muscular: 'Pecho/Triceps', series: 4, repeticiones: '10-12', descanso_segundos: 90, dia_numero: 1 },
+                    { nombre: 'Flexiones de Brazo Diamante', grupo_muscular: 'Triceps', series: 3, repeticiones: '12-15', descanso_segundos: 60, dia_numero: 1 },
+                    { nombre: 'Elevación de Piernas Colgado', grupo_muscular: 'Core', series: 4, repeticiones: '12', descanso_segundos: 60, dia_numero: 1 }
+                ]
+            }
+        ];
+
         return (
-            <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-6 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-orange-500/5 rounded-full blur-[120px] pointer-events-none" />
-                <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="text-center max-w-md relative z-10 p-12 rounded-[3rem] bg-zinc-900/50 backdrop-blur-3xl border border-white/5 shadow-2xl"
-                >
-                    <div className="w-20 h-20 bg-black/40 rounded-3xl flex items-center justify-center border border-white/5 mx-auto mb-8 shadow-inner">
-                        <Activity size={40} className="text-zinc-800" />
+            <div className="min-h-screen bg-[#09090b] text-white p-6 md:p-12 font-rajdhani selection:bg-orange-500/30 pb-32">
+                <div className="max-w-5xl mx-auto space-y-8">
+                    <div className="text-center space-y-3">
+                        <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 px-4 py-1.5 rounded-full text-orange-400 text-xs font-black uppercase tracking-[0.3em]">
+                            <Sparkles size={14} /> Sin Plan Asignado por Coach
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">
+                            Elige tu Rutina Genérica Táctica
+                        </h1>
+                        <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest max-w-lg mx-auto">
+                            Selecciona tu objetivo de entrenamiento actual para activar tu plan e iniciar inmediatamente en el WorkoutPlayer.
+                        </p>
                     </div>
-                    <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase mb-4">Misión Pendiente</h2>
-                    <p className="text-zinc-500 font-medium mb-10 leading-relaxed italic">
-                        "El comando central está procesando tu plan de entrenamiento. Mantente a la espera de nuevas directivas."
-                    </p>
-                    <button
-                        onClick={() => router.push('/dashboard')}
-                        className="w-full px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all border border-white/10"
-                    >
-                        Abortar y Volver
-                    </button>
-                </motion.div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {genericGoals.map((goal) => (
+                            <motion.div
+                                key={goal.id}
+                                whileHover={{ scale: 1.02, y: -4 }}
+                                className="bg-zinc-900/60 border border-white/10 p-8 rounded-[2.5rem] space-y-6 relative overflow-hidden backdrop-blur-3xl shadow-2xl flex flex-col justify-between group"
+                            >
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-start">
+                                        <span className="text-4xl">{goal.icon}</span>
+                                        <span className="bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full text-orange-400 text-[10px] font-black uppercase tracking-widest">
+                                            {goal.dias} Días / Sem
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">{goal.nombre}</h3>
+                                        <p className="text-xs font-bold text-zinc-400 mt-1 leading-relaxed">{goal.desc}</p>
+                                    </div>
+                                    <div className="pt-4 border-t border-white/5 flex items-center justify-between text-xs text-zinc-500 font-bold uppercase tracking-widest">
+                                        <span>Duración: {goal.duracion}</span>
+                                        <span>{goal.ejercicios.length} Ejercicios Clave</span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => handleSelectGenericRoutine(goal)}
+                                    className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-[0.2em] shadow-xl shadow-orange-500/20 transition-all flex items-center justify-center gap-2 group-hover:scale-[1.02]"
+                                >
+                                    <Play size={16} className="fill-white" /> ACTIVAR RUTINA Y EMPEZAR ➜
+                                </button>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
             </div>
         );
     }

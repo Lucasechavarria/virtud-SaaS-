@@ -310,32 +310,25 @@ export default function StudentProgressPage() {
                                     <thead>
                                         <tr className="border-b border-zinc-800">
                                             <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Fecha</th>
-                                            <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Zona</th>
-                                            <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-right">Resultado</th>
+                                            <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Pecho</th>
+                                            <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Cintura</th>
+                                            <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Cadera</th>
+                                            <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Brazos</th>
+                                            <th className="pb-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Piernas</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-zinc-800/50">
                                         {progress.mediciones.slice().reverse().map((m, idx) => (
                                             <tr key={idx} className="group hover:bg-white/5 transition-colors">
-                                                <td className="py-6">
+                                                <td className="py-5">
                                                     <p className="text-xs font-black text-white">{new Date(m.fecha).toLocaleDateString('es-AR')}</p>
-                                                    <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Métrica Bio</p>
+                                                    <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Medición</p>
                                                 </td>
-                                                <td className="py-6">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {['Pecho', 'Cintura', 'Cadera', 'Brazos', 'Piernas'].map(part => (
-                                                            <span key={part} className="text-[9px] font-black bg-zinc-800 px-2 py-1 rounded text-zinc-400 uppercase tracking-tighter">{part}</span>
-                                                        ))}
-                                                    </div>
-                                                </td>
-                                                <td className="py-6 text-right">
-                                                    <div className="flex flex-col items-end gap-1">
-                                                        <span className="text-white font-black text-sm">{m.cintura} cm</span>
-                                                        <span className="text-[8px] font-black text-emerald-500 flex items-center gap-1 uppercase tracking-widest">
-                                                            <ArrowDownRight size={10} /> Reducción
-                                                        </span>
-                                                    </div>
-                                                </td>
+                                                <td className="py-5 text-center font-mono font-bold text-xs text-emerald-400">{m.pecho || '-'} cm</td>
+                                                <td className="py-5 text-center font-mono font-bold text-xs text-cyan-400">{m.cintura || '-'} cm</td>
+                                                <td className="py-5 text-center font-mono font-bold text-xs text-purple-400">{m.cadera || '-'} cm</td>
+                                                <td className="py-5 text-center font-mono font-bold text-xs text-amber-400">{m.brazos || '-'} cm</td>
+                                                <td className="py-5 text-center font-mono font-bold text-xs text-orange-400">{m.piernas || '-'} cm</td>
                                             </tr>
                                         ))}
                                     </tbody>
